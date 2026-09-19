@@ -1,18 +1,11 @@
-[gd_scene load_steps=12 format=3]
+[gd_scene load_steps=10 format=3]
 
 [ext_resource type="Script" path="res://src/UI/MenuScreen.cs" id="1"]
 [ext_resource type="PackedScene" path="res://assets/models/guns/m4/m4.fbx" id="2"]
-[ext_resource type="Texture2D" path="res://assets/models/guns/m4/m4_tex.png" id="3"]
 [ext_resource type="PackedScene" path="res://assets/models/monsters/rock_warrior/RockWarrior.FBX" id="4"]
 [ext_resource type="AnimationLibrary" path="res://assets/models/monsters/rock_warrior/rock_warrior_anims.tres" id="5"]
 [ext_resource type="Material" path="res://assets/models/monsters/rock_warrior/rock_warrior_mat.tres" id="6"]
-[ext_resource type="Texture2D" path="res://assets/effects/textures/fps_flame1.png" id="7"]
-
-[sub_resource type="StandardMaterial3D" id="M4Mat"]
-albedo_texture = ExtResource("3")
-emission_enabled = true
-emission = Color(0.4, 0.4, 0.4, 1)
-emission_texture = ExtResource("3")
+[ext_resource type="Script" path="res://src/Effects/MuzzleFlash.cs" id="7"]
 
 [sub_resource type="Environment" id="Env"]
 background_mode = 1
@@ -60,18 +53,12 @@ fov = 60.0
 near = 0.01
 
 [node name="M4View" type="Node3D" parent="ViewportLayer/SubViewportContainer/SubViewport/Camera3D"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.2, -0.078, -0.177)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.15, -0.0835, -0.16)
 
 [node name="Model" type="Node3D" parent="ViewportLayer/SubViewportContainer/SubViewport/Camera3D/M4View"]
-transform = Transform3D(0.35, 0, 0, 0, 0.35, 0, 0, 0, 0.35, 0, 0, -0.021)
+transform = Transform3D(-0.35, 0, 0, 0, 0.35, 0, 0, 0, -0.35, 0, 0, -0.021)
 
 [node name="m4" parent="ViewportLayer/SubViewportContainer/SubViewport/Camera3D/M4View/Model" instance=ExtResource("2")]
-
-[node name="M4_Gun" parent="ViewportLayer/SubViewportContainer/SubViewport/Camera3D/M4View/Model/m4" index="0"]
-surface_material_override/0 = SubResource("M4Mat")
-
-[node name="M4_Magazine" parent="ViewportLayer/SubViewportContainer/SubViewport/Camera3D/M4View/Model/m4/M4_Gun" index="0"]
-surface_material_override/0 = SubResource("M4Mat")
 
 [node name="M4_Shell" parent="ViewportLayer/SubViewportContainer/SubViewport/Camera3D/M4View/Model/m4/M4_Gun" index="1"]
 visible = false
@@ -86,17 +73,7 @@ surface_material_override/0 = SubResource("LazerMat")
 [node name="MuzzleFlash" type="Node3D" parent="ViewportLayer/SubViewportContainer/SubViewport/Camera3D/M4View"]
 visible = false
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.2069)
-
-[node name="Flash" type="Sprite3D" parent="ViewportLayer/SubViewportContainer/SubViewport/Camera3D/M4View/MuzzleFlash"]
-cast_shadow = 0
-shaded = false
-texture = ExtResource("7")
-scale = Vector3(0.4, 0.4, 0.4)
-
-[node name="Light" type="OmniLight3D" parent="ViewportLayer/SubViewportContainer/SubViewport/Camera3D/M4View/MuzzleFlash"]
-light_color = Color(1, 0.393, 0, 1)
-light_energy = 0.0
-omni_range = 6.0
+script = ExtResource("7")
 
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="ViewportLayer/SubViewportContainer/SubViewport"]
 transform = Transform3D(-0.2355, 0, 0.9714, -0.1837, 0.9822, -0.0445, -0.955, -0.1891, -0.2315, 0, 3, 0)

@@ -10,6 +10,7 @@ G:\FPSGame\
 ├── game/           # 游戏工程(C#/.NET 8,主工程)
 │   ├── src/Core/       # Game(场景状态/流转)、AudioService(音乐音效)、SaveService(存档/金币)、ConfigService(远程配置)
 │   ├── src/Input/      # InputRouter(UDP 体感枪/键盘回落/鼠标光枪路由)、GunMath(四元数镜像)、UdpDeviceServer、MouseGunSource、AimState
+│   ├── src/Effects/    # MuzzleFlash(枪口火光,1:1 移植 Unity FPS Pack MuzzleFlash1.prefab:火焰翻页+烟雾+灯光曲线)
 │   ├── src/Player/     # PlayerState(双玩家/受击/金币 HUD)、Player(单玩家数据)
 │   ├── src/UI/         # MenuScreen、StartupScreen、LevelChooseScreen、DeviceConnectionScreen、LoadingScreen、
 │   │                   # MessageBox、UiKit(坐标构建辅助)、UiTheme、JustRotate、GunUiController、UiButton3D
@@ -31,7 +32,8 @@ Autoload 顺序:Game → SaveService → AudioService → PlayerState → InputR
 
 ## 操作(主菜单)
 
-- **鼠标模拟光枪**(无实体枪时自动生效):移动 = 瞄准(枪口跟随,按钮悬停高亮),左键 = 扳机,右键 = 换枪。
+- **鼠标模拟光枪**(无实体枪时自动生效):移动 = 瞄准(枪口跟随,按钮悬停高亮),左键 = 扳机,右键 = 换枪;
+  单人游戏 → "选择控制方式"弹框可选 **鼠标** 模式(原作只有 手机/遥控器 两键,鼠标为新增第三键)。
 - **键盘**:方向键焦点导航(默认选中单人游戏),回车 = 确认,Esc = 返回(选关页)。
 - **键盘调试战斗模式**:主菜单 → 单人游戏 → 选"遥控器";方向键瞄准(±45°)、回车射击、Menu 键或 LeftAlt 换枪。
 
@@ -53,17 +55,18 @@ Autoload 顺序:Game → SaveService → AudioService → PlayerState → InputR
 G=G:/FPSGame/godot/bin/godot.windows.editor.x86_64.mono.exe
 cd /g/FPSGame/game
 dotnet build                                                 # 先编译 C#
-$G --headless --path . scenes/ui/menu.tscn -- --menu-selftest   # 22 项(主菜单 1:1)
+$G --headless --path . scenes/ui/menu.tscn -- --menu-selftest   # 28 项(主菜单 1:1)
 ```
 
 截图对照(窗口模式,可指定分辨率):
 
 ```bash
 $G --path . scenes/ui/menu.tscn -- --shot:<out.png>  --shot-res:1920x1080   # 主菜单
-$G --path . scenes/ui/menu.tscn -- --shot-box:<out.png>                     # 带单人弹框
+$G --path . scenes/ui/menu.tscn -- --shot-box:<out.png>                     # 带单人弹框(三键)
+$G --path . scenes/ui/menu.tscn -- --shot-flash:<out.png>                   # 枪口火光峰值帧
 ```
 
-Unity 侧真值:`G:\test\FPSGame\Assets\Editor\MenuScreenshot.cs`(GUI 模式 `-executeMethod MenuScreenshot.Capture` / `.CaptureStill`),几何测量 `MenuMeasure.cs -executeMethod MenuMeasure.Dump`。
+Unity 侧真值:`G:\test\FPSGame\Assets\Editor\MenuScreenshot.cs`(GUI 模式 `-executeMethod MenuScreenshot.Capture` / `.CaptureStill`),几何测量 `MenuMeasure.cs -executeMethod MenuMeasure.Dump`,枪口火光 `FlashScreenshot.cs -executeMethod FlashScreenshot.Capture`(FLASH_ISO=nosmoke/noflame 可隔离子效果)。
 
 ## 导出
 

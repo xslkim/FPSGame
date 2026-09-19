@@ -10,6 +10,7 @@ public static class UiKit
 {
     public const string TexDir = "res://assets/textures/ui/";
     public const string TexMenuDir = "res://assets/textures/ui/menu/";
+    public const string TexFxDir = "res://assets/effects/textures/";
     public const string FontBttPath = "res://assets/fonts/btt.ttf";
 
     /// <summary>全屏锚定根容器(不占位、不吞输入)</summary>

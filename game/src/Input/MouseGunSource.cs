@@ -41,11 +41,12 @@ public sealed class MouseGunSource
     /// <summary>扣扳机。自动化测试可直接调用以绕过合成事件管线。</summary>
     public void SimulateTrigger() => Triggered?.Invoke();
 
-    /// <summary>鼠标是否当前担当右路瞄准源(模式含右玩家且实体枪未连)</summary>
+    /// <summary>鼠标是否当前担当右路瞄准源(模式含右玩家或为鼠标模式,且实体枪未连)</summary>
     public bool IsActiveForRight(InputRouter router) =>
         Enabled && !router.IsRingPhyConnected() &&
         router.Mode is InputRouter.InputMode.Menu
             or InputRouter.InputMode.OnlyRight
             or InputRouter.InputMode.ControllerOrRight
-            or InputRouter.InputMode.RightAndLeft;
+            or InputRouter.InputMode.RightAndLeft
+            or InputRouter.InputMode.Mouse;
 }

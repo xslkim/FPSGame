@@ -16,10 +16,15 @@ public partial class MessageBox : CanvasLayer
     /// <summary>枪瞄准/扳机交互时视作可命中对象(MenuScreen/GunUiController 遍历此分组)</summary>
     public const string Group = "gun_button";
 
+    /// <summary>三按钮弹框的选择结果(移植版新增:原作弹框只有 确定/取消 两键)</summary>
+    public enum Choice { Cancel, Ok, Extra }
+
     public static MessageBox? Current { get; private set; }
 
     public TextureButton OkButton = null!;
     public TextureButton CancelButton = null!;
+    /// <summary>三按钮模式的中键(两按钮模式为 null)</summary>
+    public TextureButton? ExtraButton { get; private set; }
     public Label TitleLabel { get; private set; } = null!;
     public Label ContentLabel { get; private set; } = null!;
 
@@ -27,6 +32,7 @@ public partial class MessageBox : CanvasLayer
     public event System.Action<bool>? Closed;
 
     private System.Action<bool>? _cb;
+    private System.Action<Choice>? _cb3;
 
     public static MessageBox ShowBox(Node parent, string title, string content,
         string okText = "确定", string cancelText = "取消", System.Action<bool>? cb = null)
@@ -34,7 +40,19 @@ public partial class MessageBox : CanvasLayer
         CloseCurrent();
         var mb = new MessageBox { Name = "MessageBox" };
         parent.AddChild(mb);
-        mb.Build(title, content, okText, cancelText, cb);
+        mb.Build(title, content, okText, cancelText, null, cb, null);
+        Current = mb;
+        return mb;
+    }
+
+    /// <summary>三按钮变体:左=cancelText、中=extraText、右=okText(移植版新增,用于"选择控制方式"加鼠标模式)</summary>
+    public static MessageBox ShowBox3(Node parent, string title, string content,
+        string okText, string cancelText, string extraText, System.Action<Choice>? cb)
+    {
+        CloseCurrent();
+        var mb = new MessageBox { Name = "MessageBox" };
+        parent.AddChild(mb);
+        mb.Build(title, content, okText, cancelText, extraText, null, cb);
         Current = mb;
         return mb;
     }
@@ -91,9 +109,10 @@ public partial class MessageBox : CanvasLayer
     }
 
     private void Build(string title, string content, string okText, string cancelText,
-        System.Action<bool>? cb)
+        string? extraText, System.Action<bool>? cb, System.Action<Choice>? cb3)
     {
         _cb = cb;
+        _cb3 = cb3;
         Layer = 20;
         // 逻辑分辨率恒为 1280×720(canvas_items+expand),弹框全屏锚定后居中
         var root0 = UiKit.MakeRoot(this);
@@ -129,25 +148,51 @@ public partial class MessageBox : CanvasLayer
             ContentLabel.AddThemeFontOverride("font", UiTheme.CjkFont());
         Center(ContentLabel, 0.0f, 77.8f, 600.0f, 160.91f);
         root.AddChild(ContentLabel);
-        // 取消(左):300×100 @(-192, -132),"取消" 46 号白
+        // 按钮排布:两按钮照原作(300×100 @∓192/180.62);三按钮收窄为 240×100 @-250/0/+250
+        bool three = extraText != null;
+        float btnW = three ? 240.0f : 300.0f;
+        float cancelX = three ? -250.0f : -192.0f;
+        float okX = three ? 250.0f : 180.62f;
+        // 取消(左):"取消" 46 号白
         CancelButton = MakeButton("MessageButtonCancel");
-        Center(CancelButton, -192.0f, -132.0f, 300.0f, 100.0f);
+        Center(CancelButton, cancelX, -132.0f, btnW, 100.0f);
         CancelButton.Pressed += () => Close(false);
         root.AddChild(CancelButton);
         var cancelLabel = MakeLabel(cancelText, 46, Colors.White);
         cancelLabel.SetAnchorsPreset(Control.LayoutPreset.FullRect);
         CancelButton.AddChild(cancelLabel);
-        // 确定(右):300×100 @(180.62, -132),"确定" 50 号白
+        // 中键(仅三按钮模式)
+        if (three)
+        {
+            ExtraButton = MakeButton("MessageButtonExtra");
+            Center(ExtraButton, 0.0f, -132.0f, btnW, 100.0f);
+            ExtraButton.Pressed += () => Close(Choice.Extra);
+            root.AddChild(ExtraButton);
+            var extraLabel = MakeLabel(extraText!, 46, Colors.White);
+            extraLabel.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+            ExtraButton.AddChild(extraLabel);
+        }
+        // 确定(右):"确定" 50 号白
         OkButton = MakeButton("MessageButtonOk");
-        Center(OkButton, 180.62f, -132.0f, 300.0f, 100.0f);
+        Center(OkButton, okX, -132.0f, btnW, 100.0f);
         OkButton.Pressed += () => Close(true);
         root.AddChild(OkButton);
         var okLabel = MakeLabel(okText, 50, Colors.White);
         okLabel.SetAnchorsPreset(Control.LayoutPreset.FullRect);
         OkButton.AddChild(okLabel);
-        // 焦点导航:取消 ↔ 确定(原作 EventSystem Explicit)
-        CancelButton.FocusNeighborRight = CancelButton.GetPathTo(OkButton);
-        OkButton.FocusNeighborLeft = OkButton.GetPathTo(CancelButton);
+        // 焦点导航(原作 EventSystem Explicit):取消 ↔ [中键 ↔] 确定
+        if (three)
+        {
+            CancelButton.FocusNeighborRight = CancelButton.GetPathTo(ExtraButton!);
+            ExtraButton!.FocusNeighborLeft = ExtraButton.GetPathTo(CancelButton);
+            ExtraButton.FocusNeighborRight = ExtraButton.GetPathTo(OkButton);
+            OkButton.FocusNeighborLeft = OkButton.GetPathTo(ExtraButton);
+        }
+        else
+        {
+            CancelButton.FocusNeighborRight = CancelButton.GetPathTo(OkButton);
+            OkButton.FocusNeighborLeft = OkButton.GetPathTo(CancelButton);
+        }
         // 打开即选中"确定"(原作 MessageBox.Show 里 SetSelectedGameObject)
         Callable.From(() => OkButton.GrabFocus()).CallDeferred();
     }
@@ -156,13 +201,18 @@ public partial class MessageBox : CanvasLayer
 
     public void PressCancel() => Close(false);
 
-    private void Close(bool ok)
+    public void PressExtra() => Close(Choice.Extra);
+
+    private void Close(bool ok) => Close(ok ? Choice.Ok : Choice.Cancel);
+
+    private void Close(Choice choice)
     {
         if (Current == this)
             Current = null;
         AudioService.Instance.PlayUiSound();
-        Closed?.Invoke(ok);
-        _cb?.Invoke(ok);
+        Closed?.Invoke(choice == Choice.Ok);
+        _cb?.Invoke(choice == Choice.Ok);
+        _cb3?.Invoke(choice);
         QueueFree();
     }
 }

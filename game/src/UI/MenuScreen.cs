@@ -6,12 +6,13 @@ namespace FPSGame;
 /// 主菜单:1:1 移植 Unity Assets/UI/Menu.unity + MenuController.cs。
 /// 3D(SubViewport 透明叠加在背景 UI 之上、按钮之下,复现原作 WorldSpace Canvas
 ///   z=623.2 的深度序):相机 FOV60、平行光强度3、RockWarrior(×100,z=450,yaw190°)
-///   循环 Idle02、相机下挂 M4+激光+枪口火光。
+///   循环 Idle02、相机下挂 M4+激光+枪口火光(MuzzleFlash1.prefab 移植,命中按钮时播放)。
 /// UI:逻辑分辨率 1280×720(canvas_items+expand,任意物理分辨率自适应);
 ///   背景 background4 全屏等比覆盖、科幻圆环组(±20°/s 反转)、标题"士兵打怪兵"、
 ///   4 个 SpriteSwap 主按钮(单人/双人/手机/退出,设置隐藏)、金币 HUD(PlayerState)。
 /// 交互:方向键焦点导航(默认选中单人游戏)、手机体感枪瞄准+扳机、
-///   鼠标模拟光枪(移动=瞄准,左键=扳机;无实体枪时自动生效)。
+///   鼠标模拟光枪(移动=瞄准,左键=扳机;无实体枪时自动生效);
+///   "选择控制方式"弹框含移植版新增的"鼠标"模式(手机/遥控器/鼠标三键)。
 /// </summary>
 public partial class MenuScreen : Node
 {
@@ -29,7 +30,7 @@ public partial class MenuScreen : Node
     private Camera3D _camera = null!;
     private Node3D _gun = null!;
     private MeshInstance3D _lazer = null!;
-    private Node3D _muzzle = null!;
+    private MuzzleFlash _muzzle = null!;
     private Node3D _monster = null!;
     private Control _buttonRoot = null!;
 
@@ -47,7 +48,7 @@ public partial class MenuScreen : Node
         _camera = GetNode<Camera3D>(VpPrefix + "Camera3D");
         _gun = GetNode<Node3D>(VpPrefix + "Camera3D/M4View");
         _lazer = GetNode<MeshInstance3D>(VpPrefix + "Camera3D/M4View/Lazer");
-        _muzzle = GetNode<Node3D>(VpPrefix + "Camera3D/M4View/MuzzleFlash");
+        _muzzle = GetNode<MuzzleFlash>(VpPrefix + "Camera3D/M4View/MuzzleFlash");
         _monster = GetNode<Node3D>(VpPrefix + "RockWarrior");
 
         SyncViewportSize();
@@ -65,6 +66,16 @@ public partial class MenuScreen : Node
         var mat = GD.Load<Material>("res://assets/models/monsters/rock_warrior/rock_warrior_mat.tres");
         foreach (var mi in _monster.GetNode("Model").FindChildren("*", "MeshInstance3D", true, false))
             ((MeshInstance3D)mi).MaterialOverride = mat;
+        // 枪身材质(原作 1K_M4TXTR.mat:贴图 × 0.783 灰;FBX 导入材质丢失贴图,统一代码覆盖)
+        // 注意只盖 Model 子树——MuzzleFlash 的火焰/烟雾 quad 也是 M4View 下的 MeshInstance3D
+        var gunMat = new StandardMaterial3D
+        {
+            AlbedoColor = new Color(0.783019f, 0.783019f, 0.783019f),
+            AlbedoTexture = GD.Load<Texture2D>("res://assets/models/guns/m4/m4_tex.png"),
+            Roughness = 0.85f,
+        };
+        foreach (var mi in _gun.GetNode("Model").FindChildren("*", "MeshInstance3D", true, false))
+            ((MeshInstance3D)mi).MaterialOverride = gunMat;
         // 默认选中"单人游戏"(原作 MenuController.Start)
         Callable.From(() => _btnOne.GrabFocus()).CallDeferred();
         ConfigService.FetchRemoteConfig(this);
@@ -93,7 +104,32 @@ public partial class MenuScreen : Node
                 OnePlayer();
                 Callable.From(() => TakeShot(a["--shot-box:".Length..])).CallDeferred();
             }
+            else if (a.StartsWith("--shot-flash:"))
+                Callable.From(() => TakeShotFlash(a["--shot-flash:".Length..])).CallDeferred();
         }
+    }
+
+    /// <summary>截图验证:--shot-flash:&lt;path&gt;,开火后第 3 帧截屏(火光翻页/灯光峰值期)。</summary>
+    private async void TakeShotFlash(string path)
+    {
+        DisplayServer.WindowSetMode(DisplayServer.WindowMode.Windowed);
+        if (_shotRes != Vector2I.Zero)
+            DisplayServer.WindowSetSize(_shotRes);
+        InputRouter.Instance.MouseGun.SimulateMove(
+            _shotRes != Vector2I.Zero ? (Vector2)(_shotRes / 2) : new Vector2(640, 360));
+        var args = OS.GetCmdlineUserArgs();
+        _muzzle.DebugNoSmoke = System.Array.IndexOf(args, "--flash-nosmoke") >= 0;
+        _muzzle.DebugNoFlame = System.Array.IndexOf(args, "--flash-noflame") >= 0;
+        for (int i = 0; i < 10; i++)
+            await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+        _muzzle.Fire();
+        for (int i = 0; i < 3; i++)
+            await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+        await ToSignal(Engine.GetSingleton("RenderingServer"), "frame_post_draw");
+        var img = GetViewport().GetTexture().GetImage();
+        img.SavePng(path);
+        GD.Print("SHOT SAVED: ", path);
+        GetTree().Quit();
     }
 
     /// <summary>截图验证:--shot:&lt;path&gt;,约 30 帧后截屏退出(含圆环旋转/怪物动画帧)。
@@ -103,6 +139,9 @@ public partial class MenuScreen : Node
         DisplayServer.WindowSetMode(DisplayServer.WindowMode.Windowed);
         if (_shotRes != Vector2I.Zero)
             DisplayServer.WindowSetSize(_shotRes);
+        // 鼠标光枪默认 (0,0) 会让枪口指向左上角;截图统一把瞄准点放到窗口中心(= 原作待机朝向)
+        InputRouter.Instance.MouseGun.SimulateMove(
+            _shotRes != Vector2I.Zero ? (Vector2)(_shotRes / 2) : new Vector2(640, 360));
         for (int i = 0; i < 30; i++)
             await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
         await ToSignal(Engine.GetSingleton("RenderingServer"), "frame_post_draw");
@@ -249,15 +288,24 @@ public partial class MenuScreen : Node
         if (!ring && !leg)
         {
             _monster.Hide();
-            MessageBox.ShowBox(this, "选择控制方式", "可以选择用手机控制玩游戏哟！", "手机", "遥控器",
-                phone =>
+            // 移植版新增第三键"鼠标":原作只有 手机/遥控器 两键
+            MessageBox.ShowBox3(this, "选择控制方式", "可以选择用手机控制玩游戏哟！",
+                "手机", "遥控器", "鼠标",
+                choice =>
                 {
-                    if (phone)
-                        Game.Instance.ChangeScene(DeviceConnectionScene);
-                    else
+                    switch (choice)
                     {
-                        InputRouter.Instance.SetInputMode(InputRouter.InputMode.ControllerOrRight);
-                        Game.Instance.ChangeScene(LevelChooseScene);
+                        case MessageBox.Choice.Ok: // 手机
+                            Game.Instance.ChangeScene(DeviceConnectionScene);
+                            break;
+                        case MessageBox.Choice.Cancel: // 遥控器
+                            InputRouter.Instance.SetInputMode(InputRouter.InputMode.ControllerOrRight);
+                            Game.Instance.ChangeScene(LevelChooseScene);
+                            break;
+                        case MessageBox.Choice.Extra: // 鼠标
+                            InputRouter.Instance.SetInputMode(InputRouter.InputMode.Mouse);
+                            Game.Instance.ChangeScene(LevelChooseScene);
+                            break;
                     }
                     _monster.Show();
                 });
@@ -371,10 +419,13 @@ public partial class MenuScreen : Node
     {
         if (!RingConnected())
             return;
-        FlashMuzzle();
         var b = ButtonAtLogicalPoint(RotationAimLogicalPoint(), skipBoxButtons: false);
         if (b != null)
+        {
+            // 原作 UIController:枪口火光(_ImpactEffect1)只在命中按钮时重播
+            _muzzle.Fire();
             b.EmitSignal(BaseButton.SignalName.Pressed);
+        }
     }
 
     /// <summary>鼠标扳机(左键):屏幕点路径(MessageBox 按钮由原生点击承担,跳过防双重触发)</summary>
@@ -383,11 +434,13 @@ public partial class MenuScreen : Node
         var router = InputRouter.Instance;
         if (!router.MouseGun.IsActiveForRight(router))
             return;
-        FlashMuzzle();
         var b = ButtonAtLogicalPoint(
             UiKit.WindowToLogical(GetViewport(), router.MouseGun.AimPos), skipBoxButtons: true);
         if (b != null)
+        {
+            _muzzle.Fire();
             b.EmitSignal(BaseButton.SignalName.Pressed);
+        }
     }
 
     /// <summary>枪口旋转 → SubViewport 像素 → 画布逻辑坐标</summary>
@@ -415,21 +468,6 @@ public partial class MenuScreen : Node
             return b;
         }
         return null;
-    }
-
-    /// <summary>枪口火光:FPSLightCurves 0.15s(峰 0.979),贴图随机 Z 转角(FPSRandomRotateAngle)</summary>
-    private async void FlashMuzzle()
-    {
-        var flash = _muzzle.GetNode<Sprite3D>("Flash");
-        var light = _muzzle.GetNode<OmniLight3D>("Light");
-        flash.Rotation = new Vector3(0, 0, (float)GD.Randf() * Mathf.Tau);
-        _muzzle.Show();
-        light.LightEnergy = 2.0f * 0.979f;
-        var tw = CreateTween();
-        tw.TweenProperty(light, "light_energy", 0.0, 0.145);
-        await ToSignal(GetTree().CreateTimer(0.15), SceneTreeTimer.SignalName.Timeout);
-        if (GodotObject.IsInstanceValid(_muzzle))
-            _muzzle.Hide();
     }
 
     // ---------------------------------------------------------------- 自检(--menu-selftest)
@@ -493,6 +531,7 @@ public partial class MenuScreen : Node
         await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
         await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
         Check(MessageBox.IsOpen(), "鼠标扳机命中双人→弹框");
+        Check(_muzzle.Visible, "扳机命中按钮→枪口火光播放");
         if (MessageBox.IsOpen())
         {
             MessageBox.Current!.PressCancel();
@@ -513,7 +552,7 @@ public partial class MenuScreen : Node
             Check(_monster.Visible, "取消后怪物恢复");
             Check(GetViewport().GuiGetFocusOwner() == _btnTwo, "取消后回选双人按钮");
         }
-        // 单人弹框(无设备)
+        // 单人弹框(无设备):三按钮 手机/遥控器/鼠标(鼠标为移植版新增)
         OnePlayer();
         await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
         Check(MessageBox.IsOpen(), "单人弹框打开");
@@ -523,7 +562,15 @@ public partial class MenuScreen : Node
             Check(MessageBox.Current.ContentLabel.Text == "可以选择用手机控制玩游戏哟！", "单人弹框正文");
             Check(MessageBox.Current.OkButton.GetChild<Label>(0).Text == "手机", "单人弹框确定=手机");
             Check(MessageBox.Current.CancelButton.GetChild<Label>(0).Text == "遥控器", "单人弹框取消=遥控器");
-            MessageBox.Current.PressCancel(); // 遥控器 → ControllerOrRight → LevelChoose
+            Check(MessageBox.Current.ExtraButton != null &&
+                MessageBox.Current.ExtraButton.GetChild<Label>(0).Text == "鼠标", "单人弹框中键=鼠标");
+            // 同帧连测两条分支(ChangeScene 帧末才生效,断言即时):
+            MessageBox.Current.PressExtra(); // 鼠标 → Mouse 模式 → LevelChoose
+            Check(InputRouter.Instance.Mode == InputRouter.InputMode.Mouse, "鼠标→Mouse");
+            Check(PlayerState.Instance.PlayerRight.Active, "鼠标模式激活右玩家");
+            OnePlayer(); // 重开弹框(ShowBox3 内部先 CloseCurrent)
+            Check(MessageBox.IsOpen(), "单人弹框重开");
+            MessageBox.Current!.PressCancel(); // 遥控器 → ControllerOrRight → LevelChoose
             Check(InputRouter.Instance.Mode == InputRouter.InputMode.ControllerOrRight, "遥控器→ControllerOrRight");
         }
         GD.Print($"MENU SELFTEST {(fails == 0 ? "PASS" : "FAIL")} (fails={fails})");

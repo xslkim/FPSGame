@@ -9,7 +9,7 @@ namespace FPSGame;
 /// </summary>
 public partial class InputRouter : Node
 {
-    public enum InputMode { Menu, OnlyRight, OnlyLeft, ControllerOrRight, RightAndLeft }
+    public enum InputMode { Menu, OnlyRight, OnlyLeft, ControllerOrRight, RightAndLeft, Mouse }
 
     [Signal] public delegate void TriggerRightEventHandler();   // 右手扳机边沿(0→1)
     [Signal] public delegate void SwitchGunRightEventHandler(); // 右手换枪边沿
@@ -182,6 +182,7 @@ public partial class InputRouter : Node
             InputMode.OnlyRight or InputMode.ControllerOrRight => RingConnected,
             InputMode.OnlyLeft => LegConnected,
             InputMode.RightAndLeft => RingConnected && LegConnected,
+            InputMode.Mouse => true, // 鼠标模拟光枪:不需要任何实体设备
             _ => false, // 菜单(连接手机页)持续广播
         };
         if (ready && _server.IsBroadcasting())

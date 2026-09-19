@@ -185,7 +185,8 @@ public partial class PlayerState : Node
     {
         bool rightOn = mode is InputRouter.InputMode.OnlyRight
             or InputRouter.InputMode.ControllerOrRight
-            or InputRouter.InputMode.RightAndLeft;
+            or InputRouter.InputMode.RightAndLeft
+            or InputRouter.InputMode.Mouse; // 鼠标模式:右玩家由鼠标光枪担当
         bool leftOn = mode is InputRouter.InputMode.OnlyLeft
             or InputRouter.InputMode.RightAndLeft;
         if (rightOn) PlayerRight.Born(); else PlayerRight.Active = false;
