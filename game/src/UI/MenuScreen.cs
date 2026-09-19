@@ -465,6 +465,39 @@ public partial class MenuScreen : Node
             var owner = GetViewport().GuiGetFocusOwner();
             Check(owner != null && owner.Name == expect, $"导航 {action} → {expect}");
         }
+        // 鼠标模拟光枪:移动到"双人合作"上 → 悬停=焦点;左键=扳机 → 弹框。
+        // 坐标链:按钮中心(画布)→ canvasTransform → finalTransform → 窗口像素。
+        // headless 窗口尺寸为 0,finalTransform 退化,改用 MouseGun 模拟钩子。
+        var btnTwoCanvas = _btnTwo.GetGlobalRect().GetCenter();
+        var mg = InputRouter.Instance.MouseGun;
+        if (DisplayServer.WindowGetSize().X > 0)
+        {
+            var winPos = GetViewport().GetFinalTransform() *
+                (GetViewport().GetCanvasTransform() * btnTwoCanvas);
+            Input.ParseInputEvent(new InputEventMouseMotion { Position = winPos });
+        }
+        else
+            mg.SimulateMove(btnTwoCanvas);
+        await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+        await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+        Check(GetViewport().GuiGetFocusOwner() == _btnTwo, "鼠标瞄准悬停=焦点双人合作");
+        if (DisplayServer.WindowGetSize().X > 0)
+        {
+            var winPos = GetViewport().GetFinalTransform() *
+                (GetViewport().GetCanvasTransform() * btnTwoCanvas);
+            Input.ParseInputEvent(new InputEventMouseButton
+                { ButtonIndex = MouseButton.Left, Pressed = true, Position = winPos });
+        }
+        else
+            mg.SimulateTrigger();
+        await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+        await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+        Check(MessageBox.IsOpen(), "鼠标扳机命中双人→弹框");
+        if (MessageBox.IsOpen())
+        {
+            MessageBox.Current!.PressCancel();
+            await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+        }
         // 双人弹框(无设备)
         TwoPlayer();
         await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);

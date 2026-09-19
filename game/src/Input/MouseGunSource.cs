@@ -24,16 +24,22 @@ public sealed class MouseGunSource
         switch (e)
         {
             case InputEventMouseMotion m:
-                AimPos = m.Position;
+                SimulateMove(m.Position);
                 break;
             case InputEventMouseButton b when b.Pressed:
                 if (b.ButtonIndex == MouseButton.Left)
-                    Triggered?.Invoke();
+                    SimulateTrigger();
                 else if (b.ButtonIndex == MouseButton.Right)
                     SwitchGun?.Invoke();
                 break;
         }
     }
+
+    /// <summary>移动瞄准点(视口坐标)。自动化测试可直接调用以绕过合成事件管线。</summary>
+    public void SimulateMove(Vector2 viewportPos) => AimPos = viewportPos;
+
+    /// <summary>扣扳机。自动化测试可直接调用以绕过合成事件管线。</summary>
+    public void SimulateTrigger() => Triggered?.Invoke();
 
     /// <summary>鼠标是否当前担当右路瞄准源(模式含右玩家且实体枪未连)</summary>
     public bool IsActiveForRight(InputRouter router) =>
