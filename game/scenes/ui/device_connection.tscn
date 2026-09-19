@@ -1,7 +1,7 @@
 [gd_scene load_steps=3 format=3]
 
-[ext_resource type="Script" path="res://scenes/ui/device_connection.gd" id="1"]
-[ext_resource type="Script" path="res://ui/gun_ui_controller.gd" id="2"]
+[ext_resource type="Script" path="res://src/UI/DeviceConnectionScreen.cs" id="1"]
+[ext_resource type="Script" path="res://src/UI/GunUiController.cs" id="2"]
 
 [node name="DeviceConnection" type="Node3D"]
 script = ExtResource("1")

@@ -1,6 +1,6 @@
 [gd_scene load_steps=12 format=3]
 
-[ext_resource type="Script" path="res://scenes/ui/menu.gd" id="1"]
+[ext_resource type="Script" path="res://src/UI/MenuScreen.cs" id="1"]
 [ext_resource type="PackedScene" path="res://assets/models/guns/m4/m4.fbx" id="2"]
 [ext_resource type="Texture2D" path="res://assets/models/guns/m4/m4_tex.png" id="3"]
 [ext_resource type="PackedScene" path="res://assets/models/monsters/rock_warrior/RockWarrior.FBX" id="4"]
@@ -17,8 +17,8 @@ emission_texture = ExtResource("3")
 [sub_resource type="Environment" id="Env"]
 background_mode = 1
 background_color = Color(0.192157, 0.301961, 0.47451, 1)
-ambient_light_source = 3
-ambient_light_color = Color(0.211765, 0.227451, 0.258824, 1)
+ambient_light_source = 2
+ambient_light_color = Color(0.42, 0.42, 0.45, 1)
 
 [sub_resource type="BoxMesh" id="LazerMesh"]
 size = Vector3(0.023, 0.023, 200)

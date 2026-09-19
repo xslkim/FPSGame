@@ -1,7 +1,7 @@
 [gd_scene load_steps=3 format=3]
 
-[ext_resource type="Script" path="res://scenes/ui/level_choose.gd" id="1"]
-[ext_resource type="Script" path="res://ui/gun_ui_controller.gd" id="2"]
+[ext_resource type="Script" path="res://src/UI/LevelChooseScreen.cs" id="1"]
+[ext_resource type="Script" path="res://src/UI/GunUiController.cs" id="2"]
 
 [node name="LevelChoose" type="Node3D"]
 script = ExtResource("1")

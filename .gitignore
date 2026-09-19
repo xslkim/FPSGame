@@ -14,3 +14,7 @@ tools/*.log
 # 杂项
 *.tmp
 .DS_Store
+
+# .NET 构建产物
+game/bin/
+game/obj/

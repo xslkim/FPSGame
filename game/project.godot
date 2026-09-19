@@ -13,20 +13,30 @@ config_version=5
 config/name="FPSGame"
 config/description="Arcade light-gun shooter, remade from Unity 2019.4 project."
 run/main_scene="res://scenes/ui/startup.tscn"
-config/features=PackedStringArray("4.8", "Forward Plus")
+config/features=PackedStringArray("4.8", "Forward Plus", "C#")
+
+[dotnet]
+
+project/assembly_name="FPSGame"
 
 [autoload]
 
-GlobalObject="*res://autoload/global_object.gd"
-InputManager="*res://autoload/input_manager.gd"
-DataMgr="*res://autoload/data_mgr.gd"
-PlayerSystem="*res://autoload/player_system.gd"
+Game="*res://src/Core/Game.cs"
+SaveService="*res://src/Core/SaveService.cs"
+AudioService="*res://src/Core/AudioService.cs"
+PlayerState="*res://src/Player/PlayerState.cs"
+InputRouter="*res://src/Input/InputRouter.cs"
 
 [display]
 
-window/size/viewport_width=1920
-window/size/viewport_height=1080
+; 逻辑分辨率 = Unity 参考分辨率 1280×720;canvas_items+expand:
+; 任意物理分辨率下 UI 按比例缩放且布局不变,非 16:9 时横向扩展可视区。
+window/size/viewport_width=1280
+window/size/viewport_height=720
+window/size/mode=3
+window/size/borderless=true
 window/stretch/mode="canvas_items"
+window/stretch/aspect="expand"
 
 [layer_names]
 
