@@ -1,0 +1,32 @@
+[gd_scene load_steps=6 format=3]
+
+[ext_resource type="PackedScene" path="res://gameplay/monsters/monster_base.tscn" id="1"]
+[ext_resource type="Script" path="res://gameplay/monsters/wolf.gd" id="2"]
+[ext_resource type="PackedScene" path="res://assets/models/monsters/wolf/MonsterWerewolf.FBX" id="3"]
+[ext_resource type="AnimationLibrary" path="res://assets/models/monsters/wolf/wolf_anims.tres" id="4"]
+
+[sub_resource type="CapsuleShape3D" id="BodyShape"]
+radius = 0.55
+height = 1.5
+
+[node name="Wolf" instance=ExtResource("1")]
+script = ExtResource("2")
+meta_key = "wolf"
+
+[node name="Body" parent="." index="0"]
+visible = false
+
+[node name="CollisionShape3D" parent="." index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.75, 0)
+shape = SubResource("BodyShape")
+
+[node name="AnimationPlayer" parent="." index="2"]
+libraries = {
+&"": ExtResource("4")
+}
+
+[node name="HpAnchor" parent="." index="3"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.7, 0)
+
+[node name="Model" parent="." instance=ExtResource("3")]
+transform = Transform3D(-1, 0, -8.74228e-08, 0, 1, 0, 8.74228e-08, 0, -1, 0, 0, 0)

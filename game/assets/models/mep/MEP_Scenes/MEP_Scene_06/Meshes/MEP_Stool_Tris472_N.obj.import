@@ -1,0 +1,25 @@
+[remap]
+
+importer="wavefront_obj"
+importer_version=1
+type="Mesh"
+uid="uid://owreu74perkv"
+path="res://.godot/imported/MEP_Stool_Tris472_N.obj-b920782979f47d73a1f7f2029c8ce836.mesh"
+
+[deps]
+
+files=["res://.godot/imported/MEP_Stool_Tris472_N.obj-b920782979f47d73a1f7f2029c8ce836.mesh"]
+
+source_file="res://assets/models/mep/MEP_Scenes/MEP_Scene_06/Meshes/MEP_Stool_Tris472_N.obj"
+dest_files=["res://.godot/imported/MEP_Stool_Tris472_N.obj-b920782979f47d73a1f7f2029c8ce836.mesh", "res://.godot/imported/MEP_Stool_Tris472_N.obj-b920782979f47d73a1f7f2029c8ce836.mesh"]
+
+[params]
+
+generate_tangents=true
+generate_lods=true
+generate_shadow_mesh=true
+generate_lightmap_uv2=false
+generate_lightmap_uv2_texel_size=0.2
+scale_mesh=Vector3(1, 1, 1)
+offset_mesh=Vector3(0, 0, 0)
+force_disable_mesh_compression=false

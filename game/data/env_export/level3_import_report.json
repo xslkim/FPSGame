@@ -1,0 +1,35 @@
+{
+  "fx_placeholders": [],
+  "json_lights": 0,
+  "json_mesh_nodes": 1326,
+  "json_nodes": 2183,
+  "output": "res://scenes/levels/env_level3.tscn",
+  "sky": "res://assets/textures/skybox/level3_sky.png",
+  "source_json": "level3",
+  "stats": {
+    "collision_bodies": 47,
+    "fbx_materials_kept": 1135,
+    "fx_placeholders": 0,
+    "geo_fixed": 167,
+    "inactive": 30,
+    "lights": 0,
+    "lights_deactivated": 0,
+    "materials_built": 6,
+    "mesh_instances": 1320,
+    "missing_fbx": [],
+    "missing_meshes": [
+      "city.fbx::pasted__pCube64",
+      "city.fbx::pasted__pCube65",
+      "city.fbx::pasted__pCube64",
+      "city.fbx::pasted__pCube65",
+      "city.fbx::pasted__pCube64",
+      "city.fbx::pasted__pCube65"
+    ],
+    "missing_textures": [],
+    "nodes": 2183,
+    "proxy_collision_bodies": 0,
+    "skipped_lights": 0,
+    "skipped_meshes": 0,
+    "skipped_nodes": 0
+  }
+}

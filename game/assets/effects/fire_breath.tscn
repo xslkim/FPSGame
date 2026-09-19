@@ -1,0 +1,82 @@
+[gd_scene load_steps=9 format=3]
+
+[ext_resource type="Script" path="res://assets/effects/effect_base.gd" id="1"]
+[ext_resource type="Texture2D" path="res://assets/effects/textures/flame_4frm.png" id="2"]
+[ext_resource type="Texture2D" path="res://assets/effects/textures/smoke3.png" id="3"]
+
+[sub_resource type="ParticleProcessMaterial" id="ppm_flame"]
+direction = Vector3(0, 0, -1)
+spread = 22.0
+gravity = Vector3(0, 0, 0)
+initial_velocity_min = 15.0
+initial_velocity_max = 22.0
+damping_min = 0.5
+damping_max = 1.2
+scale_min = 1.0
+scale_max = 1.8
+anim_offset_min = 0.0
+anim_offset_max = 1.0
+anim_speed_min = 1.0
+anim_speed_max = 1.5
+
+[sub_resource type="StandardMaterial3D" id="mat_flame"]
+transparency = 1
+blend_mode = 1
+shading_mode = 0
+albedo_color = Color(1, 0.75, 0.4, 1)
+albedo_texture = ExtResource("2")
+billboard_mode = 3
+particles_anim_h_frames = 2
+particles_anim_v_frames = 2
+particles_anim_loop = true
+
+[sub_resource type="QuadMesh" id="q_flame"]
+material = SubResource("mat_flame")
+size = Vector2(2.0, 2.0)
+
+[sub_resource type="ParticleProcessMaterial" id="ppm_smoke"]
+direction = Vector3(0, 0, -1)
+spread = 16.0
+gravity = Vector3(0, 0.5, 0)
+initial_velocity_min = 9.0
+initial_velocity_max = 13.0
+damping_min = 1.5
+damping_max = 2.5
+scale_min = 1.0
+scale_max = 1.8
+
+[sub_resource type="StandardMaterial3D" id="mat_smoke"]
+transparency = 1
+shading_mode = 0
+albedo_color = Color(0.25, 0.22, 0.2, 0.45)
+albedo_texture = ExtResource("3")
+billboard_mode = 1
+
+[sub_resource type="QuadMesh" id="q_smoke"]
+material = SubResource("mat_smoke")
+size = Vector2(1.6, 1.6)
+
+[node name="FireBreath" type="Node3D"]
+script = ExtResource("1")
+lifetime = 2.0
+
+[node name="Flames" type="GPUParticles3D" parent="."]
+transform = Transform3D(1.5, 0, 0, 0, 1.5, 0, 0, 0, 1.5, 0, 0, 0)
+amount = 64
+lifetime = 0.7
+randomness = 0.5
+process_material = SubResource("ppm_flame")
+draw_pass_1 = SubResource("q_flame")
+
+[node name="Smoke" type="GPUParticles3D" parent="."]
+amount = 20
+lifetime = 0.8
+randomness = 0.5
+process_material = SubResource("ppm_smoke")
+draw_pass_1 = SubResource("q_smoke")
+
+[node name="Light" type="OmniLight3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -4)
+light_color = Color(1, 0.55, 0.2, 1)
+light_energy = 3.0
+omni_range = 14.0

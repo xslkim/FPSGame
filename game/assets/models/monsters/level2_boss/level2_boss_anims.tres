@@ -1,0 +1,146 @@
+[gd_resource type="AnimationLibrary" format=3]
+
+[sub_resource type="Animation" id="Animation_fhyfs"]
+length = 0.5
+tracks/0/type = "rotation_3d"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("Model/Skeleton3D:Bip001 Spine")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = PackedFloat32Array(0, 1, -2.079924e-06, 6.931239e-07, 0.00039815903, 0.99999994, 0.15, 1, -0.14944018, -5.8814803e-05, 0.0003937917, 0.9887707, 0.5, 1, -2.079924e-06, 6.931239e-07, 0.00039815903, 0.99999994)
+tracks/1/type = "rotation_3d"
+tracks/1/imported = false
+tracks/1/enabled = true
+tracks/1/path = NodePath("Model/Skeleton3D:Bip001 Head")
+tracks/1/interp = 1
+tracks/1/loop_wrap = true
+tracks/1/keys = PackedFloat32Array(0, 1, -9.842548e-08, -2.5777777e-07, -0.14656566, 0.98920095, 0.15, 1, -0.19652398, 0.029117849, -0.14364415, 0.9694828, 0.5, 1, -9.842548e-08, -2.5777777e-07, -0.14656566, 0.98920095)
+
+[sub_resource type="Animation" id="Animation_fgfcv"]
+length = 2.2
+tracks/0/type = "rotation_3d"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("Model/Skeleton3D:Bip001")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = PackedFloat32Array(0, 1, 0.38794595, 0.5854935, 0.6192711, -0.35099652, 0.6, 1, 0.46272355, 0.4140818, 0.74487287, -0.24410552, 1.2, 1, 0.5231086, 0.006279886, 0.85220885, 0.007618785, 2.2, 1, 0.52275467, -0.01502502, 0.85209954, 0.020692706)
+tracks/1/type = "position_3d"
+tracks/1/imported = false
+tracks/1/enabled = true
+tracks/1/path = NodePath("Model/Skeleton3D:Bip001")
+tracks/1/interp = 1
+tracks/1/loop_wrap = true
+tracks/1/keys = PackedFloat32Array(0, 1, 3.0040734e-08, 1.0181277, 0.0048456173, 1.2, 1, 3.0040734e-08, 0.8181277, 0.30484563, 2.2, 1, 3.0040734e-08, 0.7681277, 0.3548456)
+tracks/2/type = "rotation_3d"
+tracks/2/imported = false
+tracks/2/enabled = true
+tracks/2/path = NodePath("Model/Skeleton3D:Bip001 R UpperArm")
+tracks/2/interp = 1
+tracks/2/loop_wrap = true
+tracks/2/keys = PackedFloat32Array(0, 1, -0.026118198, -0.35015416, -0.015821707, 0.9361942, 1, 1, 0.17615564, -0.30374214, -0.54167324, 0.7637408)
+tracks/3/type = "rotation_3d"
+tracks/3/imported = false
+tracks/3/enabled = true
+tracks/3/path = NodePath("Model/Skeleton3D:Bip001 L UpperArm")
+tracks/3/interp = 1
+tracks/3/loop_wrap = true
+tracks/3/keys = PackedFloat32Array(0, 1, 0.026118198, 0.3501542, -0.015821708, 0.9361942, 1, 1, 0.2192682, 0.2742473, 0.51555675, 0.781608)
+
+[sub_resource type="Animation" id="Animation_m7og5"]
+length = 2.0
+loop_mode = 1
+tracks/0/type = "rotation_3d"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("Model/Skeleton3D:Bip001 Spine")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = PackedFloat32Array(0, 1, -2.0656464e-06, 7.34581e-07, 0.020396743, 0.999792, 1, 1, -2.0933696e-06, 6.5138966e-07, -0.019600585, 0.99980795, 2, 1, -2.0656464e-06, 7.34581e-07, 0.020396743, 0.999792)
+tracks/1/type = "rotation_3d"
+tracks/1/imported = false
+tracks/1/enabled = true
+tracks/1/path = NodePath("Model/Skeleton3D:Bip001 Head")
+tracks/1/interp = 1
+tracks/1/loop_wrap = true
+tracks/1/keys = PackedFloat32Array(0, 1, 0.02472735, -0.0036640177, -0.14651985, 0.98889184, 1, 1, -0.0148375565, 0.0021981446, -0.14654918, 0.98908967, 2, 1, 0.02472735, -0.0036640177, -0.14651985, 0.98889184)
+
+[sub_resource type="Animation" id="Animation_eb6km"]
+length = 1.2
+tracks/0/type = "rotation_3d"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("Model/Skeleton3D:Bip001 R UpperArm")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = PackedFloat32Array(0, 1, -0.026118198, -0.35015416, -0.015821707, 0.9361942, 0.4, 1, 0.31689322, -0.15122424, -0.8783027, 0.32449073, 0.75, 1, -0.12842931, -0.32679662, 0.26154926, 0.89905614, 1.2, 1, -0.026118198, -0.35015416, -0.015821707, 0.9361942)
+tracks/1/type = "rotation_3d"
+tracks/1/imported = false
+tracks/1/enabled = true
+tracks/1/path = NodePath("Model/Skeleton3D:Bip001 Spine")
+tracks/1/interp = 1
+tracks/1/loop_wrap = true
+tracks/1/keys = PackedFloat32Array(0, 1, -2.079924e-06, 6.931239e-07, 0.00039815903, 0.99999994, 0.4, 1, 4.7576676e-05, -0.12467404, 0.00039531177, 0.9921977, 0.75, 1, -3.7857462e-05, 0.08987924, 0.00039636064, 0.9959526, 1.2, 1, -2.079924e-06, 6.931239e-07, 0.00039815903, 0.99999994)
+tracks/2/type = "method"
+tracks/2/imported = false
+tracks/2/enabled = true
+tracks/2/path = NodePath(".")
+tracks/2/interp = 1
+tracks/2/loop_wrap = true
+tracks/2/keys = {
+"times": PackedFloat32Array(0.72),
+"transitions": PackedFloat32Array(1),
+"values": [{
+"args": [],
+"method": &"hert_player_skill1"
+}]
+}
+
+[sub_resource type="Animation" id="Animation_a6wkm"]
+length = 1.4
+tracks/0/type = "rotation_3d"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("Model/Skeleton3D:Bip001 R UpperArm")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = PackedFloat32Array(0, 1, -0.026118198, -0.35015416, -0.015821707, 0.9361942, 0.5, 1, -0.65725666, -0.2454192, -0.25025523, 0.6671997, 0.9, 1, -0.65725666, -0.2454192, -0.25025523, 0.6671997, 1.4, 1, -0.026118198, -0.35015416, -0.015821707, 0.9361942)
+tracks/1/type = "rotation_3d"
+tracks/1/imported = false
+tracks/1/enabled = true
+tracks/1/path = NodePath("Model/Skeleton3D:Bip001 L UpperArm")
+tracks/1/interp = 1
+tracks/1/loop_wrap = true
+tracks/1/keys = PackedFloat32Array(0, 1, 0.026118198, 0.3501542, -0.015821708, 0.9361942, 0.5, 1, -0.6190359, 0.2669886, 0.22710212, 0.70280606, 0.9, 1, -0.6190359, 0.2669886, 0.22710212, 0.70280606, 1.4, 1, 0.026118198, 0.3501542, -0.015821708, 0.9361942)
+tracks/2/type = "rotation_3d"
+tracks/2/imported = false
+tracks/2/enabled = true
+tracks/2/path = NodePath("Model/Skeleton3D:Bip001 Spine")
+tracks/2/interp = 1
+tracks/2/loop_wrap = true
+tracks/2/keys = PackedFloat32Array(0, 1, -2.079924e-06, 6.931239e-07, 0.00039815903, 0.99999994, 0.5, 1, 0.14943607, 6.0185484e-05, 0.00039358455, 0.9887713, 0.9, 1, 0.14943607, 6.0185484e-05, 0.00039358455, 0.9887713, 1.4, 1, -2.079924e-06, 6.931239e-07, 0.00039815903, 0.99999994)
+tracks/3/type = "method"
+tracks/3/imported = false
+tracks/3/enabled = true
+tracks/3/path = NodePath(".")
+tracks/3/interp = 1
+tracks/3/loop_wrap = true
+tracks/3/keys = {
+"times": PackedFloat32Array(0.84),
+"transitions": PackedFloat32Array(1),
+"values": [{
+"args": [],
+"method": &"hert_player_skill2"
+}]
+}
+
+[resource]
+_data = {
+&"Damage02": SubResource("Animation_fhyfs"),
+&"Dead": SubResource("Animation_fgfcv"),
+&"Idle": SubResource("Animation_m7og5"),
+&"Idle02": SubResource("Animation_m7og5"),
+&"Skill1": SubResource("Animation_eb6km"),
+&"Skill2": SubResource("Animation_a6wkm")
+}

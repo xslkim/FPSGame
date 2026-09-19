@@ -1,0 +1,28 @@
+[gd_scene load_steps=6 format=3]
+
+[ext_resource type="PackedScene" path="res://gameplay/monsters/monster_base.tscn" id="1"]
+[ext_resource type="Script" path="res://gameplay/monsters/box_monster.gd" id="2"]
+[ext_resource type="PackedScene" path="res://assets/models/monsters/box_monster/treasure_chest_monster.FBX" id="3"]
+[ext_resource type="AnimationLibrary" path="res://assets/models/monsters/box_monster/box_monster_anims.tres" id="4"]
+[ext_resource type="Material" path="res://assets/models/monsters/box_monster/box_monster_mat.tres" id="5"]
+
+[node name="BoxMonster" instance=ExtResource("1")]
+script = ExtResource("2")
+meta_key = "box"
+
+[node name="Body" parent="." index="0"]
+visible = false
+
+[node name="AnimationPlayer" parent="." index="2"]
+libraries = {
+&"": ExtResource("4")
+}
+
+[node name="HpAnchor" parent="." index="3"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.0, 0)
+
+[node name="Model" parent="." instance=ExtResource("3")]
+rotation = Vector3(0, 3.141593, 0)
+
+[node name="Treasure Chest Monster" parent="Model/Skeleton3D" index="0"]
+surface_material_override/0 = ExtResource("5")

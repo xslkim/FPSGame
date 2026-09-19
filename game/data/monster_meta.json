@@ -1,0 +1,199 @@
+{
+  "defaults": {
+    "attack": 15.0,
+    "attack_level_rate": 5.0,
+    "attack_cd": 5.0,
+    "attack_cd_level_rate": 0.5,
+    "attack_radius": 2.0,
+    "hp": 30.0,
+    "hp_level_rate": 5.0,
+    "turn_speed": 2.0,
+    "move_speed": 1.0,
+    "move_speed_level_rate": 0.3,
+    "hit_rate": 0.15,
+    "attack_type": 0,
+    "idle2_anim": "Idle02",
+    "attack_anims": ["Attack1", "Attack2"],
+    "damage_anim": "Damage",
+    "dead_anim": "Dead",
+    "impact_tag": "Blood"
+  },
+  "monsters": {
+    "axe_zombie": {
+      "cn_name": "斧头僵尸",
+      "behavior": "axe",
+      "attack_anims": ["Attack1", "Attack2", "AttackL", "AttackR"],
+      "damage_anim": "Damage1",
+      "dead_anim": "Damage3"
+    },
+    "fly_axe_zombie": {
+      "cn_name": "飞斧头僵尸",
+      "behavior": "fly_axe",
+      "attack_radius_base": 7.0,
+      "attack_radius_rand": 3.0,
+      "attack_anims": ["Skill"],
+      "damage_anim": "Damage1",
+      "dead_anim": "Damage3",
+      "born_override": { "max_fov": 15.0, "max_length": 12.0 }
+    },
+    "box": {
+      "cn_name": "牙齿宝箱",
+      "behavior": "box",
+      "hp": 1.0,
+      "move_speed": 3.0,
+      "damage_anim": "TakeDamage",
+      "dead_anim": "Die",
+      "life_active_time": 20.0
+    },
+    "baotou": {
+      "cn_name": "包头僵尸",
+      "behavior": "baotou",
+      "hp": 100.0,
+      "attack_anims": ["anim_attack"],
+      "idle_anim": "anim_idle",
+      "damage_anim": "Hurt",
+      "dead_anim": "anim_death",
+      "impact_tag": "Concrete"
+    },
+    "toon_shoot": {
+      "cn_name": "ToonShoot",
+      "behavior": "toon",
+      "hp": 1.0,
+      "hp_level_rate": 1.0,
+      "attack_anims": ["reload"],
+      "damage_anim": "infantry_take_damage",
+      "dead_anim": "infantry_death_A"
+    },
+    "toon_shoot_alien": {
+      "cn_name": "ToonShootAlien",
+      "behavior": "toon",
+      "hp": 20.0,
+      "attack_anims": ["reload"],
+      "damage_anim": "infantry_take_damage",
+      "dead_anim": "infantry_death_A"
+    },
+    "level2_boss": {
+      "cn_name": "Level2Boss",
+      "behavior": "level2_boss",
+      "hp": 100.0,
+      "hp_level_rate": 20.0,
+      "attack_anims": ["Skill1", "Skill2"],
+      "idle_anim": "Idle",
+      "damage_anim": "Damage02",
+      "dead_anim": "Dead",
+      "impact_tag": "Metal"
+    },
+    "wolf": {
+      "cn_name": "Wolf",
+      "behavior": "wolf",
+      "attack": 8.0,
+      "attack_radius": 2.5,
+      "move_speed": 5.0,
+      "move_speed_level_rate": 1.0,
+      "turn_speed": 8.0,
+      "damage_anim": "Damage2",
+      "dead_anim": "Damage4"
+    },
+    "wolf_blue": {
+      "cn_name": "WolfBlue",
+      "behavior": "wolf_blue",
+      "hp": 20.0,
+      "attack": 8.0,
+      "attack_radius": 2.5,
+      "move_speed": 8.0,
+      "move_speed_level_rate": 1.0,
+      "turn_speed": 8.0,
+      "attack_anims": ["BiteAttack", "ClawAttack"],
+      "damage_anim": "TakeDamage",
+      "dead_anim": "Die"
+    },
+    "fat_zombie": {
+      "cn_name": "FatZombie",
+      "behavior": "fat_zombie",
+      "hp": 100.0,
+      "attack_radius": 2.5,
+      "move_speed_level_rate": 0.5,
+      "turn_speed": 3.0,
+      "attack_anims": ["Attack1", "Attack2"],
+      "damage_anim": "Damage2",
+      "dead_anim": "Damage4",
+      "born_override": { "max_fov": 30.0, "max_length": 12.0 }
+    },
+    "dragon_red": {
+      "cn_name": "DragonRed",
+      "behavior": "dragon",
+      "attack_radius": 75.0,
+      "move_speed": 30.0,
+      "move_speed_level_rate": 1.0,
+      "turn_speed": 3.0,
+      "attack_anims": ["FireBreathOnce"],
+      "attack_type": 0,
+      "damage_anim": "TakeDamage",
+      "dead_anim": "Die"
+    },
+    "dragon_blue": {
+      "cn_name": "DragonBlue",
+      "behavior": "dragon",
+      "attack_radius": 75.0,
+      "move_speed": 20.0,
+      "move_speed_level_rate": 1.0,
+      "turn_speed": 3.0,
+      "attack_anims": ["FireBreathOnce"],
+      "attack_type": 1,
+      "damage_anim": "TakeDamage",
+      "dead_anim": "Die"
+    },
+    "dragon_green": {
+      "cn_name": "DragonGreen",
+      "behavior": "dragon",
+      "attack_radius": 75.0,
+      "move_speed": 20.0,
+      "move_speed_level_rate": 1.0,
+      "turn_speed": 3.0,
+      "attack_anims": ["FireBreathOnce"],
+      "attack_type": 2,
+      "damage_anim": "TakeDamage",
+      "dead_anim": "Die"
+    },
+    "magma_demon": {
+      "cn_name": "MagmaDemonBlue",
+      "behavior": "magma",
+      "move_speed": 8.0,
+      "attack_anims": ["attack01", "attack02"],
+      "idle_anim": "idle",
+      "damage_anim": "takedamage",
+      "dead_anim": "die"
+    },
+    "rock_warrior": {
+      "cn_name": "树皮石头怪",
+      "behavior": "rock_warrior",
+      "hp": 300.0,
+      "attack_cd": 8.0,
+      "attack_radius": 36.0,
+      "move_speed": 3.0,
+      "move_speed_level_rate": 0.5,
+      "attack_type": 2,
+      "attack_anims": ["atk01"],
+      "damage_anim": "hit",
+      "dead_anim": "die"
+    },
+    "skeleton": {
+      "cn_name": "小骷髅",
+      "behavior": "skeleton",
+      "damage_anim": "Damage1",
+      "dead_anim": "Damage4",
+      "impact_tag": "Concrete",
+      "attack_level_bonus": 5.0
+    },
+    "bull": {
+      "cn_name": "牛魔王",
+      "behavior": "bull",
+      "attack_anims": ["attack_01", "attack_02", "attack_03"],
+      "damage_anim": "damage",
+      "dead_anim": "die",
+      "impact_tag": "Concrete",
+      "attack_level_bonus": 5.0,
+      "dead_anim_speed": 2.0
+    }
+  }
+}

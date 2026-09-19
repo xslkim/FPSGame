@@ -1,0 +1,192 @@
+[gd_scene load_steps=11 format=3]
+
+[ext_resource type="Script" path="res://gameplay/levels/level2.gd" id="1"]
+[ext_resource type="Script" path="res://gameplay/fire_system/fire_system.gd" id="2"]
+[ext_resource type="Script" path="res://gameplay/monsters/monster_pool.gd" id="3"]
+[ext_resource type="PackedScene" path="res://ui/hud.tscn" id="4"]
+[ext_resource type="PackedScene" path="res://ui/in_game_panel.tscn" id="5"]
+[ext_resource type="PackedScene" path="res://scenes/levels/env_level2.tscn" id="6"]
+[ext_resource type="Script" path="res://gameplay/monsters/fire_window.gd" id="7"]
+
+[sub_resource type="ProceduralSkyMaterial" id="SkyMat"]
+sky_top_color = Color(0.35, 0.3, 0.45, 1)
+sky_horizon_color = Color(0.75, 0.6, 0.5, 1)
+ground_bottom_color = Color(0.2, 0.15, 0.2, 1)
+ground_horizon_color = Color(0.75, 0.6, 0.5, 1)
+
+[sub_resource type="Sky" id="SkyRes"]
+sky_material = SubResource("SkyMat")
+
+[sub_resource type="Environment" id="Env"]
+background_mode = 2
+sky = SubResource("SkyRes")
+ambient_light_source = 2
+ambient_light_color = Color(0.55, 0.5, 0.55, 1)
+ambient_light_energy = 0.9
+
+[node name="Level2" type="Node3D"]
+script = ExtResource("1")
+level_key = "level2"
+cam_position_paths = [NodePath("CamPositions/cam_pos_0"), NodePath("CamPositions/cam_pos_1"), NodePath("CamPositions/cam_pos_2")]
+window_group_paths = [NodePath("Windows/group0"), NodePath("Windows/group1"), NodePath("Windows/group2")]
+pool_path = NodePath("MonsterPool")
+camera_path = NodePath("Camera3D")
+fire_system_path = NodePath("Camera3D/FireSystem")
+bgm_player_path = NodePath("BGM")
+
+[node name="Environment" parent="." instance=ExtResource("6")]
+; M6 木镇+异星地表(env_level2 导入);镇中心低台地 y≈-9,东高台地 y≈-2.7
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Env")
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.9397, -0.262, 0.2198, 0, 0.6428, 0.766, -0.342, -0.7198, 0.6038, 0, 8, 0)
+shadow_enabled = true
+
+[node name="Camera3D" type="Camera3D" parent="."]
+transform = Transform3D(-0.9976, 0.0021, 0.0688, 0, 0.9995, -0.0309, -0.0688, -0.0309, -0.9972, 6, -7.4, -14)
+current = true
+fov = 75.0
+
+[node name="FireSystem" type="Node3D" parent="Camera3D"]
+script = ExtResource("2")
+
+[node name="CamPositions" type="Node3D" parent="."]
+
+[node name="cam_pos_0" type="Marker3D" parent="CamPositions"]
+transform = Transform3D(-0.9976, 0.0021, 0.0688, 0, 0.9995, -0.0309, -0.0688, -0.0309, -0.9972, 6, -7.4, -14)
+; G0:南街道平视 Tavern 正面(门/窗清晰,街道纵深)
+
+[node name="cam_pos_1" type="Marker3D" parent="CamPositions"]
+transform = Transform3D(0.3939, -0.1343, 0.9093, 0, 0.9893, 0.1461, -0.9191, -0.0576, 0.3897, 12, -4, 4)
+; G1:东侧高台俯瞰西侧茅草屋群(低机位会被台地边缘挡死,y=-4 为台地+1.6)
+
+[node name="cam_pos_2" type="Marker3D" parent="CamPositions"]
+transform = Transform3D(-0.4315, 0.0565, -0.9004, 0, 0.998, 0.0626, 0.9021, 0.027, -0.4306, 10, -1.1, -10)
+; G2:东高台地(y≈-2.7+1.6)平视两栋东屋,boss 在此波出场
+
+[node name="Windows" type="Node3D" parent="."]
+
+[node name="group0" type="Node3D" parent="Windows"]
+; G0 ×7:Tavern 南面 ×4 + House2 南面 ×2 + WoodenHouse_1 南面 ×1(面向 cam_pos_0)
+
+[node name="w0" type="Node3D" parent="Windows/group0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -7.5, -7.4, 13)
+script = ExtResource("7")
+
+[node name="SrcPosition" type="Marker3D" parent="Windows/group0/w0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1.5)
+
+[node name="w1" type="Node3D" parent="Windows/group0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4, -7.4, 13)
+script = ExtResource("7")
+
+[node name="SrcPosition" type="Marker3D" parent="Windows/group0/w1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1.5)
+
+[node name="w2" type="Node3D" parent="Windows/group0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1, -7.4, 13)
+script = ExtResource("7")
+
+[node name="SrcPosition" type="Marker3D" parent="Windows/group0/w2"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1.5)
+
+[node name="w3" type="Node3D" parent="Windows/group0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2, -7.4, 13)
+script = ExtResource("7")
+
+[node name="SrcPosition" type="Marker3D" parent="Windows/group0/w3"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1.5)
+
+[node name="w4" type="Node3D" parent="Windows/group0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 13.3, -9.2, 17)
+script = ExtResource("7")
+
+[node name="SrcPosition" type="Marker3D" parent="Windows/group0/w4"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1.5)
+
+[node name="w5" type="Node3D" parent="Windows/group0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 19.3, -9.2, 17)
+script = ExtResource("7")
+
+[node name="SrcPosition" type="Marker3D" parent="Windows/group0/w5"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1.5)
+
+[node name="w6" type="Node3D" parent="Windows/group0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 26.9, -7.2, 14)
+script = ExtResource("7")
+
+[node name="SrcPosition" type="Marker3D" parent="Windows/group0/w6"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1.5)
+
+[node name="group1" type="Node3D" parent="Windows"]
+; G1 ×5:WoodenHouse_2 东面 ×2 + WoodenHouse_1(1) 东面 ×1 + WoodenHouse_3 东面 ×1 + House3 东面 ×1(面向 cam_pos_1)
+
+[node name="w0" type="Node3D" parent="Windows/group1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2, -9, -10)
+script = ExtResource("7")
+
+[node name="SrcPosition" type="Marker3D" parent="Windows/group1/w0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.5, 0, 0)
+
+[node name="w1" type="Node3D" parent="Windows/group1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2, -9, -6.5)
+script = ExtResource("7")
+
+[node name="SrcPosition" type="Marker3D" parent="Windows/group1/w1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.5, 0, 0)
+
+[node name="w2" type="Node3D" parent="Windows/group1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.5, -8.6, -20.6)
+script = ExtResource("7")
+
+[node name="SrcPosition" type="Marker3D" parent="Windows/group1/w2"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.5, 0, 0)
+
+[node name="w3" type="Node3D" parent="Windows/group1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -14.5, -8.5, -2.7)
+script = ExtResource("7")
+
+[node name="SrcPosition" type="Marker3D" parent="Windows/group1/w3"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.5, 0, 0)
+
+[node name="w4" type="Node3D" parent="Windows/group1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -19, -7.2, -19)
+script = ExtResource("7")
+
+[node name="SrcPosition" type="Marker3D" parent="Windows/group1/w4"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.5, 0, 0)
+
+[node name="group2" type="Node3D" parent="Windows"]
+; G2 ×3:WoodenHouse_3(1) 西面 ×2 + WoodenHouse_2(1) 西面 ×1(面向 cam_pos_2)
+
+[node name="w0" type="Node3D" parent="Windows/group2"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 21, -2.7, -14.5)
+script = ExtResource("7")
+
+[node name="SrcPosition" type="Marker3D" parent="Windows/group2/w0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.5, 0, 0)
+
+[node name="w1" type="Node3D" parent="Windows/group2"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 21, -2.7, -10.5)
+script = ExtResource("7")
+
+[node name="SrcPosition" type="Marker3D" parent="Windows/group2/w1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.5, 0, 0)
+
+[node name="w2" type="Node3D" parent="Windows/group2"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 27, -2.8, 3.1)
+script = ExtResource("7")
+
+[node name="SrcPosition" type="Marker3D" parent="Windows/group2/w2"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.5, 0, 0)
+
+[node name="MonsterPool" type="Node3D" parent="."]
+script = ExtResource("3")
+
+[node name="BGM" type="AudioStreamPlayer" parent="."]
+
+[node name="HUD" parent="." instance=ExtResource("4")]
+
+[node name="InGamePanel" parent="." instance=ExtResource("5")]

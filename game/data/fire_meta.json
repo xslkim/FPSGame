@@ -1,0 +1,35 @@
+{
+  "gun_type_num": 7,
+  "guns": [
+    {
+      "type": 0,
+      "name": "Ak47",
+      "pos": { "x": 0.10, "y": -0.04, "z": 0.16 },
+      "pos60": { "x": 0.12, "y": -0.045, "z": 0.16 },
+      "fire_cd": 0.2,
+      "attack": 10.0,
+      "bullet": 1,
+      "fire_sound": "res://assets/audio/weapons/AutoGun_3p_01.wav"
+    },
+    {
+      "type": 1,
+      "name": "M4",
+      "pos": { "x": 0.10, "y": -0.05, "z": 0.16 },
+      "pos60": { "x": 0.12, "y": -0.045, "z": 0.16 },
+      "fire_cd": 0.1,
+      "attack": 10.0,
+      "bullet": 1,
+      "fire_sound": "res://assets/audio/weapons/AutoGun_3p_01.wav"
+    },
+    {
+      "type": 2,
+      "name": "HandGun",
+      "pos": { "x": 0.10, "y": -0.04, "z": 0.16 },
+      "pos60": { "x": 0.12, "y": -0.045, "z": 0.16 },
+      "fire_cd": 0.5,
+      "attack": 10.0,
+      "bullet": 1,
+      "fire_sound": "res://assets/audio/weapons/AutoGun_1p_01.wav"
+    }
+  ]
+}

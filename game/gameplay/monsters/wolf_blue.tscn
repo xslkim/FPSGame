@@ -1,0 +1,48 @@
+[gd_scene load_steps=9 format=3]
+
+[ext_resource type="PackedScene" path="res://gameplay/monsters/monster_base.tscn" id="1"]
+[ext_resource type="Script" path="res://gameplay/monsters/wolf_blue.gd" id="2"]
+[ext_resource type="PackedScene" path="res://assets/models/monsters/wolf_demon/Demon Wolf.FBX" id="3"]
+[ext_resource type="AnimationLibrary" path="res://assets/models/monsters/wolf_demon/wolf_demon_anims.tres" id="4"]
+[ext_resource type="Material" path="res://assets/models/monsters/wolf_demon/wolf_blue_mat.tres" id="5"]
+[ext_resource type="Script" path="res://gameplay/monsters/hit_part_box.gd" id="6"]
+
+[sub_resource type="CapsuleShape3D" id="BodyShape"]
+radius = 0.45
+height = 1.2
+
+[sub_resource type="BoxShape3D" id="HeadShape"]
+size = Vector3(0.45, 0.45, 0.45)
+
+[node name="WolfBlue" instance=ExtResource("1")]
+script = ExtResource("2")
+meta_key = "wolf_blue"
+body_material = ExtResource("5")
+
+[node name="Body" parent="." index="0"]
+visible = false
+
+[node name="CollisionShape3D" parent="." index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.6, 0)
+shape = SubResource("BodyShape")
+
+[node name="AnimationPlayer" parent="." index="2"]
+libraries = {
+&"": ExtResource("4")
+}
+
+[node name="HpAnchor" parent="." index="3"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.2, 0)
+
+[node name="Model" parent="." instance=ExtResource("3")]
+transform = Transform3D(-1, 0, -8.74228e-08, 0, 1, 0, 8.74228e-08, 0, -1, 0, 0, 0)
+
+[node name="BoxHead" type="StaticBody3D" parent="."]
+collision_layer = 2
+collision_mask = 0
+script = ExtResource("6")
+hit_type = 0
+
+[node name="Shape" type="CollisionShape3D" parent="BoxHead"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.55, -0.55)
+shape = SubResource("HeadShape")

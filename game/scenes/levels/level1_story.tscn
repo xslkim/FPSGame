@@ -1,0 +1,62 @@
+[gd_scene load_steps=9 format=3]
+
+[ext_resource type="Script" path="res://scenes/levels/level1_story.gd" id="1"]
+[ext_resource type="PackedScene" path="res://scenes/levels/env_school_hallway.tscn" id="2"]
+[ext_resource type="AudioStream" path="res://assets/audio/story/高中排练舞蹈.mp3" id="3"]
+[ext_resource type="AudioStream" path="res://assets/audio/story/尖叫4.mp3" id="4"]
+[ext_resource type="AudioStream" path="res://assets/audio/story/救救我.wav" id="5"]
+
+[sub_resource type="ProceduralSkyMaterial" id="SkyMat"]
+
+[sub_resource type="Sky" id="SkyRes"]
+sky_material = SubResource("SkyMat")
+
+[sub_resource type="Environment" id="Env"]
+background_mode = 2
+sky = SubResource("SkyRes")
+ambient_light_source = 2
+ambient_light_color = Color(0.45, 0.45, 0.5, 1)
+ambient_light_energy = 0.8
+
+[node name="Level1Story" type="Node3D"]
+script = ExtResource("1")
+
+[node name="Environment" parent="." instance=ExtResource("2")]
+; 学校走廊(日间变体默认激活;与 level1_battle 共用)
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Env")
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.9397, -0.262, 0.2198, 0, 0.6428, 0.766, -0.342, -0.7198, 0.6038, 0, 8, 0)
+shadow_enabled = true
+
+[node name="Camera3D" type="Camera3D" parent="."]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0, 2.2, -6)
+current = true
+fov = 65.0
+
+[node name="CamPlayer" type="AnimationPlayer" parent="."]
+
+[node name="Dancers" type="Node3D" parent="."]
+
+[node name="Music" type="AudioStreamPlayer" parent="."]
+stream = ExtResource("3")
+
+[node name="SfxScream" type="AudioStreamPlayer" parent="."]
+stream = ExtResource("4")
+
+[node name="SfxHelp" type="AudioStreamPlayer" parent="."]
+stream = ExtResource("5")
+
+[node name="FadeLayer" type="CanvasLayer" parent="."]
+
+[node name="FadeRect" type="ColorRect" parent="FadeLayer"]
+modulate = Color(1, 1, 1, 0)
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+mouse_filter = 2
+color = Color(0, 0, 0, 1)
+
+[connection signal="finished" from="Music" to="." method="_on_music_finished"]

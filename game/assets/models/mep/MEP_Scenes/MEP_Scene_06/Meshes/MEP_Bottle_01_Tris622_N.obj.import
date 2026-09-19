@@ -1,0 +1,25 @@
+[remap]
+
+importer="wavefront_obj"
+importer_version=1
+type="Mesh"
+uid="uid://bbalhin5e0rg7"
+path="res://.godot/imported/MEP_Bottle_01_Tris622_N.obj-4ab9d225cf6fc8389f6e0f6a42e205a7.mesh"
+
+[deps]
+
+files=["res://.godot/imported/MEP_Bottle_01_Tris622_N.obj-4ab9d225cf6fc8389f6e0f6a42e205a7.mesh"]
+
+source_file="res://assets/models/mep/MEP_Scenes/MEP_Scene_06/Meshes/MEP_Bottle_01_Tris622_N.obj"
+dest_files=["res://.godot/imported/MEP_Bottle_01_Tris622_N.obj-4ab9d225cf6fc8389f6e0f6a42e205a7.mesh", "res://.godot/imported/MEP_Bottle_01_Tris622_N.obj-4ab9d225cf6fc8389f6e0f6a42e205a7.mesh"]
+
+[params]
+
+generate_tangents=true
+generate_lods=true
+generate_shadow_mesh=true
+generate_lightmap_uv2=false
+generate_lightmap_uv2_texel_size=0.2
+scale_mesh=Vector3(1, 1, 1)
+offset_mesh=Vector3(0, 0, 0)
+force_disable_mesh_compression=false

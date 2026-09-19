@@ -1,0 +1,72 @@
+[gd_scene load_steps=9 format=3]
+
+[ext_resource type="Script" path="res://assets/effects/effect_base.gd" id="1"]
+[ext_resource type="Texture2D" path="res://assets/effects/textures/stone.png" id="2"]
+[ext_resource type="Texture2D" path="res://assets/effects/textures/dust2.png" id="3"]
+[ext_resource type="Texture2D" path="res://assets/effects/textures/hole_concrete.png" id="4"]
+
+[sub_resource type="ParticleProcessMaterial" id="ppm_chips"]
+direction = Vector3(0, 0, 1)
+spread = 45.0
+gravity = Vector3(0, -8, 0)
+initial_velocity_min = 2.0
+initial_velocity_max = 4.0
+angular_velocity_min = -360.0
+angular_velocity_max = 360.0
+scale_min = 0.5
+scale_max = 1.0
+
+[sub_resource type="StandardMaterial3D" id="mat_chips"]
+transparency = 1
+shading_mode = 0
+albedo_color = Color(0.55, 0.55, 0.57, 1)
+albedo_texture = ExtResource("2")
+billboard_mode = 1
+
+[sub_resource type="QuadMesh" id="q_chips"]
+material = SubResource("mat_chips")
+size = Vector2(0.05, 0.05)
+
+[sub_resource type="ParticleProcessMaterial" id="ppm_puff"]
+direction = Vector3(0, 0, 1)
+spread = 35.0
+gravity = Vector3(0, 0.3, 0)
+initial_velocity_min = 0.5
+initial_velocity_max = 1.2
+scale_min = 0.8
+scale_max = 1.4
+
+[sub_resource type="StandardMaterial3D" id="mat_puff"]
+transparency = 1
+shading_mode = 0
+albedo_color = Color(0.6, 0.6, 0.62, 0.5)
+albedo_texture = ExtResource("3")
+billboard_mode = 1
+
+[sub_resource type="QuadMesh" id="q_puff"]
+material = SubResource("mat_puff")
+size = Vector2(0.14, 0.14)
+
+[node name="ImpactConcrete" type="Node3D"]
+script = ExtResource("1")
+lifetime = 0.5
+
+[node name="Chips" type="GPUParticles3D" parent="."]
+amount = 12
+lifetime = 0.45
+explosiveness = 0.9
+randomness = 0.4
+process_material = SubResource("ppm_chips")
+draw_pass_1 = SubResource("q_chips")
+
+[node name="Puff" type="GPUParticles3D" parent="."]
+amount = 6
+lifetime = 0.5
+explosiveness = 0.8
+process_material = SubResource("ppm_puff")
+draw_pass_1 = SubResource("q_puff")
+
+[node name="Hole" type="Sprite3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.002)
+pixel_size = 0.0005
+texture = ExtResource("4")

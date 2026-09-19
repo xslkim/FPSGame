@@ -1,0 +1,20 @@
+{
+  "json_lights": 46,
+  "json_mesh_nodes": 5542,
+  "json_nodes": 6123,
+  "output": "res://scenes/levels/env_school_hallway.tscn",
+  "source_json": "school_day",
+  "stats": {
+    "collision_bodies": 1034,
+    "fbx_materials_kept": 3465,
+    "inactive": 3935,
+    "lights": 46,
+    "materials_built": 7,
+    "mesh_instances": 5542,
+    "missing_fbx": [],
+    "missing_meshes": [],
+    "missing_textures": [],
+    "nodes": 6123,
+    "proxy_collision_bodies": 27
+  }
+}

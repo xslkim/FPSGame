@@ -1,0 +1,26 @@
+[gd_scene load_steps=6 format=3]
+
+[ext_resource type="PackedScene" path="res://gameplay/monsters/monster_base.tscn" id="1"]
+[ext_resource type="Script" path="res://gameplay/monsters/baotou.gd" id="2"]
+[ext_resource type="PackedScene" path="res://assets/models/monsters/baotou/Chr_Zcharacter_01.FBX" id="3"]
+[ext_resource type="AnimationLibrary" path="res://assets/models/monsters/baotou/baotou_anims.tres" id="4"]
+[ext_resource type="Material" path="res://assets/models/monsters/baotou/baotou_mat.tres" id="5"]
+
+[node name="Baotou" instance=ExtResource("1")]
+script = ExtResource("2")
+meta_key = "baotou"
+is_boss = true
+
+[node name="Body" parent="." index="0"]
+visible = false
+
+[node name="AnimationPlayer" parent="." index="2"]
+libraries = {
+&"": ExtResource("4")
+}
+
+[node name="Model" parent="." instance=ExtResource("3")]
+transform = Transform3D(-1.2, 0, 0, 0, 1.2, 0, 0, 0, -1.2, 0, 0, 0)
+
+[node name="CHR_Zcharacter_001" parent="Model/Skeleton3D" index="0"]
+surface_material_override/0 = ExtResource("5")

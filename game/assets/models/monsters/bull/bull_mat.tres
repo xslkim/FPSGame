@@ -1,0 +1,7 @@
+[gd_resource type="StandardMaterial3D" format=3]
+
+[ext_resource type="Texture2D" path="res://assets/models/monsters/bull/bull_king_c.png" id="1_ctwi2"]
+
+[resource]
+resource_name = "bull_mat"
+albedo_texture = ExtResource("1_ctwi2")

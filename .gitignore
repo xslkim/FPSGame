@@ -1,0 +1,16 @@
+# Godot 引擎源码（自带独立 git 仓库，不纳入本库）
+godot/
+
+# 构建产物
+dist/
+
+# Godot 导入缓存
+game/.godot/
+
+# 备用编辑器与日志
+tools/godot-4.5.1/
+tools/*.log
+
+# 杂项
+*.tmp
+.DS_Store

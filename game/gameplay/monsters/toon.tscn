@@ -1,0 +1,53 @@
+[gd_scene load_steps=7 format=3]
+
+[ext_resource type="PackedScene" path="res://gameplay/monsters/monster_base.tscn" id="1"]
+[ext_resource type="Script" path="res://gameplay/monsters/toon.gd" id="2"]
+[ext_resource type="PackedScene" path="res://assets/models/monsters/toon/ToonSoldiers_Militias.FBX" id="3"]
+[ext_resource type="AnimationLibrary" path="res://assets/models/monsters/toon/toon_anims.tres" id="4"]
+[ext_resource type="PackedScene" path="res://assets/models/monsters/toon/weapon_ak47.FBX" id="5"]
+
+[sub_resource type="CapsuleShape3D" id="BodyShape"]
+radius = 0.4
+height = 1.7
+
+[node name="ToonShoot" instance=ExtResource("1")]
+script = ExtResource("2")
+meta_key = "toon_shoot"
+
+[node name="Body" parent="." index="0"]
+visible = false
+
+[node name="CollisionShape3D" parent="." index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.85, 0)
+shape = SubResource("BodyShape")
+
+[node name="AnimationPlayer" parent="." index="2"]
+libraries = {
+&"": ExtResource("4")
+}
+
+[node name="HpAnchor" parent="." index="3"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.0, 0)
+
+[node name="Model" parent="." instance=ExtResource("3")]
+transform = Transform3D(-1, 0, -8.74228e-08, 0, 1, 0, 8.74228e-08, 0, -1, 0, 0, 0)
+
+[node name="WeaponAttach" type="BoneAttachment3D" parent="Model/Skeleton3D"]
+bone_name = "WeaponContainer"
+
+[node name="AK47" parent="Model/Skeleton3D/WeaponAttach" instance=ExtResource("5")]
+transform = Transform3D(0.4228, 0, 0, 0, 0.4228, 0, 0, 0, 0.4228, 0, 0, 0)
+
+[node name="Appearance" type="Node3D" parent="."]
+
+[node name="GroupHeads" type="Node3D" parent="Appearance"]
+
+[node name="GroupBodys" type="Node3D" parent="Appearance"]
+
+[node name="GroupLegs" type="Node3D" parent="Appearance"]
+
+[node name="GroupScarfs" type="Node3D" parent="Appearance"]
+
+[node name="GroupEquips" type="Node3D" parent="Appearance"]
+
+[node name="GroupBackpack" type="Node3D" parent="Appearance"]

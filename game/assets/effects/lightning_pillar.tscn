@@ -1,0 +1,78 @@
+[gd_scene load_steps=10 format=3]
+
+[ext_resource type="Script" path="res://assets/effects/effect_base.gd" id="1"]
+[ext_resource type="Texture2D" path="res://assets/effects/textures/lightning1.png" id="2"]
+[ext_resource type="Texture2D" path="res://assets/effects/textures/lightning2.png" id="3"]
+[ext_resource type="Texture2D" path="res://assets/effects/textures/lightning_p.png" id="4"]
+[ext_resource type="Texture2D" path="res://assets/effects/textures/soft_spot.png" id="5"]
+[ext_resource type="AudioStream" path="res://assets/audio/effects/lightning.wav" id="6"]
+
+[sub_resource type="StandardMaterial3D" id="mat_bolt"]
+transparency = 1
+blend_mode = 1
+shading_mode = 0
+albedo_color = Color(0.75, 0.85, 1, 0.95)
+albedo_texture = ExtResource("2")
+billboard_mode = 1
+
+[sub_resource type="StandardMaterial3D" id="mat_bolt2"]
+transparency = 1
+blend_mode = 1
+shading_mode = 0
+albedo_color = Color(0.75, 0.85, 1, 0.95)
+albedo_texture = ExtResource("3")
+billboard_mode = 1
+
+[sub_resource type="StandardMaterial3D" id="mat_bolt3"]
+transparency = 1
+blend_mode = 1
+shading_mode = 0
+albedo_color = Color(0.75, 0.85, 1, 0.95)
+albedo_texture = ExtResource("4")
+billboard_mode = 1
+
+[sub_resource type="StandardMaterial3D" id="mat_glow"]
+transparency = 1
+blend_mode = 1
+shading_mode = 0
+albedo_color = Color(0.6, 0.75, 1, 0.8)
+albedo_texture = ExtResource("5")
+billboard_mode = 1
+
+[node name="LightningPillar" type="Node3D"]
+script = ExtResource("1")
+lifetime = 0.5
+
+[node name="Bolt1" type="Sprite3D" parent="."]
+transform = Transform3D(1.31134e-07, 4, 0, -4, 1.31134e-07, 0, 0, 0, 4, 0, 4, 0)
+pixel_size = 0.008
+material_override = SubResource("mat_bolt")
+texture = ExtResource("2")
+
+[node name="Bolt2" type="Sprite3D" parent="."]
+transform = Transform3D(1.31134e-07, 4, 0, -4, 1.31134e-07, 0, 0, 0, 4, 0, 4, 0)
+pixel_size = 0.008
+material_override = SubResource("mat_bolt2")
+texture = ExtResource("3")
+
+[node name="Bolt3" type="Sprite3D" parent="."]
+transform = Transform3D(4, 0, 0, 0, 4, 0, 0, 0, 4, 0, 4, 0)
+pixel_size = 0.015
+material_override = SubResource("mat_bolt3")
+texture = ExtResource("4")
+
+[node name="GroundGlow" type="Sprite3D" parent="."]
+transform = Transform3D(6, 0, 0, 0, -2.62268e-07, 6, 0, -6, -2.62268e-07, 0, 0.05, 0)
+pixel_size = 0.008
+material_override = SubResource("mat_glow")
+texture = ExtResource("5")
+
+[node name="Light" type="OmniLight3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3, 0)
+light_color = Color(0.7, 0.8, 1, 1)
+light_energy = 8.0
+omni_range = 18.0
+
+[node name="Sound" type="AudioStreamPlayer3D" parent="."]
+stream = ExtResource("6")
+unit_size = 6.0

@@ -1,0 +1,31 @@
+[gd_scene load_steps=6 format=3]
+
+[ext_resource type="PackedScene" path="res://gameplay/monsters/monster_base.tscn" id="1"]
+[ext_resource type="Script" path="res://gameplay/monsters/fly_axe_zombie.gd" id="2"]
+[ext_resource type="PackedScene" path="res://assets/models/monsters/axe_zombie/MonsterAxeZombie.FBX" id="3"]
+[ext_resource type="AnimationLibrary" path="res://assets/models/monsters/axe_zombie/axe_zombie_anims.tres" id="4"]
+[ext_resource type="Material" path="res://assets/models/monsters/axe_zombie/axe_zombie_mat.tres" id="5"]
+
+[node name="FlyAxeZombie" instance=ExtResource("1")]
+script = ExtResource("2")
+meta_key = "fly_axe_zombie"
+
+[node name="Body" parent="." index="0"]
+visible = false
+
+[node name="AnimationPlayer" parent="." index="2"]
+libraries = {
+&"": ExtResource("4")
+}
+
+[node name="Model" parent="." instance=ExtResource("3")]
+rotation = Vector3(0, 3.141593, 0)
+
+[node name="axe_01" parent="Model/Skeleton3D/axe_01" index="0"]
+surface_material_override/0 = ExtResource("5")
+
+[node name="axe_02" parent="Model/Skeleton3D/axe_02" index="0"]
+surface_material_override/0 = ExtResource("5")
+
+[node name="zombi001" parent="Model/Skeleton3D" index="3"]
+surface_material_override/0 = ExtResource("5")

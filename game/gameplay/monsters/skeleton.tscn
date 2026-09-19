@@ -1,0 +1,21 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="PackedScene" path="res://gameplay/monsters/monster_base.tscn" id="1"]
+[ext_resource type="Script" path="res://gameplay/monsters/skeleton.gd" id="2"]
+[ext_resource type="PackedScene" path="res://assets/models/monsters/skeleton/MonsterSkeleton.FBX" id="3"]
+[ext_resource type="AnimationLibrary" path="res://assets/models/monsters/skeleton/skeleton_anims.tres" id="4"]
+
+[node name="Skeleton" instance=ExtResource("1")]
+script = ExtResource("2")
+meta_key = "skeleton"
+
+[node name="Body" parent="." index="0"]
+visible = false
+
+[node name="AnimationPlayer" parent="." index="2"]
+libraries = {
+&"": ExtResource("4")
+}
+
+[node name="Model" parent="." instance=ExtResource("3")]
+transform = Transform3D(-0.8, 0, 0, 0, 0.8, 0, 0, 0, -0.8, 0, 0, 0)

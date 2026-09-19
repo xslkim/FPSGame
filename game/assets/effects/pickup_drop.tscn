@@ -1,0 +1,71 @@
+[gd_scene load_steps=9 format=3]
+
+[ext_resource type="Script" path="res://assets/effects/effect_base.gd" id="1"]
+[ext_resource type="Texture2D" path="res://assets/effects/textures/heart.png" id="2"]
+[ext_resource type="Texture2D" path="res://assets/effects/textures/sparkle.png" id="3"]
+[ext_resource type="Texture2D" path="res://assets/effects/textures/soft_spot.png" id="4"]
+[ext_resource type="AudioStream" path="res://assets/audio/effects/pickup.wav" id="5"]
+
+[sub_resource type="ParticleProcessMaterial" id="ppm_sparkle"]
+direction = Vector3(0, 1, 0)
+spread = 45.0
+gravity = Vector3(0, 1.2, 0)
+initial_velocity_min = 0.8
+initial_velocity_max = 2.0
+scale_min = 0.15
+scale_max = 0.35
+
+[sub_resource type="StandardMaterial3D" id="mat_sparkle"]
+transparency = 1
+blend_mode = 1
+shading_mode = 0
+albedo_color = Color(1, 0.85, 0.4, 1)
+albedo_texture = ExtResource("3")
+billboard_mode = 1
+
+[sub_resource type="QuadMesh" id="q_sparkle"]
+material = SubResource("mat_sparkle")
+size = Vector2(0.5, 0.5)
+
+[sub_resource type="StandardMaterial3D" id="mat_heart"]
+transparency = 1
+shading_mode = 0
+albedo_color = Color(1, 0.85, 0.35, 1)
+albedo_texture = ExtResource("2")
+billboard_mode = 1
+
+[sub_resource type="StandardMaterial3D" id="mat_glow"]
+transparency = 1
+blend_mode = 1
+shading_mode = 0
+albedo_color = Color(1, 0.8, 0.35, 0.7)
+albedo_texture = ExtResource("4")
+billboard_mode = 1
+
+[node name="PickupDrop" type="Node3D"]
+script = ExtResource("1")
+lifetime = 1.0
+
+[node name="Sparkles" type="GPUParticles3D" parent="."]
+amount = 14
+lifetime = 0.9
+explosiveness = 0.4
+randomness = 0.5
+process_material = SubResource("ppm_sparkle")
+draw_pass_1 = SubResource("q_sparkle")
+
+[node name="Heart" type="Sprite3D" parent="."]
+transform = Transform3D(1.5, 0, 0, 0, 1.5, 0, 0, 0, 1.5, 0, 0.6, 0)
+pixel_size = 0.006
+material_override = SubResource("mat_heart")
+texture = ExtResource("2")
+
+[node name="Glow" type="Sprite3D" parent="."]
+transform = Transform3D(2.5, 0, 0, 0, 2.5, 0, 0, 0, 2.5, 0, 0.6, 0)
+pixel_size = 0.01
+material_override = SubResource("mat_glow")
+texture = ExtResource("4")
+
+[node name="Sound" type="AudioStreamPlayer3D" parent="."]
+stream = ExtResource("5")
+unit_size = 4.0

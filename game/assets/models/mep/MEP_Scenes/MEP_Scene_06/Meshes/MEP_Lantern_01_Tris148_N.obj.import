@@ -1,0 +1,25 @@
+[remap]
+
+importer="wavefront_obj"
+importer_version=1
+type="Mesh"
+uid="uid://cnwcgyktt7t7b"
+path="res://.godot/imported/MEP_Lantern_01_Tris148_N.obj-570bc417f28a894a576a797039841dda.mesh"
+
+[deps]
+
+files=["res://.godot/imported/MEP_Lantern_01_Tris148_N.obj-570bc417f28a894a576a797039841dda.mesh"]
+
+source_file="res://assets/models/mep/MEP_Scenes/MEP_Scene_06/Meshes/MEP_Lantern_01_Tris148_N.obj"
+dest_files=["res://.godot/imported/MEP_Lantern_01_Tris148_N.obj-570bc417f28a894a576a797039841dda.mesh", "res://.godot/imported/MEP_Lantern_01_Tris148_N.obj-570bc417f28a894a576a797039841dda.mesh"]
+
+[params]
+
+generate_tangents=true
+generate_lods=true
+generate_shadow_mesh=true
+generate_lightmap_uv2=false
+generate_lightmap_uv2_texel_size=0.2
+scale_mesh=Vector3(1, 1, 1)
+offset_mesh=Vector3(0, 0, 0)
+force_disable_mesh_compression=false

@@ -1,0 +1,25 @@
+[gd_scene load_steps=6 format=3]
+
+[ext_resource type="PackedScene" path="res://gameplay/monsters/monster_base.tscn" id="1"]
+[ext_resource type="Script" path="res://gameplay/monsters/bull.gd" id="2"]
+[ext_resource type="PackedScene" path="res://assets/models/monsters/bull/bull_king.FBX" id="3"]
+[ext_resource type="AnimationLibrary" path="res://assets/models/monsters/bull/bull_anims.tres" id="4"]
+[ext_resource type="Material" path="res://assets/models/monsters/bull/bull_mat.tres" id="5"]
+
+[node name="Bull" instance=ExtResource("1")]
+script = ExtResource("2")
+meta_key = "bull"
+
+[node name="Body" parent="." index="0"]
+visible = false
+
+[node name="AnimationPlayer" parent="." index="2"]
+libraries = {
+&"": ExtResource("4")
+}
+
+[node name="Model" parent="." instance=ExtResource("3")]
+rotation = Vector3(0, 3.141593, 0)
+
+[node name="Object001" parent="Model/bull_king_root/Skeleton3D" index="0"]
+surface_material_override/0 = ExtResource("5")

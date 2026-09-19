@@ -1,0 +1,7 @@
+[gd_resource type="StandardMaterial3D" format=3]
+
+[ext_resource type="Texture2D" path="res://assets/models/monsters/axe_zombie/MonsterAxeZombi.tga" id="1_toeri"]
+
+[resource]
+resource_name = "axe_zombie_mat"
+albedo_texture = ExtResource("1_toeri")

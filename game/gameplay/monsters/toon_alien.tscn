@@ -1,0 +1,60 @@
+[gd_scene load_steps=7 format=3]
+
+[ext_resource type="PackedScene" path="res://gameplay/monsters/monster_base.tscn" id="1"]
+[ext_resource type="Script" path="res://gameplay/monsters/toon.gd" id="2"]
+[ext_resource type="PackedScene" path="res://assets/models/monsters/toon_alien/stardudes_suit_mk1.fbx" id="3"]
+[ext_resource type="AnimationLibrary" path="res://assets/models/monsters/toon_alien/toon_alien_anims.tres" id="4"]
+[ext_resource type="PackedScene" path="res://assets/models/monsters/toon_alien/helmet_m_alpha.fbx" id="5"]
+[ext_resource type="PackedScene" path="res://assets/models/monsters/toon_alien/rifle_battlerifle.fbx" id="6"]
+
+[sub_resource type="CapsuleShape3D" id="BodyShape"]
+radius = 0.4
+height = 1.7
+
+[node name="ToonShootAlien" instance=ExtResource("1")]
+script = ExtResource("2")
+meta_key = "toon_shoot_alien"
+
+[node name="Body" parent="." index="0"]
+visible = false
+
+[node name="CollisionShape3D" parent="." index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.85, 0)
+shape = SubResource("BodyShape")
+
+[node name="AnimationPlayer" parent="." index="2"]
+libraries = {
+&"": ExtResource("4")
+}
+
+[node name="HpAnchor" parent="." index="3"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.0, 0)
+
+[node name="Model" type="Node3D" parent="."]
+transform = Transform3D(-15, 0, -1.31134e-06, 0, 15, 0, 1.31134e-06, 0, -15, 0, 0, 0)
+
+[node name="Suit" parent="Model" instance=ExtResource("3")]
+
+[node name="HeadAttach" type="BoneAttachment3D" parent="Model/Suit/StarDudes/SD_GlobalMove/SD_Bones/Skeleton3D"]
+bone_name = "bn_Head"
+
+[node name="Helmet" parent="Model/Suit/StarDudes/SD_GlobalMove/SD_Bones/Skeleton3D/HeadAttach" instance=ExtResource("5")]
+
+[node name="RifleAttach" type="BoneAttachment3D" parent="Model/Suit/StarDudes/SD_GlobalMove/SD_Bones/Skeleton3D"]
+bone_name = "PIV_RifleHandle"
+
+[node name="Rifle" parent="Model/Suit/StarDudes/SD_GlobalMove/SD_Bones/Skeleton3D/RifleAttach" instance=ExtResource("6")]
+
+[node name="Appearance" type="Node3D" parent="."]
+
+[node name="GroupHeads" type="Node3D" parent="Appearance"]
+
+[node name="GroupBodys" type="Node3D" parent="Appearance"]
+
+[node name="GroupLegs" type="Node3D" parent="Appearance"]
+
+[node name="GroupScarfs" type="Node3D" parent="Appearance"]
+
+[node name="GroupEquips" type="Node3D" parent="Appearance"]
+
+[node name="GroupBackpack" type="Node3D" parent="Appearance"]

@@ -1,0 +1,32 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="PackedScene" path="res://gameplay/fire_system/gun_base.tscn" id="1"]
+[ext_resource type="PackedScene" path="res://assets/models/guns/ak47/ak47.fbx" id="2"]
+[ext_resource type="Texture2D" path="res://assets/models/guns/ak47/ak47_tex.png" id="3"]
+
+[sub_resource type="StandardMaterial3D" id="Mat_ak47"]
+albedo_texture = ExtResource("3")
+
+[node name="Ak47" instance=ExtResource("1")]
+gun_type = 0
+
+[node name="Model" type="Node3D" parent="."]
+transform = Transform3D(-0.292715, 0, 0, 0, 0.292715, 0, 0, 0, -0.175629, 0, 0, 0)
+
+[node name="ak47" parent="Model" instance=ExtResource("2")]
+
+[node name="AK_47" parent="Model/ak47" index="0"]
+cast_shadow = 0
+surface_material_override/0 = SubResource("Mat_ak47")
+
+[node name="AK_47_Magazine" parent="Model/ak47/AK_47" index="0"]
+cast_shadow = 0
+surface_material_override/0 = SubResource("Mat_ak47")
+
+[node name="Ak_47_Shell" parent="Model/ak47/AK_47" index="1"]
+visible = false
+
+[node name="Muzzle" parent="." index="0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.085)
+
+[editable path="Model/ak47"]

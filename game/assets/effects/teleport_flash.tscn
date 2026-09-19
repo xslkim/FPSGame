@@ -1,0 +1,63 @@
+[gd_scene load_steps=9 format=3]
+
+[ext_resource type="Script" path="res://assets/effects/effect_base.gd" id="1"]
+[ext_resource type="Texture2D" path="res://assets/effects/textures/teleport1.png" id="2"]
+[ext_resource type="Texture2D" path="res://assets/effects/textures/energy_ball.png" id="3"]
+[ext_resource type="AudioStream" path="res://assets/audio/effects/teleport.wav" id="4"]
+
+[sub_resource type="ParticleProcessMaterial" id="ppm_wisp"]
+direction = Vector3(0, 1, 0)
+spread = 35.0
+gravity = Vector3(0, 1.5, 0)
+initial_velocity_min = 0.5
+initial_velocity_max = 1.5
+scale_min = 0.8
+scale_max = 1.4
+anim_offset_min = 0.0
+anim_offset_max = 1.0
+anim_speed_min = 1.0
+anim_speed_max = 1.0
+
+[sub_resource type="StandardMaterial3D" id="mat_wisp"]
+transparency = 1
+blend_mode = 1
+shading_mode = 0
+albedo_color = Color(0.7, 0.5, 1, 0.9)
+albedo_texture = ExtResource("2")
+billboard_mode = 3
+particles_anim_h_frames = 8
+particles_anim_v_frames = 1
+particles_anim_loop = true
+
+[sub_resource type="QuadMesh" id="q_wisp"]
+material = SubResource("mat_wisp")
+size = Vector2(0.6, 0.6)
+
+[sub_resource type="StandardMaterial3D" id="mat_core"]
+transparency = 1
+blend_mode = 1
+shading_mode = 0
+albedo_color = Color(0.8, 0.6, 1, 0.9)
+albedo_texture = ExtResource("3")
+billboard_mode = 1
+
+[node name="TeleportFlash" type="Node3D"]
+script = ExtResource("1")
+lifetime = 0.45
+
+[node name="Wisps" type="GPUParticles3D" parent="."]
+amount = 14
+lifetime = 0.4
+explosiveness = 0.9
+randomness = 0.4
+process_material = SubResource("ppm_wisp")
+draw_pass_1 = SubResource("q_wisp")
+
+[node name="Core" type="Sprite3D" parent="."]
+pixel_size = 0.008
+material_override = SubResource("mat_core")
+texture = ExtResource("3")
+
+[node name="Sound" type="AudioStreamPlayer3D" parent="."]
+stream = ExtResource("4")
+unit_size = 4.0

@@ -1,0 +1,58 @@
+[gd_scene load_steps=7 format=3]
+
+[ext_resource type="Script" path="res://gameplay/levels/level4.gd" id="1"]
+[ext_resource type="Script" path="res://gameplay/fire_system/fire_system.gd" id="2"]
+[ext_resource type="Script" path="res://gameplay/monsters/monster_pool.gd" id="3"]
+[ext_resource type="PackedScene" path="res://ui/hud.tscn" id="4"]
+[ext_resource type="PackedScene" path="res://ui/in_game_panel.tscn" id="5"]
+[ext_resource type="PackedScene" path="res://scenes/levels/env_level4.tscn" id="6"]
+
+[node name="Level4" type="Node3D"]
+script = ExtResource("1")
+level_key = "level4"
+cam_position_paths = [NodePath("CamPositions/cam_pos_0"), NodePath("CamPositions/cam_pos_1"), NodePath("CamPositions/cam_pos_2"), NodePath("CamPositions/cam_pos_3"), NodePath("CamPositions/cam_pos_4"), NodePath("CamPositions/cam_pos_5"), NodePath("CamPositions/cam_pos_5")]
+pool_path = NodePath("MonsterPool")
+camera_path = NodePath("Camera3D")
+fire_system_path = NodePath("Camera3D/FireSystem")
+bgm_player_path = NodePath("BGM")
+
+[node name="Environment" parent="." instance=ExtResource("6")]
+; M6 L4 MEP 浮岛月夜村庄(WorldEnvironment/PanoramaSky/灯光预算均在 env 内)
+
+[node name="Camera3D" type="Camera3D" parent="."]
+transform = Transform3D(0.072604, -0.124139, 0.989605, -0.000061, 0.992223, 0.124472, -0.997361, -0.009097, 0.072032, 54.11621, 7.951027, -9.726318)
+current = true
+fov = 75.0
+
+[node name="FireSystem" type="Node3D" parent="Camera3D"]
+script = ExtResource("2")
+
+[node name="CamPositions" type="Node3D" parent="."]
+
+; 机位取自原 Unity Level4.unity 的 CM vcam0..5(mirror_x + 相机 180°Y 翻转)
+[node name="cam_pos_0" type="Marker3D" parent="CamPositions"]
+transform = Transform3D(0.072604, -0.124139, 0.989605, -0.000061, 0.992223, 0.124472, -0.997361, -0.009097, 0.072032, 54.11621, 7.951027, -9.726318)
+
+[node name="cam_pos_1" type="Marker3D" parent="CamPositions"]
+transform = Transform3D(-0.588362, 0.228272, 0.775707, -0.00005, 0.959314, -0.282341, -0.808598, -0.166158, -0.564412, 28.004395, -1.202889, -8.560425)
+
+[node name="cam_pos_2" type="Marker3D" parent="CamPositions"]
+transform = Transform3D(0.732457, -0.242472, -0.636171, -0.000053, 0.934408, -0.356204, 0.680813, 0.260938, 0.684401, 0.56543, -1.897644, -0.037231)
+
+[node name="cam_pos_3" type="Marker3D" parent="CamPositions"]
+transform = Transform3D(-0.417084, 0.53853, 0.732138, -0.000014, 0.805546, -0.592533, -0.908868, -0.247146, -0.335972, -18.312988, 2.5, -9.093994)
+
+[node name="cam_pos_4" type="Marker3D" parent="CamPositions"]
+transform = Transform3D(-0.00833, 0.582808, 0.812567, -0.000018, 0.812595, -0.582828, -0.999965, -0.004869, -0.006758, -27.996338, 10.68438, -1.464478)
+
+[node name="cam_pos_5" type="Marker3D" parent="CamPositions"]
+transform = Transform3D(-0.398841, -0.006597, -0.916996, 0.000022, 0.999974, -0.007203, 0.91702, -0.002893, -0.398831, -36.376953, 16.273102, -1.603027)
+
+[node name="MonsterPool" type="Node3D" parent="."]
+script = ExtResource("3")
+
+[node name="BGM" type="AudioStreamPlayer" parent="."]
+
+[node name="HUD" parent="." instance=ExtResource("4")]
+
+[node name="InGamePanel" parent="." instance=ExtResource("5")]

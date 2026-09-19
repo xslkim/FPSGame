@@ -1,0 +1,32 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="PackedScene" path="res://gameplay/fire_system/gun_base.tscn" id="1"]
+[ext_resource type="PackedScene" path="res://assets/models/guns/m4/m4.fbx" id="2"]
+[ext_resource type="Texture2D" path="res://assets/models/guns/m4/m4_tex.png" id="3"]
+
+[sub_resource type="StandardMaterial3D" id="Mat_m4"]
+albedo_texture = ExtResource("3")
+
+[node name="M4" instance=ExtResource("1")]
+gun_type = 1
+
+[node name="Model" type="Node3D" parent="."]
+transform = Transform3D(-0.340136, 0, 0, 0, 0.340136, 0, 0, 0, -0.204082, 0, 0, -0.021)
+
+[node name="m4" parent="Model" instance=ExtResource("2")]
+
+[node name="M4_Gun" parent="Model/m4" index="0"]
+cast_shadow = 0
+surface_material_override/0 = SubResource("Mat_m4")
+
+[node name="M4_Magazine" parent="Model/m4/M4_Gun" index="0"]
+cast_shadow = 0
+surface_material_override/0 = SubResource("Mat_m4")
+
+[node name="M4_Shell" parent="Model/m4/M4_Gun" index="1"]
+visible = false
+
+[node name="Muzzle" parent="." index="0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.108)
+
+[editable path="Model/m4"]
