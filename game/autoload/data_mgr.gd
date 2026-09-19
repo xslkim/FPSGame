@@ -20,6 +20,7 @@ var max_bullet := 120
 var box_bullet := 60
 var level_state: Array = []  # 13 × {star, score, rank}
 var udid := ""
+var remote_config: Dictionary = {}  # FPSGameConfig.json 远程配置(MenuController.GetConfig)
 var last_add_coin_time := 0.0
 
 func _ready() -> void:

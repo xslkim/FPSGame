@@ -31,12 +31,8 @@ var player_right: Player
 var _hurt_streams := {}   # side -> Array[AudioStream]
 var _hurt_players := {}   # side -> AudioStreamPlayer
 var _freeze_player: AudioStreamPlayer = null   # 冰冻循环(KriptoFX FreezeLoop)
-var _menu_music: AudioStreamPlayer = null      # 菜单音乐(Sound/UI.mp3 循环)
-var _menu_music_playing := false
 
 const FREEZE_LOOP := "res://assets/audio/effects/freeze_loop.wav"
-const MENU_MUSIC := "res://assets/audio/ui/click.mp3"
-const MENU_SCENE := "menu.tscn"
 
 func _ready() -> void:
 	player_left = Player.new()
@@ -56,32 +52,99 @@ func _ready() -> void:
 		_freeze_player.name = "FreezeLoop"
 		_freeze_player.stream = load(FREEZE_LOOP)
 		add_child(_freeze_player)
-	if ResourceLoader.exists(MENU_MUSIC):
-		_menu_music = AudioStreamPlayer.new()
-		_menu_music.name = "MenuMusic"
-		_menu_music.stream = load(MENU_MUSIC)
-		_menu_music.finished.connect(_on_menu_music_finished)  # 非循环导出文件用重播兜底
-		add_child(_menu_music)
+	_build_hud()
+	ui_changed.connect(refresh_hud)
 
-func _process(_delta: float) -> void:
-	_update_menu_music()
+## 常驻 HUD(对应原作 GlobalObject 下 PlayerSystem.prefab,跨场景 DontDestroyOnLoad)。
+## 当前仅移植 CoinObj(菜单/选关/战斗显示);弹药/头像/血条仍在 ui/hud.tscn。
+var _hud_layer: CanvasLayer = null
+var _coin_obj: Control = null
+var _coin_text: Label = null
 
-## 菜单音乐:当前场景为 menu.tscn 时循环播放(UI.mp3),离开即停
-func _update_menu_music() -> void:
-	var want := false
-	var scene := get_tree().current_scene
-	if scene != null and scene.scene_file_path.get_file() == MENU_SCENE:
-		want = true
-	if want and not _menu_music_playing and _menu_music != null:
-		_menu_music_playing = true
-		_menu_music.play()
-	elif not want and _menu_music_playing and _menu_music != null:
-		_menu_music_playing = false
-		_menu_music.stop()
+func _build_hud() -> void:
+	_hud_layer = CanvasLayer.new()
+	_hud_layer.name = "HUD"
+	_hud_layer.layer = 10
+	add_child(_hud_layer)
+	# 1280×720 参考层(同 menu,等效 CanvasScaler)
+	var ref := Control.new()
+	ref.name = "Ref1280"
+	ref.set_anchors_preset(Control.PRESET_CENTER)
+	ref.offset_left = -640
+	ref.offset_right = 640
+	ref.offset_top = -360
+	ref.offset_bottom = 360
+	ref.pivot_offset = Vector2(640, 360)
+	ref.scale = Vector2(1.5, 1.5)
+	ref.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_hud_layer.add_child(ref)
+	# CoinObj:anchor 底中,pivot 底中,pos (-26.02, 0),64×64(原作 PlayerSystem.prefab)
+	_coin_obj = Control.new()
+	_coin_obj.name = "CoinObj"
+	_coin_obj.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
+	_coin_obj.offset_left = -26.02 - 32.0
+	_coin_obj.offset_right = -26.02 + 32.0
+	_coin_obj.offset_top = -64.0
+	_coin_obj.offset_bottom = 0.0
+	_coin_obj.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	ref.add_child(_coin_obj)
+	var icon := TextureRect.new()
+	icon.name = "CoinIcon"
+	icon.texture = load("res://assets/textures/ui/coin.png")
+	icon.set_anchors_preset(Control.PRESET_FULL_RECT)
+	icon.stretch_mode = TextureRect.STRETCH_SCALE
+	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_coin_obj.add_child(icon)
+	# "X":60×60,中心相对金币中心 (+49.31, +5.32),字号 32,暗金黄
+	var x_label := Label.new()
+	x_label.name = "X"
+	x_label.text = "X"
+	x_label.add_theme_font_size_override("font_size", 32)
+	x_label.add_theme_color_override("font_color", Color(0.5188679, 0.4779218, 0.0))
+	x_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	x_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	x_label.set_anchors_preset(Control.PRESET_CENTER)
+	x_label.offset_left = 32.0 + 49.31 - 30.0
+	x_label.offset_right = 32.0 + 49.31 + 30.0
+	x_label.offset_top = 32.0 + 5.32 - 30.0
+	x_label.offset_bottom = 32.0 + 5.32 + 30.0
+	_coin_obj.add_child(x_label)
+	# CoinText:60×60,中心 (+81.1, +4.15),字号 52 白,显示金币数
+	_coin_text = Label.new()
+	_coin_text.name = "CoinText"
+	_coin_text.add_theme_font_size_override("font_size", 52)
+	_coin_text.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_coin_text.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_coin_text.set_anchors_preset(Control.PRESET_CENTER)
+	_coin_text.offset_left = 32.0 + 81.1 - 30.0
+	_coin_text.offset_right = 32.0 + 81.1 + 30.0
+	_coin_text.offset_top = 32.0 + 4.15 - 30.0
+	_coin_text.offset_bottom = 32.0 + 4.15 + 30.0
+	_coin_obj.add_child(_coin_text)
+	_coin_obj.visible = false
+	refresh_hud()
 
-func _on_menu_music_finished() -> void:
-	if _menu_music_playing and _menu_music != null:
-		_menu_music.play()
+func refresh_hud() -> void:
+	if _coin_text != null:
+		_coin_text.text = str(DataMgr.coin)
+
+## 对应原作 PlayerSystem.UpdateUIMode():按场景切 HUD 元素与 SceneState。
+## Menu/LevelChoose=只显示金币;DeviceConnection/LoadingScene=全隐藏;其余=战斗。
+func update_ui_mode(scene_name: String) -> void:
+	if scene_name == "StartUp":
+		return
+	if _coin_obj == null:
+		return
+	if scene_name in ["Menu", "LevelChoose"]:
+		_coin_obj.visible = true
+		GlobalObject.scene_state = GlobalObject.GameState.UI
+	elif scene_name in ["DeviceConnection", "LoadingScene"]:
+		_coin_obj.visible = false
+		GlobalObject.scene_state = GlobalObject.GameState.UI
+	else:
+		_coin_obj.visible = true
+		GlobalObject.scene_state = GlobalObject.GameState.Battle
+	refresh_hud()
 
 func get_player(side: int) -> Player:
 	return player_right if side == Side.Right else player_left

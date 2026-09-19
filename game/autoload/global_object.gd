@@ -33,6 +33,25 @@ var difficulty: Difficulty = Difficulty.Easy
 var is_game_pause := false
 var is_debug := true  # 调试期默认开
 
+## 菜单音乐(原作 GlobalObject.MenuUIAS = Assets/Sound/UI.mp3 循环,2D)
+const MENU_MUSIC := "res://assets/audio/ui/UI.mp3"
+## 按钮/菜单枪声(原作 GlobalObject._Sound = Zapper_3p_02.wav,经 GetGunSound() 播放)
+const UI_SOUND := "res://assets/audio/ui/Zapper_3p_02.wav"
+## 菜单音乐存活于全部 UI 场景(原作:Menu 起播,LoadingScene 关卡加载完成才停)
+const MENU_MUSIC_SCENES := ["menu.tscn", "level_choose.tscn", "device_connection.tscn", "loading.tscn"]
+
+var menu_music: AudioStreamPlayer = null   # MenuUIAS
+var ui_sound: AudioStreamPlayer = null     # _Sound / GetGunSound()
+
+func play_menu_music() -> void:
+	if menu_music != null and not menu_music.playing:
+		menu_music.play()
+
+## Utils.PlayMenuSound():整段播放,重按打断重播
+func play_ui_sound() -> void:
+	if ui_sound != null:
+		ui_sound.play()
+
 ## Loading 场景目标(LevelChoose 选定后写入,8.1)
 var next_scene_path := ""
 
@@ -66,3 +85,26 @@ func _phone_to_gun_rotation(raw: Quaternion) -> Quaternion:
 	var v := q * Vector3.FORWARD
 	v.z = -PHONE_MOVE_RATE
 	return Quaternion(Vector3.FORWARD, v)
+
+func _ready() -> void:
+	menu_music = AudioStreamPlayer.new()
+	menu_music.name = "MenuUIAS"
+	var ms: AudioStreamMP3 = load(MENU_MUSIC)
+	if ms != null:
+		ms.loop = true
+		menu_music.stream = ms
+	add_child(menu_music)
+	ui_sound = AudioStreamPlayer.new()
+	ui_sound.name = "GunSound"
+	ui_sound.stream = load(UI_SOUND)
+	add_child(ui_sound)
+
+## 菜单音乐存续判断:战斗场景加载出来后停(近似原作 LoadingScene 播完才停;
+## loading.tscn 进入战斗前仍属 UI 场景)。
+func _process(_delta: float) -> void:
+	var scene := get_tree().current_scene
+	if scene == null or menu_music == null:
+		return
+	var want := scene.scene_file_path.get_file() in MENU_MUSIC_SCENES
+	if not want and menu_music.playing:
+		menu_music.stop()

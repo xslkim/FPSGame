@@ -1,53 +1,120 @@
-[gd_scene load_steps=9 format=3]
+[gd_scene load_steps=12 format=3]
 
 [ext_resource type="Script" path="res://scenes/ui/menu.gd" id="1"]
-[ext_resource type="Script" path="res://ui/gun_ui_controller.gd" id="2"]
-[ext_resource type="PackedScene" path="res://gameplay/fire_system/handgun.tscn" id="3"]
+[ext_resource type="PackedScene" path="res://assets/models/guns/m4/m4.fbx" id="2"]
+[ext_resource type="Texture2D" path="res://assets/models/guns/m4/m4_tex.png" id="3"]
+[ext_resource type="PackedScene" path="res://assets/models/monsters/rock_warrior/RockWarrior.FBX" id="4"]
+[ext_resource type="AnimationLibrary" path="res://assets/models/monsters/rock_warrior/rock_warrior_anims.tres" id="5"]
+[ext_resource type="Material" path="res://assets/models/monsters/rock_warrior/rock_warrior_mat.tres" id="6"]
+[ext_resource type="Texture2D" path="res://assets/effects/textures/fps_flame1.png" id="7"]
 
-[sub_resource type="ProceduralSkyMaterial" id="SkyMat"]
-
-[sub_resource type="Sky" id="SkyRes"]
-sky_material = SubResource("SkyMat")
+[sub_resource type="StandardMaterial3D" id="M4Mat"]
+albedo_texture = ExtResource("3")
+emission_enabled = true
+emission = Color(0.4, 0.4, 0.4, 1)
+emission_texture = ExtResource("3")
 
 [sub_resource type="Environment" id="Env"]
-background_mode = 2
-sky = SubResource("SkyRes")
-ambient_light_source = 2
-ambient_light_color = Color(0.5, 0.5, 0.55, 1)
+background_mode = 1
+background_color = Color(0.192157, 0.301961, 0.47451, 1)
+ambient_light_source = 3
+ambient_light_color = Color(0.211765, 0.227451, 0.258824, 1)
 
-[sub_resource type="BoxMesh" id="LazerBox"]
-size = Vector3(0.004, 0.004, 1.5)
+[sub_resource type="BoxMesh" id="LazerMesh"]
+size = Vector3(0.023, 0.023, 200)
 
 [sub_resource type="StandardMaterial3D" id="LazerMat"]
-albedo_color = Color(1, 0.1, 0.1, 0.6)
 transparency = 1
 shading_mode = 0
+albedo_color = Color(1, 1, 1, 0.6)
 
-[node name="Menu" type="Node3D"]
+[node name="Menu" type="Node"]
 script = ExtResource("1")
 
-[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+[node name="BGLayer" type="CanvasLayer" parent="."]
+layer = -1
+
+[node name="ViewportLayer" type="CanvasLayer" parent="."]
+layer = 0
+
+[node name="SubViewportContainer" type="SubViewportContainer" parent="ViewportLayer"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+stretch = true
+mouse_filter = 2
+
+[node name="SubViewport" type="SubViewport" parent="ViewportLayer/SubViewportContainer"]
+transparent_bg = true
+handle_input_locally = false
+size = Vector2i(1280, 720)
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="ViewportLayer/SubViewportContainer/SubViewport"]
 environment = SubResource("Env")
 
-[node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
-transform = Transform3D(0.9397, -0.262, 0.2198, 0, 0.6428, 0.766, -0.342, -0.7198, 0.6038, 0, 8, 0)
+[node name="Camera3D" type="Camera3D" parent="ViewportLayer/SubViewportContainer/SubViewport"]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0, 0, 0)
+fov = 60.0
+near = 0.01
 
-[node name="Camera3D" type="Camera3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.6, 4)
-current = true
-fov = 70.0
+[node name="M4View" type="Node3D" parent="ViewportLayer/SubViewportContainer/SubViewport/Camera3D"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.2, -0.078, -0.177)
 
-[node name="GunUIController" type="Node3D" parent="Camera3D"]
-script = ExtResource("2")
+[node name="Model" type="Node3D" parent="ViewportLayer/SubViewportContainer/SubViewport/Camera3D/M4View"]
+transform = Transform3D(0.35, 0, 0, 0, 0.35, 0, 0, 0, 0.35, 0, 0, -0.021)
 
-[node name="DecoGun" parent="Camera3D" instance=ExtResource("3")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.12, -0.12, -0.35)
+[node name="m4" parent="ViewportLayer/SubViewportContainer/SubViewport/Camera3D/M4View/Model" instance=ExtResource("2")]
 
-[node name="Lazer" type="MeshInstance3D" parent="Camera3D/DecoGun"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.02, -0.95)
-mesh = SubResource("LazerBox")
-surface_material_override/0 = SubResource("LazerMat")
+[node name="M4_Gun" parent="ViewportLayer/SubViewportContainer/SubViewport/Camera3D/M4View/Model/m4" index="0"]
+surface_material_override/0 = SubResource("M4Mat")
+
+[node name="M4_Magazine" parent="ViewportLayer/SubViewportContainer/SubViewport/Camera3D/M4View/Model/m4/M4_Gun" index="0"]
+surface_material_override/0 = SubResource("M4Mat")
+
+[node name="M4_Shell" parent="ViewportLayer/SubViewportContainer/SubViewport/Camera3D/M4View/Model/m4/M4_Gun" index="1"]
+visible = false
+
+[node name="Lazer" type="MeshInstance3D" parent="ViewportLayer/SubViewportContainer/SubViewport/Camera3D/M4View"]
+visible = false
 cast_shadow = 0
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -100)
+mesh = SubResource("LazerMesh")
+surface_material_override/0 = SubResource("LazerMat")
 
-[node name="ButtonRoot" type="Node3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.6, 1.2)
+[node name="MuzzleFlash" type="Node3D" parent="ViewportLayer/SubViewportContainer/SubViewport/Camera3D/M4View"]
+visible = false
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.2069)
+
+[node name="Flash" type="Sprite3D" parent="ViewportLayer/SubViewportContainer/SubViewport/Camera3D/M4View/MuzzleFlash"]
+cast_shadow = 0
+shaded = false
+texture = ExtResource("7")
+scale = Vector3(0.4, 0.4, 0.4)
+
+[node name="Light" type="OmniLight3D" parent="ViewportLayer/SubViewportContainer/SubViewport/Camera3D/M4View/MuzzleFlash"]
+light_color = Color(1, 0.393, 0, 1)
+light_energy = 0.0
+omni_range = 6.0
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="ViewportLayer/SubViewportContainer/SubViewport"]
+transform = Transform3D(-0.2355, 0, 0.9714, -0.1837, 0.9822, -0.0445, -0.955, -0.1891, -0.2315, 0, 3, 0)
+light_energy = 3.0
+shadow_enabled = true
+
+[node name="RockWarrior" type="Node3D" parent="ViewportLayer/SubViewportContainer/SubViewport"]
+transform = Transform3D(98.48, 0, 17.36, 0, 100, 0, -17.36, 0, 98.48, 0, -120.24, 450)
+
+[node name="Model" parent="ViewportLayer/SubViewportContainer/SubViewport/RockWarrior" instance=ExtResource("4")]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0, 0, 0)
+
+[node name="AnimationPlayer" type="AnimationPlayer" parent="ViewportLayer/SubViewportContainer/SubViewport/RockWarrior"]
+libraries = {
+&"": ExtResource("5")
+}
+
+[node name="UILayer" type="CanvasLayer" parent="."]
+layer = 1
+
+[editable path="ViewportLayer/SubViewportContainer/SubViewport/Camera3D/M4View/Model/m4"]

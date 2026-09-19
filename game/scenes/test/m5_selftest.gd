@@ -23,17 +23,16 @@ func _self_test() -> void:
 	get_tree().change_scene_to_file(MENU)
 	await _frames()
 
-	# ---- Menu:单人无设备 → 控制方式弹框;MessageBox 拦截非 MessageButton ----
+	# ---- Menu:单人无设备 → 控制方式弹框(遥控器/手机);弹框按钮带 MessageButton 前缀 ----
 	var menu := get_tree().current_scene
 	_check(menu.name == "Menu", "startup → menu")
 	_check(GlobalObject.scene_state == GlobalObject.GameState.UI, "menu: scene_state = UI")
-	menu.on_single_player()
+	menu.one_player()
 	await _frames(2)
-	_check(MessageBox.is_open(), "单人无设备 → 「遥控器/连接手机」弹框")
-	var ctrl: GunUIController = menu.get_node("Camera3D/GunUIController")
-	var other_btn: UIButton3D = menu.buttons["BtnSettings"]
-	_check(not ctrl.handle_hit(other_btn), "MessageBox 打开时拦截非 MessageButton 命中")
-	_check(ctrl.handle_hit(MessageBox.current.ok_button), "MessageButton 命中放行(遥控器)")
+	_check(MessageBox.is_open(), "单人无设备 → 「遥控器/手机」弹框")
+	_check(MessageBox.current.ok_button.name.begins_with("MessageButton"),
+		"弹框按钮 MessageButton 命名(枪瞄准过滤)")
+	MessageBox.current.press_cancel()  # 遥控器
 	await _frames()
 	_check(InputManager.input_mode == InputManager.InputMode.ControllerOrRight,
 		"遥控器 → ControllerOrRight")

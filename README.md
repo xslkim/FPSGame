@@ -36,7 +36,12 @@ $G --headless --path . scenes/test/m6m_range.tscn       -- --m6m-selftest    # 4
 $G --headless --path . scenes/levels/level2.tscn        -- --m6l2-selftest   # 33 项
 $G --headless --path . scenes/levels/level3.tscn        -- --m6l3-selftest   # 14 项
 $G --headless --path . scenes/levels/level4.tscn        -- --m6l4-selftest   # 12 项
+$G --headless --path . scenes/ui/menu.tscn              -- --menu-selftest   # 22 项(主菜单 1:1 移植)
 ```
+
+截图对照(需窗口模式):`$G --path . scenes/ui/menu.tscn --resolution 1280x720 -- --shot:<out.png>`;
+`--shot-box:<out.png>` 带单人弹框截屏。Unity 侧真值:`G:\test\FPSGame\Assets\Editor\MenuScreenshot.cs`
+(GUI 模式 `-executeMethod MenuScreenshot.Capture` / `.CaptureStill`),几何测量 `MenuMeasure.cs -executeMethod MenuMeasure.Dump`。
 
 ## 环境导出管线(Unity→Godot,可复用于新关卡)
 
