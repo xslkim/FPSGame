@@ -34,6 +34,22 @@ public static class UiKit
         c.Scale = new Vector2(sx, sy);
     }
 
+    /// <summary>Unity 点锚点布局:anchor (ax,ay)(Y 向上)、pivot (px,py)、anchoredPosition (x,yUp)、sizeDelta (w,h)。
+    /// ax/ay=0.5 时与 Place 完全一致;anchor 贴边的元素(如 BackBtn 右上)随 expand 模式扩展区正确吸附。</summary>
+    public static void PlaceAnchored(Control c, float ax, float ay, float px, float py,
+        float x, float yUp, float w, float h)
+    {
+        c.AnchorLeft = ax;
+        c.AnchorRight = ax;
+        c.AnchorTop = 1.0f - ay;
+        c.AnchorBottom = 1.0f - ay;
+        c.OffsetLeft = x - px * w;
+        c.OffsetRight = x + (1.0f - px) * w;
+        c.OffsetTop = -(yUp + (1.0f - py) * h);
+        c.OffsetBottom = -(yUp - py * h);
+        c.PivotOffset = new Vector2(px * w, (1.0f - py) * h);
+    }
+
     public static TextureRect TexRect(string name, string texPath)
     {
         return new TextureRect

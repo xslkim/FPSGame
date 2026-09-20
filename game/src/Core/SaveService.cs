@@ -160,9 +160,10 @@ public partial class SaveService : Node
         SaveUserData();
     }
 
-    /// <summary>服务器离线化:本地默认 13 关全 3 星全解锁(通关后按 HP+用时 1-3 星改写)</summary>
+    /// <summary>服务器离线化:本地默认 13 关全 3 星全解锁(照原作 UserMeta.cs LevelStateData
+    /// 默认值 Star=3/Source=3/Rank=1;通关后按 HP+用时 1-3 星改写)</summary>
     private static Godot.Collections.Dictionary DefaultLevelState() =>
-        new() { ["star"] = 3, ["score"] = 0, ["rank"] = 0 };
+        new() { ["star"] = 3, ["score"] = 3, ["rank"] = 1 };
 
     public void SaveUserData()
     {

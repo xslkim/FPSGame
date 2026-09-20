@@ -13,7 +13,7 @@ G:\FPSGame\
 │   ├── src/Effects/    # MuzzleFlash(枪口火光,1:1 移植 Unity FPS Pack MuzzleFlash1.prefab:火焰翻页+烟雾+灯光曲线)
 │   ├── src/Player/     # PlayerState(双玩家/受击/金币 HUD)、Player(单玩家数据)
 │   ├── src/UI/         # MenuScreen、StartupScreen、LevelChooseScreen、DeviceConnectionScreen、LoadingScreen、
-│   │                   # MessageBox、UiKit(坐标构建辅助)、UiTheme、JustRotate、GunUiController、UiButton3D
+│   │                   # MessageBox、UiKit(坐标构建辅助)、UiSwapButton(SpriteSwap 按钮)、UiTheme、JustRotate、GunUiController、UiButton3D
 │   ├── scenes/ui/      # startup → menu → level_choose / device_connection → loading
 │   ├── assets/ data/   # 贴图/模型/音频/字体、数值 JSON
 │   └── FPSGame.csproj / FPSGame.sln / NuGet.config
@@ -56,17 +56,21 @@ G=G:/FPSGame/godot/bin/godot.windows.editor.x86_64.mono.exe
 cd /g/FPSGame/game
 dotnet build                                                 # 先编译 C#
 $G --headless --path . scenes/ui/menu.tscn -- --menu-selftest   # 28 项(主菜单 1:1)
+$G --headless --path . scenes/ui/level_choose.tscn -- --levelchoose-selftest   # 34 项(选关 1:1)
 ```
 
-截图对照(窗口模式,可指定分辨率):
+截图对照(窗口模式,可指定分辨率;选关加 `--shot-nobeam` 隐藏鼠标激光以对照无设备真值):
 
 ```bash
 $G --path . scenes/ui/menu.tscn -- --shot:<out.png>  --shot-res:1920x1080   # 主菜单
 $G --path . scenes/ui/menu.tscn -- --shot-box:<out.png>                     # 带单人弹框(三键)
 $G --path . scenes/ui/menu.tscn -- --shot-flash:<out.png>                   # 枪口火光峰值帧
+$G --path . scenes/ui/level_choose.tscn -- --shot:<out.png>                 # 选关(第 1 页)
+$G --path . scenes/ui/level_choose.tscn -- --shot-p2:<out.png>              # 选关第 2 页
+$G --path . scenes/ui/level_choose.tscn -- --shot-diff:<out.png>            # 难度面板
 ```
 
-Unity 侧真值:`G:\test\FPSGame\Assets\Editor\MenuScreenshot.cs`(GUI 模式 `-executeMethod MenuScreenshot.Capture` / `.CaptureStill`),几何测量 `MenuMeasure.cs -executeMethod MenuMeasure.Dump`,枪口火光 `FlashScreenshot.cs -executeMethod FlashScreenshot.Capture`(FLASH_ISO=nosmoke/noflame 可隔离子效果)。
+Unity 侧真值:`G:\test\FPSGame\Assets\Editor\MenuScreenshot.cs`(GUI 模式 `-executeMethod MenuScreenshot.Capture` / `.CaptureStill`),几何测量 `MenuMeasure.cs -executeMethod MenuMeasure.Dump`,枪口火光 `FlashScreenshot.cs -executeMethod FlashScreenshot.Capture`(FLASH_ISO=nosmoke/noflame 可隔离子效果),选关 `LevelShot.cs -executeMethod LevelShot.Capture`(LEVEL_SHOT_ACTION=page2/difficult),双枪包围盒 `GunMeasure.cs -executeMethod GunMeasure.Dump`。
 
 ## 导出
 
@@ -80,7 +84,14 @@ dotnet publish 的运行时包来自 nuget.org(NuGet.config 已配)。
 
 ## 已知遗留(非阻塞)
 
-1. 战斗关卡(怪物/关卡/特效)尚未按新标准重做:`legacy_gd/` 里是否定版 GDScript 实现,仅作参考;后续逐场景从 Unity 原作重新移植(C#)。
+1. 战斗关卡(怪物/关卡/特效)尚未按新标准重做:`legacy_gd/` 里是否定版 GDScript 实现,仅作参考;后续逐场景从 Unity 原作重新移植(C#)。选关页 SceneMap 指向的 `scenes/levels/*.tscn` 因此暂缺,选难度后会走 Loading 报缺场景(已知)。
 2. 发布前把 `game/assets/fonts/cjk_fallback.ttf`(本机 SimHei 副本)换成可分发字体(UiTheme 引用)。
 3. `assets/models/` 部分环境贴图目录大小写与引用不一致(Windows 无碍,跨平台需修)。
 4. 体感枪真机方向校准(quat_mirror)、枪口火光/激光真机效果未经实机验证(无设备)。
+
+## 移植保真注记(有意的偏差)
+
+- 选关:原作 AK47 侧枪口火光父节点 `Sphere (1)` 默认 inactive,火光永不显示;移植版修正为与 M4/菜单一致正常播放。
+- 选关:枪上 `Movie`(RawImage+VideoPlayer 播 startmov.mp4,默认不播、渲染透明)未移植,属连接手机流程。
+- 选关:难度按钮热区用全尺寸 500×110(原作 Hard/Hell 的 BoxCollider 只有 400×100)。
+- 选关存档默认值照原作 UserMeta.cs:13 关全 3 星/得分 3/排名 1。
