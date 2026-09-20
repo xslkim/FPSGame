@@ -55,11 +55,12 @@ Autoload 顺序:Game → SaveService → AudioService → PlayerState → InputR
 G=G:/FPSGame/godot/bin/godot.windows.editor.x86_64.mono.exe
 cd /g/FPSGame/game
 dotnet build                                                 # 先编译 C#
-$G --headless --path . scenes/ui/menu.tscn -- --menu-selftest   # 28 项(主菜单 1:1)
+$G --headless --path . scenes/ui/menu.tscn -- --menu-selftest   # 29 项(主菜单 1:1)
 $G --headless --path . scenes/ui/level_choose.tscn -- --levelchoose-selftest   # 34 项(选关 1:1)
+$G --headless --path . scenes/ui/device_connection.tscn -- --deviceconnection-selftest   # 20 项(连接手机 1:1)
 ```
 
-截图对照(窗口模式,可指定分辨率;选关加 `--shot-nobeam` 隐藏鼠标激光以对照无设备真值):
+截图对照(窗口模式,可指定分辨率;选关/连接页加 `--shot-nobeam` 隐藏鼠标激光以对照无设备真值):
 
 ```bash
 $G --path . scenes/ui/menu.tscn -- --shot:<out.png>  --shot-res:1920x1080   # 主菜单
@@ -68,9 +69,10 @@ $G --path . scenes/ui/menu.tscn -- --shot-flash:<out.png>                   # �
 $G --path . scenes/ui/level_choose.tscn -- --shot:<out.png>                 # 选关(第 1 页)
 $G --path . scenes/ui/level_choose.tscn -- --shot-p2:<out.png>              # 选关第 2 页
 $G --path . scenes/ui/level_choose.tscn -- --shot-diff:<out.png>            # 难度面板
+$G --path . scenes/ui/device_connection.tscn -- --shot:<out.png>            # 连接手机
 ```
 
-Unity 侧真值:`G:\test\FPSGame\Assets\Editor\MenuScreenshot.cs`(GUI 模式 `-executeMethod MenuScreenshot.Capture` / `.CaptureStill`),几何测量 `MenuMeasure.cs -executeMethod MenuMeasure.Dump`,枪口火光 `FlashScreenshot.cs -executeMethod FlashScreenshot.Capture`(FLASH_ISO=nosmoke/noflame 可隔离子效果),选关 `LevelShot.cs -executeMethod LevelShot.Capture`(LEVEL_SHOT_ACTION=page2/difficult),双枪包围盒 `GunMeasure.cs -executeMethod GunMeasure.Dump`。
+Unity 侧真值:`G:\test\FPSGame\Assets\Editor\MenuScreenshot.cs`(GUI 模式 `-executeMethod MenuScreenshot.Capture` / `.CaptureStill`),几何测量 `MenuMeasure.cs -executeMethod MenuMeasure.Dump`,枪口火光 `FlashScreenshot.cs -executeMethod FlashScreenshot.Capture`(FLASH_ISO=nosmoke/noflame 可隔离子效果),选关/连接页 `LevelShot.cs -executeMethod LevelShot.Capture`(LEVEL_SHOT_SCENE=Assets/UI/LevelChoose.unity 或 DeviceConnection.unity,LEVEL_SHOT_ACTION=page2/difficult),双枪包围盒 `GunMeasure.cs -executeMethod GunMeasure.Dump`。
 
 ## 导出
 
@@ -95,3 +97,8 @@ dotnet publish 的运行时包来自 nuget.org(NuGet.config 已配)。
 - 选关:枪上 `Movie`(RawImage+VideoPlayer 播 startmov.mp4,默认不播、渲染透明)未移植,属连接手机流程。
 - 选关:难度按钮热区用全尺寸 500×110(原作 Hard/Hell 的 BoxCollider 只有 400×100)。
 - 选关存档默认值照原作 UserMeta.cs:13 关全 3 星/得分 3/排名 1。
+- 连接手机:原作三个 VideoPlayer(MovieImage/双枪 Movie)全部 playOnAwake=0 且无脚本调用 Play,视频实际从不播放,未移植;mp4 已转 `assets/video/startmov.ogv` 备用(Godot 不支持 mp4)。
+- 连接手机:`GameObject` 英语教学小游戏组(AppleController:Apple/Candy/IceCream/Bread + 面板)原作整组 active=0 遗留,未移植。
+- 连接手机:`二维码Android` 组原作 active=0 且无任何代码切换,移植版建好但保持隐藏(其 Image 组件原作禁用→无底图)。
+- 连接手机:说明文字第 1 行在 "App" 后折行是真值实测的临界折行(621 vs 620 宽),移植版用显式 `\n` 固定同款折行点;行距按真值逐行扫描实测 51 单位标定(Godot `line_spacing=+10`,原作 lineSpacing=1.1 的等效)。
+- 连接手机:原作 BackMenuBtn onClick 第二绑定指向未实例化的 Utils.prefab(实际不响),移植版按框架惯例播 UI 音效;枪口闪光父链原作默认 inactive,修正为命中时播放(同菜单/选关)。
