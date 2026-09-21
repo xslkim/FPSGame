@@ -1,0 +1,87 @@
+[gd_scene load_steps=11 format=3]
+
+[ext_resource type="Script" path="res://src/Battle/Level3.cs" id="1"]
+[ext_resource type="Script" path="res://src/Battle/FireSystem.cs" id="2"]
+[ext_resource type="Script" path="res://src/Battle/MonsterPool.cs" id="3"]
+[ext_resource type="Script" path="res://src/Battle/InGamePanel.cs" id="4"]
+[ext_resource type="PackedScene" path="res://scenes/levels/env_level3.tscn" id="5"]
+[ext_resource type="Texture2D" path="res://assets/textures/skybox/level3_sky.png" id="6"]
+
+[sub_resource type="PanoramaSkyMaterial" id="Pano"]
+panorama = ExtResource("6")
+
+[sub_resource type="Sky" id="Sky"]
+sky_material = SubResource("Pano")
+
+[sub_resource type="Environment" id="Env"]
+background_mode = 2
+sky = SubResource("Sky")
+ambient_light_source = 2
+ambient_light_color = Color(0.4672, 0.4672, 0.4672, 1)
+ambient_light_energy = 1.0
+fog_enabled = true
+fog_mode = 1
+fog_light_color = Color(0.1028, 0.1949, 0.2965, 1)
+fog_depth_begin = 20.0
+fog_depth_end = 90.0
+fog_sky_affect = 0.0
+
+[node name="Level3" type="Node3D"]
+script = ExtResource("1")
+LevelKey = "level3"
+CamPositionPaths = [NodePath("CamPositions/cam_pos_0"), NodePath("CamPositions/cam_pos_1"), NodePath("CamPositions/cam_pos_2"), NodePath("CamPositions/cam_pos_3"), NodePath("CamPositions/cam_pos_4"), NodePath("CamPositions/cam_pos_5"), NodePath("CamPositions/cam_pos_6")]
+PoolPath = NodePath("MonsterPool")
+CameraPath = NodePath("Camera3D")
+FireSystemPath = NodePath("Camera3D/FireSystem")
+BgmPlayerPath = NodePath("BGM")
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Env")
+
+[node name="Environment" parent="." instance=ExtResource("5")]
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.866026, 0.383021, 0.321397, 3.264e-06, 0.642785, -0.766051, -0.500001, 0.663422, 0.556667, -1.567, 1.283, -2.708)
+light_color = Color(1, 1, 1, 1)
+light_energy = 1.0
+
+[node name="Camera3D" type="Camera3D" parent="."]
+transform = Transform3D(-0.632835, 0.134447, -0.762515, -4.7634e-06, 0.984808, 0.173645, 0.774277, 0.109893, -0.623221, 61.1671, 1, -67.7054)
+current = true
+fov = 52.0
+near = 0.1
+far = 1000.0
+
+[node name="FireSystem" type="Node3D" parent="Camera3D"]
+script = ExtResource("2")
+
+[node name="InGamePanel" type="Node3D" parent="Camera3D"]
+script = ExtResource("4")
+
+[node name="CamPositions" type="Node3D" parent="."]
+
+[node name="cam_pos_0" type="Marker3D" parent="CamPositions"]
+transform = Transform3D(-0.632835, 0.134447, -0.762515, -4.7634e-06, 0.984808, 0.173645, 0.774277, 0.109893, -0.623221, 61.1671, 1, -67.7054)
+
+[node name="cam_pos_1" type="Marker3D" parent="CamPositions"]
+transform = Transform3D(-0.980633, 0.0340247, -0.192977, -1.2192e-06, 0.984809, 0.173644, 0.195953, 0.170278, -0.965737, 4.37, 1, -62.54)
+
+[node name="cam_pos_2" type="Marker3D" parent="CamPositions"]
+transform = Transform3D(-0.943805, 0.0573925, -0.325491, 1.4004e-06, 0.984809, 0.173644, 0.330512, 0.163885, -0.929468, -71.27, 1, -67.7054)
+
+[node name="cam_pos_3" type="Marker3D" parent="CamPositions"]
+transform = Transform3D(-0.389117, -0.15997, 0.907185, 9.986e-07, 0.984806, 0.173657, -0.921181, 0.0675749, -0.383204, -304, 1, -67)
+
+[node name="cam_pos_4" type="Marker3D" parent="CamPositions"]
+transform = Transform3D(-0.890227, -0.0791043, 0.448621, -3.508e-07, 0.984808, 0.173649, -0.455542, 0.154585, -0.876702, -148.62, 1, -67.7054)
+
+[node name="cam_pos_5" type="Marker3D" parent="CamPositions"]
+transform = Transform3D(-0.797589, 0.104753, -0.594041, 4.4432e-06, 0.984807, 0.173655, 0.603207, 0.138502, -0.785472, -211.2, 1, -62.9)
+
+[node name="cam_pos_6" type="Marker3D" parent="CamPositions"]
+transform = Transform3D(-0.642791, -0.133016, 0.754408, 6.4922e-06, 0.984808, 0.173645, -0.766045, 0.111622, -0.633025, -112.22, 1, -67.7054)
+
+[node name="MonsterPool" type="Node3D" parent="."]
+script = ExtResource("3")
+
+[node name="BGM" type="AudioStreamPlayer" parent="."]
