@@ -15,7 +15,7 @@ G:\FPSGame\
 │   ├── src/Player/     # PlayerState(双玩家/受击/金币 HUD)、Player(单玩家数据)
 │   ├── src/UI/         # MenuScreen、StartupScreen、LevelChooseScreen、DeviceConnectionScreen、LoadingScreen、
 │   │                   # MessageBox、UiKit(坐标构建辅助)、UiSwapButton(SpriteSwap 按钮)、UiTheme、JustRotate、
-│   │                   # GunUiController、UiButton3D、UiAimDot(2D 屏幕激光红点,悬停按钮放大)
+│   │                   # GunUiController、UiButton3D、UiAimGuide(2D 激光指引:画在 UI 最上层的光束+红点,悬停放光)
 │   ├── scenes/ui/      # startup → menu → level_choose / device_connection → loading
 │   ├── assets/ data/   # 贴图/模型/音频/字体、数值 JSON
 │   └── FPSGame.csproj / FPSGame.sln / NuGet.config
@@ -34,7 +34,7 @@ Autoload 顺序:Game → SaveService → AudioService → PlayerState → InputR
 
 ## 操作(主菜单)
 
-- **鼠标模拟光枪**(无实体枪时自动生效):移动 = 瞄准(枪口跟随 + 红色激光束/红点指引命中 3D 模型或 UI,悬停按钮红点放大),左键 = 扳机,右键 = 换枪;
+- **鼠标模拟光枪**(无实体枪时自动生效):移动 = 瞄准(枪口跟随;红色激光束+红点画在 UI 最上层指引命中,悬停按钮红点放大并放光),左键 = 扳机,右键 = 换枪;
   单人游戏 → "选择控制方式"弹框可选 **鼠标** 模式(原作只有 手机/遥控器 两键,鼠标为新增第三键)。
 - **键盘**:方向键焦点导航(默认选中单人游戏),回车 = 确认,Esc = 返回(选关页)。
 - **键盘调试战斗模式**:主菜单 → 单人游戏 → 选"遥控器";方向键瞄准(±45°)、回车射击、Menu 键或 LeftAlt 换枪。

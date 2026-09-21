@@ -6,8 +6,9 @@ namespace FPSGame;
 /// 主菜单:1:1 移植 Unity Assets/UI/Menu.unity + MenuController.cs。
 /// 3D(SubViewport 透明叠加在背景 UI 之上、按钮之下,复现原作 WorldSpace Canvas
 ///   z=623.2 的深度序):相机 FOV60、平行光强度3、RockWarrior(×100,z=450,yaw190°)
-///   循环 Idle02、相机下挂 M4+红色激光(LaserSight,照原作 Lazer.mat:枪口→虚拟画布平面
-///   z=623.2)+屏幕红点(UiAimDot 标示 2D 命中,悬停按钮放大)+枪口火光(命中按钮时播放)。
+///   循环 Idle02、相机下挂 M4+枪口火光(命中按钮时播放)。
+/// 激光指引(照原作 Lazer.mat 红)画在 UI 最上层(UiAimGuide):枪口投影点 → 瞄准点
+///   光束+红点;悬停按钮时光束加粗、红点放大并叠加脉冲光晕(焦点发亮)。
 /// UI:逻辑分辨率 1280×720(canvas_items+expand,任意物理分辨率自适应);
 ///   背景 background4 全屏等比覆盖、科幻圆环组(±20°/s 反转)、标题"士兵打怪兵"、
 ///   4 个 SpriteSwap 主按钮(单人/双人/手机/退出,设置隐藏)、金币 HUD(PlayerState)。
@@ -20,7 +21,6 @@ public partial class MenuScreen : Node
     private const string LevelChooseScene = "res://scenes/ui/level_choose.tscn";
     private const string DeviceConnectionScene = "res://scenes/ui/device_connection.tscn";
     private const string VpPrefix = "ViewportLayer/SubViewportContainer/SubViewport/";
-    private const float CanvasZ = 623.2f; // 原作 WorldSpace Canvas 距相机 623.2(激光束终点平面)
 
     private TextureButton _btnOne = null!;
     private TextureButton _btnTwo = null!;
@@ -31,8 +31,7 @@ public partial class MenuScreen : Node
     private SubViewport _subvp = null!;
     private Camera3D _camera = null!;
     private Node3D _gun = null!;
-    private LaserSight _laser = null!;
-    private UiAimDot _dot = null!;
+    private UiAimGuide _guide = null!;
     private MuzzleFlash _muzzle = null!;
     private Node3D _monster = null!;
     private Control _buttonRoot = null!;
@@ -52,10 +51,8 @@ public partial class MenuScreen : Node
         _gun = GetNode<Node3D>(VpPrefix + "Camera3D/M4View");
         _muzzle = GetNode<MuzzleFlash>(VpPrefix + "Camera3D/M4View/MuzzleFlash");
         _monster = GetNode<Node3D>(VpPrefix + "RockWarrior");
-        // 激光瞄准器(原作 Lazer.mat 红):枪口 → 画布平面;屏幕红点精确标示 2D 命中
-        _laser = LaserSight.Create(LaserSight.RightRed, 0.0115f, withDot: false);
-        _subvp.AddChild(_laser);
-        _dot = UiAimDot.Create(this, LaserSight.RightRed);
+        // 2D 激光指引(原作 Lazer.mat 红):画在 UI 最上层,枪口投影点 → 瞄准点,悬停放光
+        _guide = UiAimGuide.Create(this, LaserSight.RightRed);
 
         SyncViewportSize();
         GetViewport().SizeChanged += SyncViewportSize;
@@ -427,16 +424,14 @@ public partial class MenuScreen : Node
             if (_gun.Quaternion != Quaternion.Identity)
                 _gun.Quaternion = Quaternion.Identity;
             _aimHover = null;
-            _laser.HideBeam();
-            _dot.HideDot();
+            _guide.HideGuide();
             return;
         }
-        Vector3 dir;
         Vector2 logical;
         if (aim.IsScreenPoint)
         {
             // 鼠标模拟光枪:枪口指向鼠标射线方向
-            dir = _camera.ProjectRayNormal(aim.ScreenPos);
+            var dir = _camera.ProjectRayNormal(aim.ScreenPos);
             var localDir = (_camera.GlobalTransform.Basis.Inverse() * dir).Normalized();
             _gun.Quaternion = new Quaternion(Vector3.Forward, localDir);
             logical = UiKit.WindowToLogical(GetViewport(), aim.ScreenPos);
@@ -451,14 +446,12 @@ public partial class MenuScreen : Node
         else
         {
             _gun.Quaternion = aim.Rotation;
-            dir = _camera.GlobalBasis * (aim.Rotation * Vector3.Forward);
             logical = RotationAimLogicalPoint();
             _aimHover = null;
         }
-        // 激光束:枪口 → 画布平面;红点贴逻辑瞄准点(悬停按钮放大)
-        var mz = _muzzle.GlobalPosition;
-        _laser.SetBeam(mz, LaserSight.PlanePoint(mz, dir, CanvasZ));
-        _dot.SetPoint(logical, ButtonAtLogicalPoint(logical, skipBoxButtons: true) != null);
+        // 2D 激光:枪口投影点 → 瞄准点;红点贴瞄准点(悬停按钮放大+光晕发亮)
+        _guide.SetAim(_camera.UnprojectPosition(_muzzle.GlobalPosition), logical,
+            ButtonAtLogicalPoint(logical, skipBoxButtons: true) != null);
     }
 
     /// <summary>体感枪/键盘扳机(右路):枪口旋转路径</summary>

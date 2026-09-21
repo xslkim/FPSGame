@@ -6,7 +6,7 @@ namespace FPSGame;
 /// 激光瞄准器(还原原作 FPS Pack Lazer:右手红 / 左手绿、加色混合、贴图滚动;
 /// Assets/AssetTools/FPS Pack/Materials/Effects/Lazer.mat · LazerLeft.mat · FPSLazer.shader)。
 /// 光束 = 圆柱体从枪口延伸到瞄准点(战斗延伸到射线命中点,UI 界面延伸到虚拟画布平面),
-/// 终点红点 = billboard 光斑,标示实际命中位置(3D 模型或 3D 按钮;2D UI 用 UiAimDot)。
+/// 终点红点 = billboard 光斑,标示实际命中位置(3D 模型或 3D 按钮;2D UI 用 UiAimGuide)。
 /// TopLevel 节点,端点一律传全局坐标;滚动动画自驱动,宿主每帧只需 SetBeam/HideBeam。
 /// </summary>
 public partial class LaserSight : Node3D
@@ -140,16 +140,6 @@ public partial class LaserSight : Node3D
 
     /// <summary>当前是否带红点(自检测试用)</summary>
     public bool HasDot => _dot != null;
-
-    /// <summary>瞄准射线与前方竖直平面(z=planeZ,UI 界面虚拟画布位置)的交点;
-    /// 射线背向/平行平面时退化为沿方向 200m(照原作激光线长)</summary>
-    public static Vector3 PlanePoint(Vector3 from, Vector3 dir, float planeZ, float fallbackLen = 200.0f)
-    {
-        float t = Mathf.Abs(dir.Z) > 1e-5f ? (planeZ - from.Z) / dir.Z : -1.0f;
-        if (t <= 0.0f)
-            t = fallbackLen;
-        return from + dir * t;
-    }
 
     public override void _Process(double delta)
     {
