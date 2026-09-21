@@ -1,0 +1,69 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://src/Battle/StoryStart.cs" id="1"]
+[ext_resource type="PackedScene" path="res://scenes/levels/env_school_hallway.tscn" id="2"]
+[ext_resource type="AudioStream" path="res://assets/audio/story/dance.mp3" id="3"]
+
+[sub_resource type="Environment" id="Env"]
+background_mode = 1
+background_color = Color(0.033, 0.075, 0.192, 1)
+ambient_light_source = 2
+ambient_light_color = Color(0.879, 0.442, 0.115, 1)
+ambient_light_energy = 0.55
+
+[node name="Level1Story" type="Node3D"]
+script = ExtResource("1")
+
+[node name="Environment" parent="." instance=ExtResource("2")]
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Env")
+
+[node name="DirectionalLightWhite" type="DirectionalLight3D" parent="."]
+transform = Transform3D(-0.6870874, 0.4785869, -0.5466856, 0, 0.752415, 0.6586893, 0.7265746, 0.4525772, -0.5169749, 0, 8, 0)
+shadow_enabled = true
+
+[node name="DirectionalLightWarm" type="DirectionalLight3D" parent="."]
+transform = Transform3D(-0.6704762, -0.1930912, -0.7163642, -0.5561928, 0.7698325, 0.3130616, 0.491031, 0.6083369, -0.6235502, 0, 8, 0)
+light_color = Color(1, 0.9647059, 0.7647059, 1)
+light_energy = 2.0
+shadow_enabled = true
+
+[node name="Camera3D" type="Camera3D" parent="."]
+transform = Transform3D(0.998092, -0.003555372, 0.06164254, 0, 0.9983408, 0.05758155, -0.06174499, -0.05747168, 0.9964359, 0.427567, 1.379759, 25.59563)
+current = true
+fov = 45.0
+near = 0.3
+far = 1000.0
+
+[node name="Markers" type="Node3D" parent="."]
+
+[node name="vcam1" type="Marker3D" parent="Markers"]
+transform = Transform3D(0.9887825, 0.008858114, 0.1490995, 0, 0.9982398, -0.05930619, -0.1493624, 0.05864092, 0.9870421, 0.3026695, 1.204709, 68.5)
+
+[node name="vcam2" type="Marker3D" parent="Markers"]
+transform = Transform3D(0.9997263, 0.0006867007, 0.02338569, 0, 0.9995684, -0.02937612, -0.02339577, 0.02936809, 0.9992948, 0.2255948, 0.7108424, 24.03117)
+
+[node name="vcam3" type="Marker3D" parent="Markers"]
+transform = Transform3D(0.9792821, 0, -0.2025008, 0, 1, 0, 0.2025008, 0, 0.9792821, 0.06760311, 1.357871, 22.71459)
+
+[node name="vcam3_1" type="Marker3D" parent="Markers"]
+transform = Transform3D(0.9686054, 0, 0.2486034, 0, 1, 0, -0.2486034, 0, 0.9686054, -0.5284281, 1.214869, 21.43491)
+
+[node name="vcam4" type="Marker3D" parent="Markers"]
+transform = Transform3D(-0.9301616, -0.01078303, -0.3669924, 0, 0.9995686, -0.02936949, 0.3671508, -0.02731836, -0.9297603, -0.6, 0.9, 17.63)
+
+[node name="vcam3_2" type="Marker3D" parent="Markers"]
+transform = Transform3D(-0.3150693, 0, 0.9490687, 0, 1, 0, -0.9490687, 0, -0.3150693, 2.088349, 1.404875, 20.13752)
+
+[node name="vcam6" type="Marker3D" parent="Markers"]
+transform = Transform3D(0.9874812, -0.002464113, 0.1577175, 0, 0.999878, 0.01561874, -0.1577367, -0.01542314, 0.9873608, 1.642432, 1.366294, 22.23131)
+
+[node name="vcam7" type="Marker3D" parent="Markers"]
+transform = Transform3D(0.7259383, -0.002489698, 0.6877554, 0, 0.9999934, 0.003619428, -0.6877599, -0.002627102, 0.7259335, 3.586605, 1.300522, 23.63066)
+
+[node name="vcam8" type="Marker3D" parent="Markers"]
+transform = Transform3D(0.998092, -0.003555372, 0.06164254, 0, 0.9983408, 0.05758155, -0.06174499, -0.05747168, 0.9964359, 0.427567, 1.379759, 25.59563)
+
+[node name="DanceMusic" type="AudioStreamPlayer" parent="."]
+stream = ExtResource("3")
