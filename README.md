@@ -86,7 +86,7 @@ dotnet publish 的运行时包来自 nuget.org(NuGet.config 已配)。
 
 ## 已知遗留(非阻塞)
 
-1. Level1 战斗 + 剧情已完成 C# 移植(level1_battle.tscn / level1_story.tscn,13+7 项自检);Level2/3/4 进行中。
+1. 全部 4 个战斗关 + Level1 剧情过场已完成 C# 移植并提交;Level2(34 项)/Level3(15 项)/Level4(13 项)自检全过。
 2. 发布前把 `game/assets/fonts/cjk_fallback.ttf`(本机 SimHei 副本)换成可分发字体(UiTheme 引用)。
 3. `assets/models/` 部分环境贴图目录大小写与引用不一致(Windows 无碍,跨平台需修)。
 4. 体感枪真机方向校准(quat_mirror)、枪口火光/激光真机效果未经实机验证(无设备)。
@@ -134,3 +134,15 @@ $G --path . scenes/levels/level1_battle.tscn -- "--level1-shot:out.png"         
 - 难度数量截断:Unity float 数学改 double 精确(10×1.8 恒 18,不再掉 17)。
 - 胜利结算:原作只弹 VectoryPanel 无星数;本地版另做 HP+用时星级落盘(原作服务器下发不可得)。
 - Level2/3/4 原工程 `Invoke("FinishLevel")` bug(方法不存在永不触发)在 LevelBase 统一修复。
+- Level2:烘焙 lightmap 不可得,实时等效光照观感偏白日;Boss 模型未按 Unity ×3 缩放(照 legacy 结构)。
+- Level3:烘焙导出的坐标约定为 mirror-X(SceneExporter.cs 注释),机位照此换算并经落位验证;部分机位视野内城市观感偏空;线性管线下画面比 Unity gamma 工程偏暗。
+- Level4:env 同 mirror-X 约定;雾用 Godot 指数雾近似 Unity ExpSquared;fire_breath 特效 emit 默认值 bug-for-bug 保留。
+- 各关环境烘焙坐标约定可能不同(走廊=数值不变 / 城市与村庄=mirror-X),机位均按各自 env 已验证约定换算,场景内自洽。
+
+其余关卡自检:
+```bash
+$G --headless --path . scenes/levels/level2.tscn -- --level2-selftest   # 34 项
+$G --headless --path . scenes/levels/level3.tscn -- --level3-selftest   # 15 项
+$G --headless --path . scenes/levels/level4.tscn -- --level4-selftest   # 13 项
+$G --path . scenes/levels/level2.tscn -- "--level2-shot:<out.png>[:sec]"  # L2 截图(同理 L3/L4)
+```
