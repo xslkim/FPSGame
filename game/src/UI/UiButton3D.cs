@@ -18,17 +18,26 @@ public partial class UiButton3D : StaticBody3D
 
     private Vector2 _size = new(0.6f, 0.22f);
     private Color _bgColor = new(0.16f, 0.35f, 0.6f, 0.95f);
+    private string? _texturePath;
+    private Color _textColor = Colors.White;
+    private int _fontSize = 64;
+    private float _pixelSize = 0.0025f;
     private MeshInstance3D _mesh = null!;
     private Label3D _label = null!;
     private StandardMaterial3D _mat = null!;
 
-    public static UiButton3D Create(string text, Vector2? size = null, System.Action? cb = null)
+    public static UiButton3D Create(string text, Vector2? size = null, System.Action? cb = null,
+        string? texturePath = null, Color? textColor = null, int fontSize = 64, float pixelSize = 0.0025f)
     {
         return new UiButton3D
         {
             Text = text,
             _size = size ?? new Vector2(0.6f, 0.22f),
             OnPressed = cb,
+            _texturePath = texturePath,
+            _textColor = textColor ?? Colors.White,
+            _fontSize = fontSize,
+            _pixelSize = pixelSize,
         };
     }
 
@@ -36,12 +45,18 @@ public partial class UiButton3D : StaticBody3D
     {
         CollisionLayer = 0b100; // layer 3 Button
         CollisionMask = 0;
+        ProcessMode = ProcessModeEnum.Always; // 暂停期面板按钮仍可按
         AddToGroup("ui_button_3d");
         _mat = new StandardMaterial3D
         {
             ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded,
             AlbedoColor = _bgColor,
         };
+        if (_texturePath != null && ResourceLoader.Exists(_texturePath))
+        {
+            _mat.AlbedoTexture = GD.Load<Texture2D>(_texturePath);
+            _mat.Transparency = BaseMaterial3D.TransparencyEnum.Alpha;
+        }
         _mesh = new MeshInstance3D
         {
             Name = "Bg",
@@ -57,9 +72,9 @@ public partial class UiButton3D : StaticBody3D
         {
             Name = "Text",
             Text = Text,
-            PixelSize = 0.0025f,
-            FontSize = 64,
-            Modulate = Colors.White,
+            PixelSize = _pixelSize,
+            FontSize = _fontSize,
+            Modulate = _textColor,
             Position = new Vector3(0, 0, 0.01f),
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center,

@@ -28,4 +28,11 @@ public partial class Game : Node
     public override void _Ready() => Instance = this;
 
     public void ChangeScene(string path) => GetTree().ChangeSceneToFile(path);
+
+    /// <summary>暂停语义统一入口:原作 timeScale=0 + IsGamePause 同步维护</summary>
+    public void SetPaused(bool paused)
+    {
+        IsGamePause = paused;
+        GetTree().Paused = paused;
+    }
 }

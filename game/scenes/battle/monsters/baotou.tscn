@@ -1,0 +1,39 @@
+[gd_scene load_steps=8 format=3]
+
+[ext_resource type="Script" path="res://src/Battle/BaotouMonster.cs" id="1"]
+[ext_resource type="Script" path="res://src/Battle/MonsterHpBar.cs" id="2"]
+[ext_resource type="PackedScene" path="res://assets/models/monsters/baotou/Chr_Zcharacter_01.FBX" id="3"]
+[ext_resource type="AnimationLibrary" path="res://assets/models/monsters/baotou/baotou_anims.tres" id="4"]
+[ext_resource type="Material" path="res://assets/models/monsters/baotou/baotou_mat.tres" id="5"]
+
+[sub_resource type="CapsuleShape3D" id="BodyShape"]
+radius = 0.5
+height = 2.0
+
+[node name="Baotou" type="CharacterBody3D"]
+collision_layer = 2
+collision_mask = 1
+script = ExtResource("1")
+MetaKey = "baotou"
+IsBoss = true
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.0, 0)
+shape = SubResource("BodyShape")
+
+[node name="AnimationPlayer" type="AnimationPlayer" parent="."]
+libraries = {
+&"": ExtResource("4")
+}
+
+[node name="HpAnchor" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.5, 0)
+script = ExtResource("2")
+
+[node name="AudioStreamPlayer3D" type="AudioStreamPlayer3D" parent="."]
+
+[node name="Model" parent="." instance=ExtResource("3")]
+transform = Transform3D(-1.2, 0, 0, 0, 1.2, 0, 0, 0, -1.2, 0, 0, 0)
+
+[node name="CHR_Zcharacter_001" parent="Model/Skeleton3D" index="0"]
+surface_material_override/0 = ExtResource("5")

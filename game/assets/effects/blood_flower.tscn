@@ -1,0 +1,66 @@
+[gd_scene load_steps=9 format=3]
+
+[ext_resource type="Script" path="res://src/Effects/EffectBase.cs" id="1"]
+[ext_resource type="Texture2D" path="res://assets/effects/textures/blood_particle.png" id="2"]
+[ext_resource type="Texture2D" path="res://assets/effects/textures/blood_decal.png" id="3"]
+
+[sub_resource type="ParticleProcessMaterial" id="ppm_burst"]
+direction = Vector3(0, 1, 0)
+spread = 65.0
+gravity = Vector3(0, -9, 0)
+initial_velocity_min = 2.0
+initial_velocity_max = 4.5
+scale_min = 0.6
+scale_max = 1.4
+
+[sub_resource type="StandardMaterial3D" id="mat_burst"]
+transparency = 1
+shading_mode = 0
+albedo_color = Color(0.6, 0.03, 0.03, 1)
+albedo_texture = ExtResource("2")
+billboard_mode = 1
+
+[sub_resource type="QuadMesh" id="q_burst"]
+material = SubResource("mat_burst")
+size = Vector2(0.08, 0.08)
+
+[sub_resource type="ParticleProcessMaterial" id="ppm_splat"]
+spread = 180.0
+gravity = Vector3(0, 0, 0)
+initial_velocity_min = 0.0
+initial_velocity_max = 0.1
+scale_min = 0.9
+scale_max = 1.2
+
+[sub_resource type="StandardMaterial3D" id="mat_splat"]
+transparency = 1
+shading_mode = 0
+albedo_color = Color(0.55, 0.03, 0.03, 0.95)
+albedo_texture = ExtResource("3")
+billboard_mode = 1
+
+[sub_resource type="QuadMesh" id="q_splat"]
+material = SubResource("mat_splat")
+size = Vector2(0.35, 0.35)
+
+[node name="BloodFlower" type="Node3D"]
+script = ExtResource("1")
+Lifetime = 1.2
+
+[node name="Burst" type="GPUParticles3D" parent="."]
+amount = 24
+lifetime = 0.6
+explosiveness = 0.9
+randomness = 0.4
+process_material = SubResource("ppm_burst")
+draw_pass_1 = SubResource("q_burst")
+
+[node name="Splat" type="GPUParticles3D" parent="."]
+amount = 2
+lifetime = 1.1
+explosiveness = 1.0
+process_material = SubResource("ppm_splat")
+draw_pass_1 = SubResource("q_splat")
+
+[node name="Hole" type="Sprite3D" parent="."]
+visible = false

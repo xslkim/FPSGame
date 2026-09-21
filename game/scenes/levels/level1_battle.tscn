@@ -1,0 +1,82 @@
+[gd_scene load_steps=7 format=3]
+
+[ext_resource type="Script" path="res://src/Battle/Level1.cs" id="1"]
+[ext_resource type="Script" path="res://src/Battle/FireSystem.cs" id="2"]
+[ext_resource type="Script" path="res://src/Battle/MonsterPool.cs" id="3"]
+[ext_resource type="Script" path="res://src/Battle/InGamePanel.cs" id="4"]
+[ext_resource type="PackedScene" path="res://scenes/levels/env_school_hallway.tscn" id="5"]
+[ext_resource type="Script" path="res://src/Battle/IntroBadGroup.cs" id="6"]
+
+[sub_resource type="Environment" id="Env"]
+background_mode = 1
+background_color = Color(0.2888, 0.3112, 0.1542, 1)
+ambient_light_source = 2
+ambient_light_color = Color(1, 1, 1, 1)
+ambient_light_energy = 1.0
+fog_enabled = true
+fog_light_color = Color(0.3029, 0.3073, 0.1565, 1)
+fog_density = 0.16
+
+[node name="Level1Battle" type="Node3D"]
+script = ExtResource("1")
+LevelKey = "level1"
+CamPositionPaths = [NodePath("CamPositions/cam_pos_0"), NodePath("CamPositions/cam_pos_1"), NodePath("CamPositions/cam_pos_2"), NodePath("CamPositions/cam_pos_3"), NodePath("CamPositions/cam_pos_4")]
+PoolPath = NodePath("MonsterPool")
+CameraPath = NodePath("Camera3D")
+FireSystemPath = NodePath("Camera3D/FireSystem")
+BgmPlayerPath = NodePath("BGM")
+BadGroupPath = NodePath("BadGroup")
+StartMusicPlayerPath = NodePath("StartMusic")
+EnvPath = NodePath("Environment")
+
+[node name="Environment" parent="." instance=ExtResource("5")]
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Env")
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
+transform = Transform3D(-5.32125e-08, 0, -1, 0, 1, 0, 1, 0, -5.32125e-08, 0, 8, 0)
+light_color = Color(1, 0.9647059, 0.7647059, 1)
+light_energy = 2.0
+shadow_enabled = true
+
+[node name="Camera3D" type="Camera3D" parent="."]
+transform = Transform3D(0.995294, -0.00366784, 0.0968294, 0, 0.999283, 0.0378523, -0.0968988, -0.0376741, 0.994581, 1.35, 1.86, 22.44)
+current = true
+fov = 30.0
+near = 0.001
+far = 100.0
+
+[node name="FireSystem" type="Node3D" parent="Camera3D"]
+script = ExtResource("2")
+
+[node name="InGamePanel" type="Node3D" parent="Camera3D"]
+script = ExtResource("4")
+
+[node name="CamPositions" type="Node3D" parent="."]
+
+[node name="cam_pos_0" type="Marker3D" parent="CamPositions"]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -0.7353256, 1, -10.27063)
+
+[node name="cam_pos_1" type="Marker3D" parent="CamPositions"]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -0.08512878, 1.051493, -3)
+
+[node name="cam_pos_2" type="Marker3D" parent="CamPositions"]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -0.0851289, 1.051493, 3.01)
+
+[node name="cam_pos_3" type="Marker3D" parent="CamPositions"]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -0.08512914, 1.051493, 21.02)
+
+[node name="cam_pos_4" type="Marker3D" parent="CamPositions"]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -0.08512962, 1.051493, 60)
+
+[node name="MonsterPool" type="Node3D" parent="."]
+script = ExtResource("3")
+
+[node name="BGM" type="AudioStreamPlayer" parent="."]
+
+[node name="StartMusic" type="AudioStreamPlayer" parent="."]
+
+[node name="BadGroup" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -4)
+script = ExtResource("6")

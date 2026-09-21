@@ -145,6 +145,190 @@ public partial class PlayerState : Node
         _coinObj.AddChild(_coinText);
         _coinObj.Visible = false;
         RefreshHud();
+        BuildBattleHud();
+        PlayerState.Instance.UiChanged += RefreshBattleHud;
+        PlayerHurt += OnHurtFlash;
+    }
+
+    // ------------------------------------------------ 战斗 HUD(PlayerSystem.prefab 1:1)
+
+    private Control _battleRoot = null!;
+    private Control _headRight = null!;
+    private Control _headLeft = null!;
+    private Control _bulletRight = null!;
+    private Control _bulletLeft = null!;
+    private Label _bulletRightText = null!;
+    private Label _bulletLeftText = null!;
+    private TextureProgressBar _hpRight = null!;
+    private TextureProgressBar _hpLeft = null!;
+    private TextureRect _hurtRight = null!;
+    private TextureRect _hurtLeft = null!;
+    private Tween? _hurtRightTween;
+    private Tween? _hurtLeftTween;
+
+    private void BuildBattleHud()
+    {
+        // 战斗容器:子弹×2(底中)/头像+血条×2(右上/左上)/受击全屏闪×2
+        _battleRoot = new Control { Name = "BattleHud", MouseFilter = Control.MouseFilterEnum.Ignore };
+        _battleRoot.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+        _hudLayer.AddChild(_battleRoot);
+
+        _bulletRight = MakeBulletHud("BulletRight", new Color(0.0f, 0.7255f, 0.2824f),
+            new Color(0.0088f, 0.3113f, 0.1265f), out _bulletRightText);
+        _bulletLeft = MakeBulletHud("BulletLeft", new Color(0.7062f, 0.7255f, 0.0f),
+            new Color(0.3973f, 0.4057f, 0.0f), out _bulletLeftText);
+        _headRight = MakeHeadHud("HeadRight", true, out _hpRight);
+        _headLeft = MakeHeadHud("HeadLeft", false, out _hpLeft);
+        _hurtRight = MakeHurtOverlay("RightHurt", "res://assets/textures/ui/bloodEffectRight.png");
+        _hurtLeft = MakeHurtOverlay("LeftHurt", "res://assets/textures/ui/bloodEffect.png");
+        _battleRoot.Visible = false;
+    }
+
+    private Control MakeBulletHud(string name, Color iconTint, Color xColor, out Label countLabel)
+    {
+        // 64×64 底中(anchor 0.5,0 pivot 0.5,0);X 28 号;数字 52 号白向右延伸
+        var root = new Control { Name = name, MouseFilter = Control.MouseFilterEnum.Ignore };
+        root.SetAnchorsPreset(Control.LayoutPreset.CenterBottom);
+        root.OffsetLeft = -32.0f;
+        root.OffsetRight = 32.0f;
+        root.OffsetTop = -64.0f;
+        root.OffsetBottom = 0.0f;
+        _battleRoot.AddChild(root);
+        var icon = new TextureRect
+        {
+            Name = "Icon",
+            Texture = GD.Load<Texture2D>("res://assets/textures/ui/Bullet.png"),
+            Modulate = iconTint,
+            StretchMode = TextureRect.StretchModeEnum.Scale,
+            ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize,
+        };
+        icon.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+        root.AddChild(icon);
+        var x = new Label
+        {
+            Name = "X",
+            Text = "X",
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        x.AddThemeFontSizeOverride("font_size", 28);
+        x.AddThemeColorOverride("font_color", xColor);
+        x.SetAnchorsPreset(Control.LayoutPreset.TopLeft);
+        x.OffsetLeft = 32.0f - 30.0f;
+        x.OffsetRight = 32.0f + 30.0f;
+        x.OffsetTop = 32.0f - 30.0f;
+        x.OffsetBottom = 32.0f + 30.0f;
+        root.AddChild(x);
+        countLabel = new Label
+        {
+            Name = name + "Text",
+            Text = "120",
+            HorizontalAlignment = HorizontalAlignment.Left,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        countLabel.AddThemeFontSizeOverride("font_size", 52);
+        countLabel.SetAnchorsPreset(Control.LayoutPreset.CenterLeft);
+        countLabel.Position = new Vector2(64.0f, -30.0f);
+        countLabel.Size = new Vector2(120.0f, 60.0f);
+        root.AddChild(countLabel);
+        return root;
+    }
+
+    private Control MakeHeadHud(string name, bool isRight, out TextureProgressBar slider)
+    {
+        // HdBg 128×128 右上角(右)/左上角(左)+ Head 100×100 + HP 438×16
+        var root = new Control { Name = name, MouseFilter = Control.MouseFilterEnum.Ignore };
+        root.SetAnchorsPreset(isRight ? Control.LayoutPreset.TopRight : Control.LayoutPreset.TopLeft);
+        root.OffsetLeft = isRight ? -128.0f : 0.0f;
+        root.OffsetRight = isRight ? 0.0f : 128.0f;
+        root.OffsetTop = 0.0f;
+        root.OffsetBottom = 128.0f;
+        _battleRoot.AddChild(root);
+        var bg = new TextureRect
+        {
+            Name = "HdBg",
+            Texture = GD.Load<Texture2D>(isRight
+                ? "res://assets/textures/ui/HeadBg.png"
+                : "res://assets/textures/ui/headBgRed.png"),
+            StretchMode = TextureRect.StretchModeEnum.Scale,
+            ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize,
+        };
+        bg.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+        root.AddChild(bg);
+        var head = new TextureRect
+        {
+            Name = "Head",
+            Texture = GD.Load<Texture2D>("res://assets/textures/ui/heads/Icon1.png"),
+            StretchMode = TextureRect.StretchModeEnum.Scale,
+            ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize,
+        };
+        head.SetAnchorsPreset(Control.LayoutPreset.Center);
+        head.Size = new Vector2(100.0f, 100.0f);
+        head.Position = new Vector2(-50.0f, -50.0f);
+        root.AddChild(head);
+        slider = new TextureProgressBar
+        {
+            Name = "HPSlider",
+            TextureUnder = GD.Load<Texture2D>("res://assets/textures/ui/2-Empty.png"),
+            TextureProgress = GD.Load<Texture2D>("res://assets/textures/ui/2-AppleGreen.png"),
+            MinValue = 0.0,
+            MaxValue = 100.0,
+            Value = 100.0,
+        };
+        slider.SetAnchorsPreset(Control.LayoutPreset.CenterBottom);
+        slider.Size = new Vector2(438.0f, 16.0f);
+        slider.Position = new Vector2(-219.0f + (isRight ? 0.0f : 0.0f), 8.0f);
+        root.AddChild(slider);
+        return root;
+    }
+
+    private TextureRect MakeHurtOverlay(string name, string texPath)
+    {
+        var tr = new TextureRect
+        {
+            Name = name,
+            Texture = GD.Load<Texture2D>(texPath),
+            Modulate = new Color(1.0f, 0.0f, 0.0f, 0.0f),
+            StretchMode = TextureRect.StretchModeEnum.Scale,
+            ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize,
+            MouseFilter = Control.MouseFilterEnum.Ignore,
+        };
+        tr.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+        _battleRoot.AddChild(tr);
+        return tr;
+    }
+
+    private void RefreshBattleHud()
+    {
+        if (_battleRoot == null || !_battleRoot.Visible)
+            return;
+        var pr = PlayerRight;
+        var pl = PlayerLeft;
+        _bulletRightText.Text = pr.Bullet.ToString();
+        _bulletLeftText.Text = pl.Bullet.ToString();
+        _hpRight.Value = Mathf.Clamp(pr.Hp, 0.0f, Player.MaxHp);
+        _hpLeft.Value = Mathf.Clamp(pl.Hp, 0.0f, Player.MaxHp);
+    }
+
+    /// <summary>受击全屏闪(原作 HurtEffect):Phy 黄 / Ice 青 / Poison 绿,alpha 0.392 渐隐 ~2s</summary>
+    private void OnHurtFlash(int side, int attackType)
+    {
+        if (_battleRoot == null)
+            return;
+        var overlay = side == (int)Side.Right ? _hurtRight : _hurtLeft;
+        var tween = side == (int)Side.Right ? _hurtRightTween : _hurtLeftTween;
+        Color c = (Game.AttackType)attackType switch
+        {
+            Game.AttackType.Ice => new Color(0.3f, 0.9f, 1.0f, 0.392f),
+            Game.AttackType.Poison => new Color(0.4f, 1.0f, 0.3f, 0.392f),
+            _ => new Color(1.0f, 0.85f, 0.2f, 0.392f),
+        };
+        overlay.Modulate = c;
+        tween?.Kill();
+        tween = CreateTween();
+        tween.TweenInterval(0.2f);
+        tween.TweenProperty(overlay, "modulate:a", 0.0f, 1.6f);
+        if (side == (int)Side.Right) _hurtRightTween = tween; else _hurtLeftTween = tween;
     }
 
     public void RefreshHud()
@@ -161,19 +345,44 @@ public partial class PlayerState : Node
         if (sceneName is "Menu" or "LevelChoose")
         {
             _coinObj.Visible = true;
+            if (_battleRoot != null)
+                _battleRoot.Visible = false;
             Game.Instance.SceneState = Game.GameState.UI;
         }
         else if (sceneName is "DeviceConnection" or "LoadingScene")
         {
             _coinObj.Visible = false;
+            if (_battleRoot != null)
+                _battleRoot.Visible = false;
             Game.Instance.SceneState = Game.GameState.UI;
         }
         else
         {
             _coinObj.Visible = true;
             Game.Instance.SceneState = Game.GameState.Battle;
+            if (_battleRoot != null)
+            {
+                _battleRoot.Visible = true;
+                // 单人(仅右玩家)只显示右侧一套;左手玩家活跃才显示左侧
+                bool leftOn = PlayerLeft.Active;
+                _bulletLeft.Visible = false; // 子弹 HUD 开战后由 ShowBattleBullets 显形
+                _headLeft.Visible = leftOn;
+                _bulletRight.Visible = false;
+                _headRight.Visible = true;
+            }
         }
         RefreshHud();
+        RefreshBattleHud();
+    }
+
+    /// <summary>开战后显示子弹 HUD(原作战斗截图:开场只见金币/头像,不见子弹)</summary>
+    public void ShowBattleBullets()
+    {
+        if (_battleRoot == null)
+            return;
+        _bulletRight.Visible = true;
+        _bulletLeft.Visible = PlayerLeft.Active;
+        RefreshBattleHud();
     }
 
     // ------------------------------------------------ 玩家管理(4.4)
