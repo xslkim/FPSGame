@@ -86,7 +86,7 @@ dotnet publish 的运行时包来自 nuget.org(NuGet.config 已配)。
 
 ## 已知遗留(非阻塞)
 
-1. 战斗关卡(怪物/关卡/特效)尚未按新标准重做:`legacy_gd/` 里是否定版 GDScript 实现,仅作参考;后续逐场景从 Unity 原作重新移植(C#)。选关页 SceneMap 指向的 `scenes/levels/*.tscn` 因此暂缺,选难度后会走 Loading 报缺场景(已知)。
+1. Level1 战斗 + 剧情已完成 C# 移植(level1_battle.tscn / level1_story.tscn,13+7 项自检);Level2/3/4 进行中。
 2. 发布前把 `game/assets/fonts/cjk_fallback.ttf`(本机 SimHei 副本)换成可分发字体(UiTheme 引用)。
 3. `assets/models/` 部分环境贴图目录大小写与引用不一致(Windows 无碍,跨平台需修)。
 4. 体感枪真机方向校准(quat_mirror)、枪口火光/激光真机效果未经实机验证(无设备)。
@@ -102,3 +102,35 @@ dotnet publish 的运行时包来自 nuget.org(NuGet.config 已配)。
 - 连接手机:`二维码Android` 组原作 active=0 且无任何代码切换,移植版建好但保持隐藏(其 Image 组件原作禁用→无底图)。
 - 连接手机:说明文字第 1 行在 "App" 后折行是真值实测的临界折行(621 vs 620 宽),移植版用显式 `\n` 固定同款折行点;行距按真值逐行扫描实测 51 单位标定(Godot `line_spacing=+10`,原作 lineSpacing=1.1 的等效)。
 - 连接手机:原作 BackMenuBtn onClick 第二绑定指向未实例化的 Utils.prefab(实际不响),移植版按框架惯例播 UI 音效;枪口闪光父链原作默认 inactive,修正为命中时播放(同菜单/选关)。
+
+## 战斗系统(Level1 战斗/剧情,C#)
+
+架构(`game/src/Battle/`):
+- `Monster.cs` 基类:生命周期(出生等待→追击→攻击→死亡回收)/动画事件 0.3s 攻击结算(按屏幕 x 分侧)/25s 超时自毁/对象池复用;数值全来自 `data/monster_meta.json`
+- `MonsterPool.cs` 类型池 / `MonsterInfo.cs` meta 读取
+- `LevelBase.cs` 波次框架(难度倍率:数量×rate、间隔÷rate、同屏×rate;机位切换冻结刷怪 2s;补给箱概率;胜利 2s 延迟单次触发)/`Level1.cs` 19s 开场+5 波+Baotou Boss
+- `FireSystem.cs` 双枪(挂相机):每帧枪口旋转=输入瞄准→射线→命中点光标火光→扳机(CD+耗弹)→Button 触发/怪物 hit/环境弹着特效池;换枪下沉动画;弹尽→续币面板;暂停期只放行 Button 命中(枪打面板)
+- `InGamePanel.cs` 三面板(World-Space 挂相机,1:1 prefab 贴图/布局):暂停/续币(复活+兑换子弹)/胜利(照原作无星数结算)
+- `IntroBadGroup.cs` school_day 19s 开场:3 NPC 负重行进(根运动 z 分段线性)+尖叫/求救音频+相机注视
+- `StoryStart.cs` 剧情过场:9 机位切镜表 blend(GroupComposer 跟踪机位 LookAt 近似)+字幕+dance.mp3+RockWarrior 50.5s 冲出+跳过按钮
+
+自检(全 headless):
+```bash
+$G --headless --path . scenes/levels/level1_battle.tscn -- --level1-selftest   # 13 项
+$G --headless --path . scenes/levels/level1_story.tscn -- --story-selftest     # 7 项
+$G --path . scenes/levels/level1_battle.tscn -- "--level1-shot-battle:out.png[:sec]"  # 战斗截图
+$G --path . scenes/levels/level1_battle.tscn -- "--level1-shot:out.png"                # 开场截图
+```
+
+数值来源:`data/level_meta.json`(原 LevelBase.GetLevelMeta 硬编码)、`data/fire_meta.json`(原 firemetajson.json)、`data/monster_meta.json`(原 MonsterBase.GetMeta)。
+
+### 战斗/剧情移植保真注记(有意的偏差)
+
+- 被抱女生(开场 3 人组背负的学生)动画:原作是 UMotion 导出的 **humanoid 肌肉曲线** .anim(RootQ/RightFootQ 等,390 条 muscle 通道),无法映射 Godot 骨骼;以绑定姿态+挂件调位近似。
+- K-POP 舞蹈:原作 200.83s 完整版(K-POP Dance 1.anim)资产不可得;演员 `_anims.tres` 内置 4s dance 循环(legacy 占位),剧情 54.8s 用循环替代,3 学生错开 0.07s 相位照原作。
+- blade_girl:原作场景中 inactive 且 Animator 被清空(不参与演出),剧情不创建该角色。
+- 怪物攻击动画事件:原作各 FBX 的 event 帧不可得,统一 0.3s(legacy 定值)。
+- 相机切换:Cinemachine blend 曲线无精确值,统一 1.5s Sine ease;vcam3 系 GroupComposer 阻尼跟踪以每帧 LookAt 近似。
+- 难度数量截断:Unity float 数学改 double 精确(10×1.8 恒 18,不再掉 17)。
+- 胜利结算:原作只弹 VectoryPanel 无星数;本地版另做 HP+用时星级落盘(原作服务器下发不可得)。
+- Level2/3/4 原工程 `Invoke("FinishLevel")` bug(方法不存在永不触发)在 LevelBase 统一修复。
