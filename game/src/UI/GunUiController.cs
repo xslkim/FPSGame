@@ -28,6 +28,16 @@ public partial class GunUiController : Node3D
         MakeCrosshair();
     }
 
+    public override void _ExitTree()
+    {
+        // C# 事件(非 Godot 信号)不会在节点释放时自动退订,必须手动退(见 MenuScreen 注)
+        if (InputRouter.Instance == null)
+            return;
+        InputRouter.Instance.TriggerRight -= OnTrigger;
+        InputRouter.Instance.TriggerLeft -= OnTrigger;
+        InputRouter.Instance.MouseGun.Triggered -= OnMouseTrigger;
+    }
+
     private void OnTrigger()
     {
         if (Game.Instance.IsGamePause || _camera == null)

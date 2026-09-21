@@ -125,6 +125,8 @@ public partial class LevelChooseScreen : Node
         }
         if (System.Array.IndexOf(args, "--levelchoose-selftest") >= 0)
             Callable.From(() => RunSelfTest()).CallDeferred();
+        if (System.Array.IndexOf(args, "--e2e-mouse-flow") >= 0)
+            Callable.From(() => RunE2eMouseCheck()).CallDeferred();
         foreach (var a in args)
         {
             if (a.StartsWith("--shot:"))
@@ -134,6 +136,16 @@ public partial class LevelChooseScreen : Node
             else if (a.StartsWith("--shot-diff:"))
                 Callable.From(() => TakeShotDiff(a["--shot-diff:".Length..])).CallDeferred();
         }
+    }
+
+    public override void _ExitTree()
+    {
+        // C# 事件(非 Godot 信号)不会在节点释放时自动退订,必须手动退(见 MenuScreen 注)
+        if (InputRouter.Instance == null)
+            return;
+        InputRouter.Instance.TriggerRight -= OnRightTrigger;
+        InputRouter.Instance.TriggerLeft -= OnLeftTrigger;
+        InputRouter.Instance.MouseGun.Triggered -= OnMouseTrigger;
     }
 
     private static void OverrideGunMat(Node3D gun, string texPath, Color tint)
@@ -643,6 +655,46 @@ public partial class LevelChooseScreen : Node
     }
 
     // ---------------------------------------------------------------- 自检(--levelchoose-selftest)
+
+    /// <summary>端到端复现(--e2e-mouse-flow,由 MenuScreen 跳入):Mouse 模式下
+    /// 真实窗口坐标瞄准+点击第 1 关,断言悬停/扣币/火光/难度面板。</summary>
+    private async void RunE2eMouseCheck()
+    {
+        int fails = 0;
+        void Check(bool ok, string what)
+        {
+            GD.Print((ok ? "PASS " : "FAIL ") + what);
+            if (!ok) fails += 1;
+        }
+        for (int i = 0; i < 10; i++)
+            await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+        SaveService.Instance.Coin = 10; // 内存改币,避免弹"游戏币"框(不落盘)
+        var router = InputRouter.Instance;
+        Check(router.Mode == InputRouter.InputMode.Mouse, "模式=Mouse");
+        Check(router.MouseGun.IsActiveForRight(router), "鼠标光枪激活");
+        // 真实窗口坐标瞄准第 1 关中心(与用户物理鼠标同一事件管线)
+        var lvl1Canvas = _levelButtons[0].GetGlobalRect().GetCenter();
+        var winPos = GetViewport().GetFinalTransform() *
+            (GetViewport().GetCanvasTransform() * lvl1Canvas);
+        Input.ParseInputEvent(new InputEventMouseMotion { Position = winPos });
+        await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+        await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+        // Godot 在投递输入事件前已把窗口像素坐标转成画布逻辑坐标(stretch 逆变换)
+        Check(router.MouseGun.AimPos.DistanceTo(lvl1Canvas) < 1.0f,
+            $"AimPos 更新 ({router.MouseGun.AimPos} vs {lvl1Canvas})");
+        Check(GetViewport().GuiGetFocusOwner() == _levelButtons[0], "鼠标瞄准悬停=焦点第1关");
+        int coinBefore = SaveService.Instance.Coin;
+        Input.ParseInputEvent(new InputEventMouseButton
+            { ButtonIndex = MouseButton.Left, Pressed = true, Position = winPos });
+        await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+        await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+        Check(SaveService.Instance.Coin == coinBefore - 1, "点击第1关→扣1币");
+        Check(_muzzleAk.Visible, "AK47 火光播放");
+        await ToSignal(GetTree().CreateTimer(0.7), SceneTreeTimer.SignalName.Timeout);
+        Check(_diffPanel.Visible, "难度面板显示");
+        GD.Print($"E2E MOUSE FLOW {(fails == 0 ? "PASS" : "FAIL")} (fails={fails})");
+        (Engine.GetMainLoop() as SceneTree)!.Quit(fails > 0 ? 1 : 0);
+    }
 
     private async void RunSelfTest()
     {

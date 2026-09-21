@@ -78,7 +78,9 @@ public static class UiKit
         return l;
     }
 
-    /// <summary>窗口像素(鼠标/枪口投影)→ 画布逻辑坐标;任意分辨率/宽高比下都正确</summary>
-    public static Vector2 WindowToLogical(Viewport vp, Vector2 windowPos) =>
-        vp.GetCanvasTransform().AffineInverse() * windowPos;
+    /// <summary>输入事件/视口投影点 → 画布逻辑坐标。
+    /// Godot 投递输入事件时已做 stretch 逆变换(鼠标位置到达 _Input 即为逻辑坐标),
+    /// Camera3D.UnprojectPosition 返回的同样是视口逻辑坐标,故此处恒等。
+    /// (历史版本曾再乘一次 canvasTransform 逆矩阵——那是双重变换,仅在 canvas=恒等时恰好不出错。)</summary>
+    public static Vector2 WindowToLogical(Viewport vp, Vector2 windowPos) => windowPos;
 }

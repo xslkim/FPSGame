@@ -97,6 +97,16 @@ public partial class DeviceConnectionScreen : Node
         }
     }
 
+    public override void _ExitTree()
+    {
+        // C# 事件(非 Godot 信号)不会在节点释放时自动退订,必须手动退(见 MenuScreen 注)
+        if (InputRouter.Instance == null)
+            return;
+        InputRouter.Instance.TriggerRight -= OnRightTrigger;
+        InputRouter.Instance.TriggerLeft -= OnLeftTrigger;
+        InputRouter.Instance.MouseGun.Triggered -= OnMouseTrigger;
+    }
+
     private static void OverrideGunMat(Node3D gun, string texPath, Color tint)
     {
         var mat = new StandardMaterial3D

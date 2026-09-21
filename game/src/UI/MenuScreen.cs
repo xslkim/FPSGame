@@ -94,6 +94,8 @@ public partial class MenuScreen : Node
         }
         if (System.Array.IndexOf(args, "--menu-selftest") >= 0)
             Callable.From(() => RunSelfTest()).CallDeferred();
+        if (System.Array.IndexOf(args, "--e2e-mouse-flow") >= 0)
+            Callable.From(() => RunE2eMouseFlow()).CallDeferred();
         foreach (var a in args)
         {
             if (a.StartsWith("--shot:"))
@@ -107,6 +109,16 @@ public partial class MenuScreen : Node
             else if (a.StartsWith("--shot-flash:"))
                 Callable.From(() => TakeShotFlash(a["--shot-flash:".Length..])).CallDeferred();
         }
+    }
+
+    public override void _ExitTree()
+    {
+        // C# 事件(非 Godot 信号)不会在节点释放时自动退订:残留已释放对象的处理器
+        // 会在事件触发时抛 ObjectDisposedException 并打断后续调用链(选关卡点击失效的根因)
+        if (InputRouter.Instance == null)
+            return;
+        InputRouter.Instance.TriggerRight -= OnGunTrigger;
+        InputRouter.Instance.MouseGun.Triggered -= OnMouseTrigger;
     }
 
     /// <summary>截图验证:--shot-flash:&lt;path&gt;,开火后第 3 帧截屏(火光翻页/灯光峰值期)。</summary>
@@ -471,6 +483,23 @@ public partial class MenuScreen : Node
     }
 
     // ---------------------------------------------------------------- 自检(--menu-selftest)
+
+    /// <summary>端到端复现(--e2e-mouse-flow):单人游戏→弹框选"鼠标"→跳选关;
+    /// 后续断言由 LevelChooseScreen 的同名参数钩子接管。</summary>
+    private async void RunE2eMouseFlow()
+    {
+        for (int i = 0; i < 5; i++)
+            await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+        OnePlayer();
+        await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+        if (!MessageBox.IsOpen())
+        {
+            GD.Print("E2E MOUSE FLOW FAIL: 单人弹框未打开");
+            (Engine.GetMainLoop() as SceneTree)!.Quit(1);
+            return;
+        }
+        MessageBox.Current!.PressExtra(); // 鼠标 → Mouse 模式 → LevelChoose(帧末切场景)
+    }
 
     private async void RunSelfTest()
     {
