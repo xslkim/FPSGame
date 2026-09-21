@@ -70,6 +70,9 @@ public partial class Level1 : LevelBase
     /// <summary>延迟截图(真值对比用):窗口模式 --shot-res 设定分辨率</summary>
     private async void TakeShotDelayed(string path, float delay)
     {
+        // 激光验证:瞄准可视区中心(光束从枪口到命中点,红点贴面);等一帧确保视口尺寸就绪
+        await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+        InputRouter.Instance.MouseGun.SimulateMove(GetViewport().GetVisibleRect().Size / 2.0f);
         await ToSignal(GetTree().CreateTimer(delay, true, true), SceneTreeTimer.SignalName.Timeout);
         var img = GetViewport().GetTexture().GetImage();
         img.SavePng(path.Replace('/', '\\'));

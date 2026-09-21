@@ -6,7 +6,9 @@ namespace FPSGame;
 /// 选关:1:1 移植 Unity Assets/UI/LevelChoose.unity + LevelChoose.cs / LevelState.cs。
 /// 3D(SubViewport 透明,深度序照原作 WorldSpace Canvas):相机 FOV60、平行光(euler 50,-30,0,
 ///   色 (1,0.957,0.839));相机下挂双枪——右 AK47(0.25,-0.11,0.2,戒指/遥控器/鼠标路)、
-///   左 M4(-0.25,-0.11,0.22,手机腿部路),各带激光+枪口火光(命中按钮时播放,照菜单)。
+///   左 M4(-0.25,-0.11,0.22,手机腿部路),各带激光(LaserSight 右红/左绿,照原作
+///   Lazer.mat/LazerLeft.mat:枪口→虚拟画布平面 z=621.6)+屏幕红点(UiAimDot 标示 2D 命中)
+///   +枪口火光(命中按钮时播放,照菜单)。
 /// UI:逻辑分辨率 1280×720;背景 background6 全屏等比覆盖;返回(右上 anchor 1,1);
 ///   LevelGroup(anchor 0,0.5,x=150 起)13 关按钮(300×300,bg_map 九宫格 22/25/22/21,
 ///   页内间距 340、页宽 1280,翻页 100px/帧≈6000px/s,Level5~13 原作默认 inactive);
@@ -30,6 +32,7 @@ public partial class LevelChooseScreen : Node
     private const float PageWidth = 1280.0f;  // targetPos = 150 + page*-1280
     private const float PageSpeed = 6000.0f;  // 原作 100/帧(60fps 等效)
     private const string VpPrefix = "ViewportLayer/SubViewportContainer/SubViewport/";
+    private const float CanvasZ = 621.6f; // 原作 WorldSpace Canvas 距相机 621.6(激光束终点平面)
 
     /// <summary>已建关卡映射;未建 → MessageBox "敬请期待"(战斗关卡未移植,已知)</summary>
     private static readonly System.Collections.Generic.Dictionary<int, string> SceneMap = new()
@@ -52,8 +55,10 @@ public partial class LevelChooseScreen : Node
     private Camera3D _camera = null!;
     private Node3D _gunAk = null!;   // 右路(戒指/遥控器/鼠标)
     private Node3D _gunM4 = null!;   // 左路(手机腿部)
-    private MeshInstance3D _lazerAk = null!;
-    private MeshInstance3D _lazerM4 = null!;
+    private LaserSight _laserAk = null!;
+    private LaserSight _laserM4 = null!;
+    private UiAimDot _dotAk = null!;
+    private UiAimDot _dotM4 = null!;
     private MuzzleFlash _muzzleAk = null!;
     private MuzzleFlash _muzzleM4 = null!;
     private Control _buttonRoot = null!;
@@ -93,10 +98,15 @@ public partial class LevelChooseScreen : Node
         _camera = GetNode<Camera3D>(VpPrefix + "Camera3D");
         _gunAk = GetNode<Node3D>(VpPrefix + "Camera3D/AK47View");
         _gunM4 = GetNode<Node3D>(VpPrefix + "Camera3D/M4View");
-        _lazerAk = GetNode<MeshInstance3D>(VpPrefix + "Camera3D/AK47View/Lazer");
-        _lazerM4 = GetNode<MeshInstance3D>(VpPrefix + "Camera3D/M4View/Lazer");
         _muzzleAk = GetNode<MuzzleFlash>(VpPrefix + "Camera3D/AK47View/MuzzleFlash");
         _muzzleM4 = GetNode<MuzzleFlash>(VpPrefix + "Camera3D/M4View/MuzzleFlash");
+        // 激光瞄准器(原作右红/左绿):枪口 → 画布平面;屏幕红点精确标示 2D 命中
+        _laserAk = LaserSight.Create(LaserSight.RightRed, 0.0115f, withDot: false);
+        _laserM4 = LaserSight.Create(LaserSight.LeftGreen, 0.0115f, withDot: false);
+        _subvp.AddChild(_laserAk);
+        _subvp.AddChild(_laserM4);
+        _dotAk = UiAimDot.Create(this, LaserSight.RightRed);
+        _dotM4 = UiAimDot.Create(this, LaserSight.LeftGreen);
 
         SyncViewportSize();
         GetViewport().SizeChanged += SyncViewportSize;
@@ -131,6 +141,8 @@ public partial class LevelChooseScreen : Node
         {
             if (a.StartsWith("--shot:"))
                 Callable.From(() => TakeShot(a["--shot:".Length..])).CallDeferred();
+            else if (a.StartsWith("--shot-aim:"))
+                Callable.From(() => TakeShotAim(a["--shot-aim:".Length..])).CallDeferred();
             else if (a.StartsWith("--shot-p2:"))
                 Callable.From(() => TakeShotP2(a["--shot-p2:".Length..])).CallDeferred();
             else if (a.StartsWith("--shot-diff:"))
@@ -504,18 +516,20 @@ public partial class LevelChooseScreen : Node
         var router = InputRouter.Instance;
         // 右枪 AK47
         bool rActive = RightGunActive() && !_shotNoBeam;
-        _lazerAk.Visible = rActive;
         if (rActive)
         {
             var aim = router.GetRightAim();
+            Vector3 dir;
+            Vector2 logical;
             if (aim.IsScreenPoint)
             {
                 // 鼠标模拟光枪:枪口指向鼠标射线方向
-                var dir = _camera.ProjectRayNormal(aim.ScreenPos);
+                dir = _camera.ProjectRayNormal(aim.ScreenPos);
                 var localDir = (_camera.GlobalTransform.Basis.Inverse() * dir).Normalized();
                 _gunAk.Quaternion = new Quaternion(Vector3.Forward, localDir);
+                logical = UiKit.WindowToLogical(GetViewport(), aim.ScreenPos);
                 // 瞄准悬停 = 焦点视觉(MessageBox 按钮由原生 hover 承担)
-                var b = ButtonAtLogicalPoint(UiKit.WindowToLogical(GetViewport(), aim.ScreenPos), skipBoxButtons: true);
+                var b = ButtonAtLogicalPoint(logical, skipBoxButtons: true);
                 if (b != _aimHover)
                 {
                     _aimHover = b;
@@ -525,19 +539,40 @@ public partial class LevelChooseScreen : Node
             else
             {
                 _gunAk.Quaternion = aim.Rotation;
+                dir = _camera.GlobalBasis * (aim.Rotation * Vector3.Forward);
+                logical = RotationAimLogicalPoint(left: false);
                 _aimHover = null;
             }
+            var mz = _muzzleAk.GlobalPosition;
+            _laserAk.SetBeam(mz, LaserSight.PlanePoint(mz, dir, CanvasZ));
+            _dotAk.SetPoint(logical, ButtonAtLogicalPoint(logical, skipBoxButtons: true) != null);
         }
         else
         {
             if (_gunAk.Quaternion != Quaternion.Identity)
                 _gunAk.Quaternion = Quaternion.Identity;
             _aimHover = null;
+            _laserAk.HideBeam();
+            _dotAk.HideDot();
         }
         // 左枪 M4(仅手机腿部四元数)
-        bool lActive = router.LegConnected;
-        _lazerM4.Visible = lActive;
-        _gunM4.Quaternion = lActive ? router.GetLeftAim().Rotation : Quaternion.Identity;
+        bool lActive = router.LegConnected && !_shotNoBeam;
+        if (lActive)
+        {
+            var rot = GunMath.PhoneToGunRotation(router.RawLegRotation);
+            _gunM4.Quaternion = rot;
+            var dir = _camera.GlobalBasis * (rot * Vector3.Forward);
+            var mz = _muzzleM4.GlobalPosition;
+            _laserM4.SetBeam(mz, LaserSight.PlanePoint(mz, dir, CanvasZ));
+            var logical = RotationAimLogicalPoint(left: true);
+            _dotM4.SetPoint(logical, ButtonAtLogicalPoint(logical, skipBoxButtons: true) != null);
+        }
+        else
+        {
+            _gunM4.Quaternion = Quaternion.Identity;
+            _laserM4.HideBeam();
+            _dotM4.HideDot();
+        }
     }
 
     /// <summary>右路扳机(戒指/键盘回落):枪口旋转路径,命中按钮 → AK47 火光 + 按下</summary>
@@ -638,6 +673,14 @@ public partial class LevelChooseScreen : Node
         SaveShot(path, 30);
     }
 
+    /// <summary>--shot-aim:&lt;png&gt;:瞄准第 1 关按钮截图(红色激光束+红点悬停放大态)</summary>
+    private void TakeShotAim(string path)
+    {
+        ApplyShotWindow();
+        InputRouter.Instance.MouseGun.SimulateMove(_levelButtons[0].GetGlobalRect().GetCenter());
+        SaveShot(path, 30);
+    }
+
     /// <summary>--shot-p2:&lt;png&gt;:翻到第 2 页后截图(对照真值 unity_level_p2)</summary>
     private void TakeShotP2(string path)
     {
@@ -669,6 +712,9 @@ public partial class LevelChooseScreen : Node
         for (int i = 0; i < 10; i++)
             await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
         SaveService.Instance.Coin = 10; // 内存改币,避免弹"游戏币"框(不落盘)
+        var vp = GetViewport();
+        GD.Print($"PROBE VisibleRect={vp.GetVisibleRect().Size} canvas={vp.GetCanvasTransform()} " +
+            $"final={vp.GetFinalTransform()} subvp={_subvp.Size} win={DisplayServer.WindowGetSize()}");
         var router = InputRouter.Instance;
         Check(router.Mode == InputRouter.InputMode.Mouse, "模式=Mouse");
         Check(router.MouseGun.IsActiveForRight(router), "鼠标光枪激活");

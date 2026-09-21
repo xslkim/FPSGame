@@ -1,4 +1,4 @@
-[gd_scene load_steps=10 format=3]
+[gd_scene load_steps=7 format=3]
 
 [ext_resource type="Script" path="res://src/UI/DeviceConnectionScreen.cs" id="1"]
 [ext_resource type="PackedScene" path="res://assets/models/guns/m4/m4.fbx" id="2"]
@@ -11,19 +11,6 @@ background_color = Color(0, 0, 0, 1)
 ambient_light_source = 2
 ambient_light_color = Color(0.6, 0.6, 0.65, 1)
 ambient_light_energy = 1.2
-
-[sub_resource type="BoxMesh" id="LazerMesh"]
-size = Vector3(0.023, 0.023, 200)
-
-[sub_resource type="StandardMaterial3D" id="LazerMatR"]
-transparency = 1
-shading_mode = 0
-albedo_color = Color(0.990566, 0, 0, 0.8156863)
-
-[sub_resource type="StandardMaterial3D" id="LazerMatL"]
-transparency = 1
-shading_mode = 0
-albedo_color = Color(0, 0.99215686, 0.13022026, 0.8156863)
 
 [node name="DeviceConnection" type="Node"]
 script = ExtResource("1")
@@ -64,13 +51,6 @@ transform = Transform3D(-0.000074, 0.000396, -0.099999, 0.042655, 0.195397, 0.00
 
 [node name="ak47" parent="ViewportLayer/SubViewportContainer/SubViewport/Camera3D/AK47View/Model" instance=ExtResource("3")]
 
-[node name="Lazer" type="MeshInstance3D" parent="ViewportLayer/SubViewportContainer/SubViewport/Camera3D/AK47View"]
-visible = false
-cast_shadow = 0
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -100)
-mesh = SubResource("LazerMesh")
-surface_material_override/0 = SubResource("LazerMatR")
-
 [node name="MuzzleFlash" type="Node3D" parent="ViewportLayer/SubViewportContainer/SubViewport/Camera3D/AK47View"]
 visible = false
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.162)
@@ -86,13 +66,6 @@ transform = Transform3D(-0.35, 0, 0, 0, 0.35, 0, 0, 0, -0.35, 0, 0, -0.021)
 
 [node name="M4_Shell" parent="ViewportLayer/SubViewportContainer/SubViewport/Camera3D/M4View/Model/m4/M4_Gun" index="1"]
 visible = false
-
-[node name="Lazer" type="MeshInstance3D" parent="ViewportLayer/SubViewportContainer/SubViewport/Camera3D/M4View"]
-visible = false
-cast_shadow = 0
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -100)
-mesh = SubResource("LazerMesh")
-surface_material_override/0 = SubResource("LazerMatL")
 
 [node name="MuzzleFlash" type="Node3D" parent="ViewportLayer/SubViewportContainer/SubViewport/Camera3D/M4View"]
 visible = false

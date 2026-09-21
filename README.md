@@ -10,10 +10,12 @@ G:\FPSGame\
 ├── game/           # 游戏工程(C#/.NET 8,主工程)
 │   ├── src/Core/       # Game(场景状态/流转)、AudioService(音乐音效)、SaveService(存档/金币)、ConfigService(远程配置)
 │   ├── src/Input/      # InputRouter(UDP 体感枪/键盘回落/鼠标光枪路由)、GunMath(四元数镜像)、UdpDeviceServer、MouseGunSource、AimState
-│   ├── src/Effects/    # MuzzleFlash(枪口火光,1:1 移植 Unity FPS Pack MuzzleFlash1.prefab:火焰翻页+烟雾+灯光曲线)
+│   ├── src/Effects/    # MuzzleFlash(枪口火光,1:1 移植 Unity FPS Pack MuzzleFlash1.prefab:火焰翻页+烟雾+灯光曲线)、
+│   │                   # LaserSight(激光瞄准器:右红/左绿,枪口→命中点光束+终点红点,照原作 Lazer.mat 加色滚动贴图)
 │   ├── src/Player/     # PlayerState(双玩家/受击/金币 HUD)、Player(单玩家数据)
 │   ├── src/UI/         # MenuScreen、StartupScreen、LevelChooseScreen、DeviceConnectionScreen、LoadingScreen、
-│   │                   # MessageBox、UiKit(坐标构建辅助)、UiSwapButton(SpriteSwap 按钮)、UiTheme、JustRotate、GunUiController、UiButton3D
+│   │                   # MessageBox、UiKit(坐标构建辅助)、UiSwapButton(SpriteSwap 按钮)、UiTheme、JustRotate、
+│   │                   # GunUiController、UiButton3D、UiAimDot(2D 屏幕激光红点,悬停按钮放大)
 │   ├── scenes/ui/      # startup → menu → level_choose / device_connection → loading
 │   ├── assets/ data/   # 贴图/模型/音频/字体、数值 JSON
 │   └── FPSGame.csproj / FPSGame.sln / NuGet.config
@@ -32,7 +34,7 @@ Autoload 顺序:Game → SaveService → AudioService → PlayerState → InputR
 
 ## 操作(主菜单)
 
-- **鼠标模拟光枪**(无实体枪时自动生效):移动 = 瞄准(枪口跟随,按钮悬停高亮),左键 = 扳机,右键 = 换枪;
+- **鼠标模拟光枪**(无实体枪时自动生效):移动 = 瞄准(枪口跟随 + 红色激光束/红点指引命中 3D 模型或 UI,悬停按钮红点放大),左键 = 扳机,右键 = 换枪;
   单人游戏 → "选择控制方式"弹框可选 **鼠标** 模式(原作只有 手机/遥控器 两键,鼠标为新增第三键)。
 - **键盘**:方向键焦点导航(默认选中单人游戏),回车 = 确认,Esc = 返回(选关页)。
 - **键盘调试战斗模式**:主菜单 → 单人游戏 → 选"遥控器";方向键瞄准(±45°)、回车射击、Menu 键或 LeftAlt 换枪。
@@ -40,7 +42,7 @@ Autoload 顺序:Game → SaveService → AudioService → PlayerState → InputR
 ## 分辨率自适应
 
 逻辑分辨率恒为 1280×720(与 Unity 参考一致):`canvas_items` 拉伸 + `expand` 宽高比,
-任意物理分辨率/宽高比下布局不变;背景等比覆盖无黑边;枪口命中判定经 canvas 逆变换,与分辨率无关。
+任意物理分辨率/宽高比下布局不变;背景等比覆盖无黑边;鼠标/枪口命中判定直接用画布逻辑坐标(Godot 投递输入事件前已完成 stretch 逆变换),与分辨率无关。
 默认无边框全屏;窗口模式截图会自动切换。
 
 ## 体感设备(UDP)
@@ -58,6 +60,7 @@ dotnet build                                                 # 先编译 C#
 $G --headless --path . scenes/ui/menu.tscn -- --menu-selftest   # 29 项(主菜单 1:1)
 $G --headless --path . scenes/ui/level_choose.tscn -- --levelchoose-selftest   # 34 项(选关 1:1)
 $G --headless --path . scenes/ui/device_connection.tscn -- --deviceconnection-selftest   # 20 项(连接手机 1:1)
+$G --path . scenes/ui/menu.tscn -- --e2e-mouse-flow   # 端到端:单人→鼠标模式→选关瞄准点击全链路
 ```
 
 截图对照(窗口模式,可指定分辨率;选关/连接页加 `--shot-nobeam` 隐藏鼠标激光以对照无设备真值):
@@ -66,6 +69,9 @@ $G --headless --path . scenes/ui/device_connection.tscn -- --deviceconnection-se
 $G --path . scenes/ui/menu.tscn -- --shot:<out.png>  --shot-res:1920x1080   # 主菜单
 $G --path . scenes/ui/menu.tscn -- --shot-box:<out.png>                     # 带单人弹框(三键)
 $G --path . scenes/ui/menu.tscn -- --shot-flash:<out.png>                   # 枪口火光峰值帧
+$G --path . scenes/ui/menu.tscn -- --shot-aim:<out.png>                     # 激光瞄准单人游戏(光束+红点)
+$G --path . scenes/ui/level_choose.tscn -- --shot-aim:<out.png>             # 激光瞄准第 1 关
+$G --path . scenes/ui/device_connection.tscn -- --shot-aim:<out.png>        # 激光瞄准返回键
 $G --path . scenes/ui/level_choose.tscn -- --shot:<out.png>                 # 选关(第 1 页)
 $G --path . scenes/ui/level_choose.tscn -- --shot-p2:<out.png>              # 选关第 2 页
 $G --path . scenes/ui/level_choose.tscn -- --shot-diff:<out.png>            # 难度面板

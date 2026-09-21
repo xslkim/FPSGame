@@ -5,7 +5,9 @@ namespace FPSGame;
 /// <summary>
 /// FireSystem:挂在战斗相机下,管理左右枪节点(原作 FireSystem.cs)。
 /// 每帧(LateUpdate 语义):枪口旋转 = 输入瞄准 → 枪口射线 2000 →
-/// 命中点摆光标火光(距离衰减公式照 5.3) → 扳机 → Button 触发 / 开枪(CD+耗弹) →
+/// 激光瞄准器(LaserSight,右红/左绿,照原作 Lazer.mat)从枪口伸到命中点、红点贴面,
+/// 未命中沿瞄准方向伸 200m(照原作线长)→ 命中点摆光标火光(距离衰减公式照 5.3) →
+/// 扳机 → Button 触发 / 开枪(CD+耗弹) →
 /// 敌人 hit() 或环境弹着特效(池化)。换枪:key2 边沿 → 旧枪下沉 → 新枪升起(~1s)。
 /// 弹尽且 Battle 态 → OpenContinue(true, side)(只发一次,补弹复位)。
 /// </summary>
@@ -47,8 +49,8 @@ public partial class FireSystem : Node3D
     private readonly System.Collections.Generic.Dictionary<PlayerState.Side, Node3D> _anchors = new();
     private readonly System.Collections.Generic.Dictionary<PlayerState.Side, System.Collections.Generic.Dictionary<int, GunBase>> _guns = new();
     private readonly System.Collections.Generic.Dictionary<PlayerState.Side, GunBase?> _currentGun = new();
-    private readonly System.Collections.Generic.Dictionary<PlayerState.Side, Sprite3D> _flash = new();
-    private readonly System.Collections.Generic.Dictionary<PlayerState.Side, Node3D> _lazer = new();
+    private readonly System.Collections.Generic.Dictionary<PlayerState.Side, MeshInstance3D> _flash = new();
+    private readonly System.Collections.Generic.Dictionary<PlayerState.Side, LaserSight> _lazer = new();
     private readonly System.Collections.Generic.Dictionary<PlayerState.Side, bool> _switching = new();
     private readonly System.Collections.Generic.Dictionary<PlayerState.Side, bool> _emptySignaled = new();
     private readonly System.Collections.Generic.Dictionary<string, EffectBase[]> _effects = new();
@@ -72,19 +74,32 @@ public partial class FireSystem : Node3D
             _currentGun[side] = null;
             _switching[side] = false;
             _emptySignaled[side] = false;
-            var flash = new Sprite3D
+            // 命中光标火光(flash_point19 为加色贴图:alpha 全 255、光存 RGB;
+            // 普通 Sprite3D 是 alpha 混合会带黑底 → 用 billboard quad + BlendMode.Add)
+            var flashMat = new StandardMaterial3D
+            {
+                ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded,
+                BlendMode = BaseMaterial3D.BlendModeEnum.Add,
+                Transparency = BaseMaterial3D.TransparencyEnum.Alpha,
+                AlbedoColor = new Color(1.0f, 0.85f, 0.35f, 0.45f), // 加色模式 α=强度;过亮会触发泛光大光晕
+                AlbedoTexture = LoadFlashCursor(),
+                BillboardMode = BaseMaterial3D.BillboardModeEnum.Enabled,
+            };
+            var flash = new MeshInstance3D
             {
                 Name = "Flash" + sideName,
                 TopLevel = true,
-                Billboard = BaseMaterial3D.BillboardModeEnum.Enabled,
-                Texture = LoadFlashCursor(),
-                Modulate = new Color(1.0f, 0.85f, 0.35f),
-                PixelSize = 0.002f,
+                CastShadow = GeometryInstance3D.ShadowCastingSetting.Off,
                 Visible = false,
+                Mesh = new QuadMesh { Size = new Vector2(0.12f, 0.12f) }, // 加色下亮核全显,取比原 sprite 小的等效光点
+                MaterialOverride = flashMat,
             };
             AddChild(flash);
             _flash[side] = flash;
-            var lazer = MakeLazer();
+            // 激光瞄准器(原作 Lazer.prefab:右红/左绿,线宽 0.03);每帧 UpdateSide 拉伸到命中点
+            var lazer = LaserSight.Create(
+                side == PlayerState.Side.Right ? LaserSight.RightRed : LaserSight.LeftGreen,
+                0.015f, withDot: true);
             lazer.Visible = false;
             AddChild(lazer);
             _lazer[side] = lazer;
@@ -159,7 +174,7 @@ public partial class FireSystem : Node3D
             g.QueueFree();
         _guns[side].Clear();
         _currentGun[side] = null;
-        _lazer[side].Visible = false;
+        _lazer[side].HideBeam();
         var anchor = _anchors[side];
         if (!player.Active)
         {
@@ -196,8 +211,6 @@ public partial class FireSystem : Node3D
             if (gun.Visible)
                 _currentGun[side] = gun;
         }
-        if (_currentGun[side] != null)
-            RemountLazer(side, _currentGun[side]!);
     }
 
     /// <summary>枪身材质:FBX 未内嵌贴图,手动接 <name>_tex.png</summary>
@@ -248,15 +261,22 @@ public partial class FireSystem : Node3D
         {
             anchor.Visible = false;
             flash.Visible = false;
+            _lazer[side].HideBeam();
             return;
         }
         anchor.Visible = true;
         // 1. 冰冻且未暂停 → 本帧跳过(不转枪不开火)
         if (player.Status == Player.HurtState.Frozen)
+        {
+            _lazer[side].HideBeam();
             return;
+        }
         var gun = _currentGun[side];
         if (gun == null)
+        {
+            _lazer[side].HideBeam();
             return;
+        }
         // 2. 枪口旋转 + 射线(鼠标模式 = 相机过屏幕点的射线)
         AimState aim = side == PlayerState.Side.Right
             ? InputRouter.Instance.GetRightAim()
@@ -276,14 +296,21 @@ public partial class FireSystem : Node3D
         }
         var space = GetWorld3D().DirectSpaceState;
         var hit = space.IntersectRay(PhysicsRayQueryParameters3D.Create(from, from + dir * RayLength, RayMask));
+        // 激光指引:枪口 → 命中点(未命中沿瞄准方向伸 200m,照原作线长);红点贴命中表面
+        var muzzlePos = gun.Muzzle.GlobalPosition;
         if (hit.Count == 0)
         {
             flash.Visible = false;
+            _lazer[side].SetBeam(muzzlePos, from + dir * 200.0f);
+            _lazer[side].ShowDot(false);
             return;
         }
         var point = (Vector3)hit["position"];
         var normal = (Vector3)hit["normal"];
         var collider = (GodotObject)hit["collider"];
+        _lazer[side].SetBeam(muzzlePos, point);
+        _lazer[side].SetDotPosition(point - dir * 0.02f);
+        _lazer[side].ShowDot(true);
         // 3. 命中 → Flash 光标(距离衰减公式照原作)
         float dist = _camera != null ? _camera.GlobalPosition.DistanceTo(point) : from.DistanceTo(point);
         float flashScale = 1.0f - Mathf.Clamp(3.0f / Mathf.Max(dist, 0.001f), 0.0f, 1.0f) * 0.8f;
@@ -361,21 +388,10 @@ public partial class FireSystem : Node3D
             newGun.Position = baseNew + new Vector3(0, 0, SwitchSink);
             newGun.Show();
             _currentGun[side] = newGun;
-            RemountLazer(side, newGun);
             var tw2 = CreateTween();
             tw2.TweenProperty(newGun, "position", baseNew, SwitchUpTime);
             tw2.TweenCallback(Callable.From(() => _switching[side] = false));
         }));
-    }
-
-    private static void RemountLazer(PlayerState.Side side, GunBase gun)
-    {
-        // lazer 由 FireSystem 持有;挂在当前枪下,起点对齐枪口向 -Z 延伸 1.5m
-        var lazer = Current!._lazer[side];
-        if (lazer.GetParent() != gun)
-            lazer.Reparent(gun, false);
-        lazer.Transform = new Transform3D(Basis.Identity, new Vector3(0, -0.02f, -0.80f));
-        lazer.Visible = true;
     }
 
     // ------------------------------------------------ 特效池
@@ -466,31 +482,5 @@ public partial class FireSystem : Node3D
             img.SetPixel(x, y, new Color(1.0f, 0.9f, 0.4f, a * a));
         }
         return ImageTexture.CreateFromImage(img);
-    }
-
-    private static Node3D MakeLazer()
-    {
-        var root = new Node3D { Name = "Lazer" };
-        var m = new MeshInstance3D { Rotation = new Vector3(Mathf.Pi / 2.0f, 0, 0) };
-        var cyl = new CylinderMesh
-        {
-            TopRadius = 0.002f,
-            BottomRadius = 0.002f,
-            Height = 1.5f,
-            RadialSegments = 8,
-        };
-        var mat = new StandardMaterial3D
-        {
-            AlbedoColor = new Color(1.0f, 0.1f, 0.1f, 0.6f),
-            Transparency = BaseMaterial3D.TransparencyEnum.Alpha,
-            ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded,
-        };
-        if (ResourceLoader.Exists("res://assets/effects/textures/lazer.png"))
-            mat.AlbedoTexture = GD.Load<Texture2D>("res://assets/effects/textures/lazer.png");
-        cyl.Material = mat;
-        m.Mesh = cyl;
-        m.CastShadow = GeometryInstance3D.ShadowCastingSetting.Off;
-        root.AddChild(m);
-        return root;
     }
 }
