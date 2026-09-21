@@ -1,0 +1,41 @@
+[gd_scene load_steps=8 format=3]
+
+[ext_resource type="Script" path="res://src/Battle/ToonMonster.cs" id="1"]
+[ext_resource type="Script" path="res://src/Battle/MonsterHpBar.cs" id="2"]
+[ext_resource type="PackedScene" path="res://assets/models/monsters/toon/ToonSoldiers_Militias.FBX" id="3"]
+[ext_resource type="AnimationLibrary" path="res://assets/models/monsters/toon/toon_anims.tres" id="4"]
+[ext_resource type="PackedScene" path="res://assets/models/monsters/toon/weapon_ak47.FBX" id="5"]
+
+[sub_resource type="CapsuleShape3D" id="BodyShape"]
+radius = 0.4
+height = 1.7
+
+[node name="ToonShoot" type="CharacterBody3D"]
+collision_layer = 2
+collision_mask = 1
+script = ExtResource("1")
+MetaKey = "toon_shoot"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.85, 0)
+shape = SubResource("BodyShape")
+
+[node name="AnimationPlayer" type="AnimationPlayer" parent="."]
+libraries = {
+&"": ExtResource("4")
+}
+
+[node name="HpAnchor" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.0, 0)
+script = ExtResource("2")
+
+[node name="AudioStreamPlayer3D" type="AudioStreamPlayer3D" parent="."]
+
+[node name="Model" parent="." instance=ExtResource("3")]
+rotation = Vector3(0, 3.141593, 0)
+
+[node name="WeaponAttach" type="BoneAttachment3D" parent="Model/Skeleton3D"]
+bone_name = "WeaponContainer"
+
+[node name="AK47" parent="Model/Skeleton3D/WeaponAttach" instance=ExtResource("5")]
+transform = Transform3D(0.4228, 0, 0, 0, 0.4228, 0, 0, 0, 0.4228, 0, 0, 0)
