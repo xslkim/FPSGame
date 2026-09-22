@@ -9,7 +9,7 @@ namespace FPSGame;
 ///   右 AK47(0.2,-0.0835,0.18,戒指/遥控器/鼠标路)、左 M4(-0.2,-0.0835,0.18,手机腿部路),
 ///   枪口闪光 z=-0.162(原作 Sphere 节点值;原作闪光父链默认 inactive 永不显示,移植版修正为命中时播放,同菜单/选关)。
 /// 激光指引(照原作 Lazer.mat 右红/LazerLeft.mat 左绿)画在 UI 最上层(UiAimGuide):
-///   枪口投影点 → 瞄准点光束+红点;悬停按钮光束加粗、红点放大+脉冲光晕(焦点发亮)。
+///   枪原点 → 前方 200m 锥形光束+命中光点;悬停按钮红点放大+脉冲光晕(焦点发亮)。
 /// UI(逻辑分辨率 1280×720,Y 向上中心原点,照原作 RectTransform):
 ///   背景 background6 全屏等比覆盖;
 ///   说明文字底衬 650×500 @(-227,110) 黑 α0.3804,内文 btt 40 白 左上对齐 行距 1.1,4 行说明;
@@ -63,7 +63,7 @@ public partial class DeviceConnectionScreen : Node
         _gunM4 = GetNode<Node3D>(VpPrefix + "Camera3D/M4View");
         _muzzleAk = GetNode<MuzzleFlash>(VpPrefix + "Camera3D/AK47View/MuzzleFlash");
         _muzzleM4 = GetNode<MuzzleFlash>(VpPrefix + "Camera3D/M4View/MuzzleFlash");
-        // 2D 激光指引(原作右红/左绿):画在 UI 最上层,枪口投影点 → 瞄准点,悬停放光
+        // 2D 激光指引(原作右红/左绿):画在 UI 最上层,枪原点锥形光束+光点,悬停放光
         _guideAk = UiAimGuide.Create(this, LaserSight.RightRed);
         _guideM4 = UiAimGuide.Create(this, LaserSight.LeftGreen);
 
@@ -303,8 +303,8 @@ public partial class DeviceConnectionScreen : Node
                 logical = RotationAimLogicalPoint(left: false);
                 _aimHover = null;
             }
-            _guideAk.SetAim(_camera.UnprojectPosition(_muzzleAk.GlobalPosition), logical,
-                ButtonAtLogicalPoint(logical, skipBoxButtons: true) != null);
+            _guideAk.SetAim(_camera, _gunAk.GlobalPosition, _gunAk.GlobalBasis * Vector3.Forward, null,
+                logical, ButtonAtLogicalPoint(logical, skipBoxButtons: true) != null);
         }
         else
         {
@@ -319,8 +319,8 @@ public partial class DeviceConnectionScreen : Node
         {
             _gunM4.Quaternion = GunMath.PhoneToGunRotation(router.RawLegRotation);
             var logical = RotationAimLogicalPoint(left: true);
-            _guideM4.SetAim(_camera.UnprojectPosition(_muzzleM4.GlobalPosition), logical,
-                ButtonAtLogicalPoint(logical, skipBoxButtons: true) != null);
+            _guideM4.SetAim(_camera, _gunM4.GlobalPosition, _gunM4.GlobalBasis * Vector3.Forward, null,
+                logical, ButtonAtLogicalPoint(logical, skipBoxButtons: true) != null);
         }
         else
         {

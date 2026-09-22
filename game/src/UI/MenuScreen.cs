@@ -7,8 +7,8 @@ namespace FPSGame;
 /// 3D(SubViewport 透明叠加在背景 UI 之上、按钮之下,复现原作 WorldSpace Canvas
 ///   z=623.2 的深度序):相机 FOV60、平行光强度3、RockWarrior(×100,z=450,yaw190°)
 ///   循环 Idle02、相机下挂 M4+枪口火光(命中按钮时播放)。
-/// 激光指引(照原作 Lazer.mat 红)画在 UI 最上层(UiAimGuide):枪口投影点 → 瞄准点
-///   光束+红点;悬停按钮时光束加粗、红点放大并叠加脉冲光晕(焦点发亮)。
+/// 激光指引(照原作 Lazer.mat 红)画在 UI 最上层(UiAimGuide):枪原点 → 前方 200m
+///   锥形光束(近粗远细)+命中光点;悬停按钮时红点放大并叠加脉冲光晕(焦点发亮)。
 /// UI:逻辑分辨率 1280×720(canvas_items+expand,任意物理分辨率自适应);
 ///   背景 background4 全屏等比覆盖、科幻圆环组(±20°/s 反转)、标题"士兵打怪兵"、
 ///   4 个 SpriteSwap 主按钮(单人/双人/手机/退出,设置隐藏)、金币 HUD(PlayerState)。
@@ -51,12 +51,15 @@ public partial class MenuScreen : Node
         _gun = GetNode<Node3D>(VpPrefix + "Camera3D/M4View");
         _muzzle = GetNode<MuzzleFlash>(VpPrefix + "Camera3D/M4View/MuzzleFlash");
         _monster = GetNode<Node3D>(VpPrefix + "RockWarrior");
-        // 2D 激光指引(原作 Lazer.mat 红):画在 UI 最上层,枪口投影点 → 瞄准点,悬停放光
+        // 2D 激光指引(原作 Lazer.mat 红)画在 UI 最上层(UiAimGuide):枪原点 → 前方 200m
+        //   锥形光束(近粗远细);射线命中怪兽时光点贴命中点(原作 Flash),悬停按钮发亮
         _guide = UiAimGuide.Create(this, LaserSight.RightRed);
 
         SyncViewportSize();
         GetViewport().SizeChanged += SyncViewportSize;
         BuildUi();
+        // 怪兽碰撞体(原作怪兽带 Collider 供 UIController 射线命中;按模型 AABB 自适应建盒)
+        Callable.From(BuildMonsterCollider).CallDeferred();
         // 怪物 idle 循环(原作 MainnenuController.controller 唯一状态)
         var ap = _monster.GetNode<AnimationPlayer>("AnimationPlayer");
         var anim = ap.GetAnimation("Idle02");
@@ -111,6 +114,12 @@ public partial class MenuScreen : Node
             }
             else if (a.StartsWith("--shot-aim:"))
                 Callable.From(() => TakeShotAim(a["--shot-aim:".Length..])).CallDeferred();
+            else if (a.StartsWith("--shot-aim-at:"))
+            {
+                // --shot-aim-at:<path>:<x>:<y> 瞄准任意逻辑点(如怪兽身上)后截屏
+                var parts = a["--shot-aim-at:".Length..].Split(':');
+                Callable.From(() => TakeShotAim(parts[0], new Vector2(float.Parse(parts[1]), float.Parse(parts[2])))).CallDeferred();
+            }
             else if (a.StartsWith("--shot-flash:"))
                 Callable.From(() => TakeShotFlash(a["--shot-flash:".Length..])).CallDeferred();
         }
@@ -149,14 +158,15 @@ public partial class MenuScreen : Node
         GetTree().Quit();
     }
 
-    /// <summary>截图验证:--shot-aim:&lt;path&gt;,瞄准"单人游戏"按钮(红色激光束+红点悬停放大态)。</summary>
-    private async void TakeShotAim(string path)
+    /// <summary>截图验证:--shot-aim:&lt;path&gt;,瞄准"单人游戏"按钮(红色激光束+红点悬停放大态);
+    /// --shot-aim-at:&lt;path&gt;:&lt;x&gt;:&lt;y&gt; 瞄准任意逻辑点。</summary>
+    private async void TakeShotAim(string path, Vector2? target = null)
     {
         DisplayServer.WindowSetMode(DisplayServer.WindowMode.Windowed);
         if (_shotRes != Vector2I.Zero)
             DisplayServer.WindowSetSize(_shotRes);
         await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
-        InputRouter.Instance.MouseGun.SimulateMove(_btnOne.GetGlobalRect().GetCenter());
+        InputRouter.Instance.MouseGun.SimulateMove(target ?? _btnOne.GetGlobalRect().GetCenter());
         for (int i = 0; i < 30; i++)
             await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
         await ToSignal(Engine.GetSingleton("RenderingServer"), "frame_post_draw");
@@ -449,9 +459,53 @@ public partial class MenuScreen : Node
             logical = RotationAimLogicalPoint();
             _aimHover = null;
         }
-        // 2D 激光:枪口投影点 → 瞄准点;红点贴瞄准点(悬停按钮放大+光晕发亮)
-        _guide.SetAim(_camera.UnprojectPosition(_muzzle.GlobalPosition), logical,
+        // 2D 激光(照原作):光束 = 枪原点 → 枪前向 200m 的锥形投影(近粗远细);
+        // 光点 = 射线命中怪兽时贴命中点(原作 Flash),否则贴瞄准点;悬停按钮放大+光晕
+        var muzzle = _gun.GlobalPosition;
+        var fwd = _gun.GlobalBasis * Vector3.Forward;
+        _guide.SetAim(_camera, muzzle, fwd, RaycastMonster(muzzle, fwd), logical,
             ButtonAtLogicalPoint(logical, skipBoxButtons: true) != null);
+    }
+
+    // ---------------------------------------------------------------- 怪兽碰撞体(激光命中光点)
+
+    private const uint MonsterRayMask = 0b1000; // 怪兽碰撞体在 layer 4
+    private bool _monsterColliderBuilt;
+
+    /// <summary>按怪兽模型全局 AABB 自适应建 StaticBody3D 盒(须在 SubViewport 世界里)</summary>
+    private void BuildMonsterCollider()
+    {
+        var aabb = new Aabb();
+        bool first = true;
+        foreach (var n in _monster.FindChildren("*", "MeshInstance3D", true, false))
+        {
+            var mi = (MeshInstance3D)n;
+            var g = mi.GlobalTransform * mi.GetAabb();
+            aabb = first ? g : aabb.Merge(g);
+            first = false;
+        }
+        if (first || aabb.Size.Length() < 1e-3f)
+            return;
+        var body = new StaticBody3D
+        {
+            Name = "MonsterBody",
+            CollisionLayer = MonsterRayMask,
+            CollisionMask = 0,
+            Position = aabb.GetCenter(),
+        };
+        body.AddChild(new CollisionShape3D { Shape = new BoxShape3D { Size = aabb.Size } });
+        _subvp.AddChild(body);
+        _monsterColliderBuilt = true;
+    }
+
+    /// <summary>枪口射线命中怪兽 → 命中点(原作 UIController:Ray(gun.position, gun.forward),2000m)</summary>
+    private Vector3? RaycastMonster(Vector3 from, Vector3 dir)
+    {
+        if (!_monsterColliderBuilt || !_monster.Visible)
+            return null;
+        var query = PhysicsRayQueryParameters3D.Create(from, from + dir * 2000.0f, MonsterRayMask);
+        var hit = _camera.GetWorld3D().DirectSpaceState.IntersectRay(query);
+        return hit.Count > 0 ? (Vector3?)hit["position"].AsVector3() : null;
     }
 
     /// <summary>体感枪/键盘扳机(右路):枪口旋转路径</summary>
