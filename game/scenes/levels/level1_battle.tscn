@@ -9,13 +9,13 @@
 
 [sub_resource type="Environment" id="Env"]
 background_mode = 1
-background_color = Color(0.2888, 0.3112, 0.1542, 1)
+background_color = Color(0.569, 0.588, 0.427, 1)
 ambient_light_source = 2
 ambient_light_color = Color(1, 1, 1, 1)
 ambient_light_energy = 1.0
 fog_enabled = true
-fog_light_color = Color(0.3029, 0.3073, 0.1565, 1)
-fog_density = 0.16
+fog_light_color = Color(0.581, 0.585, 0.43, 1)
+fog_density = 0.08
 
 [node name="Level1Battle" type="Node3D"]
 script = ExtResource("1")
@@ -35,13 +35,13 @@ EnvPath = NodePath("Environment")
 environment = SubResource("Env")
 
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
-transform = Transform3D(-5.32125e-08, 0, -1, 0, 1, 0, 1, 0, -5.32125e-08, 0, 8, 0)
+transform = Transform3D(-0.656617, 0, -0.754225, -0.235808, 0.949868, 0.205291, 0.716414, 0.31265, -0.623699, 0, 8, 0)
 light_color = Color(1, 0.9647059, 0.7647059, 1)
 light_energy = 2.0
 shadow_enabled = true
 
 [node name="Camera3D" type="Camera3D" parent="."]
-transform = Transform3D(0.995294, -0.00366784, 0.0968294, 0, 0.999283, 0.0378523, -0.0968988, -0.0376741, 0.994581, 1.35, 1.86, 22.44)
+transform = Transform3D(0.995294, 0.003668, -0.096829, 0, 0.999283, 0.037852, 0.096899, -0.037674, 0.994581, 1.35, 1.86, 22.44)
 current = true
 fov = 30.0
 near = 0.001
@@ -56,7 +56,7 @@ script = ExtResource("4")
 [node name="CamPositions" type="Node3D" parent="."]
 
 [node name="cam_pos_0" type="Marker3D" parent="CamPositions"]
-transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -0.7353256, 1, -10.27063)
+transform = Transform3D(-0.518252, 0.078892, 0.851581, -0.000006, 0.995736, -0.092250, -0.855228, -0.047814, -0.516042, -0.7353256, 1, -10.27063)
 
 [node name="cam_pos_1" type="Marker3D" parent="CamPositions"]
 transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -0.08512878, 1.051493, -3)

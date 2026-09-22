@@ -2,12 +2,15 @@
   "levels": {
     "level1": {
       "scene": "res://scenes/levels/level1_battle.tscn",
-      "diff_rate": { "easy": 1.0, "hard": 1.8, "hell": 2.6 },
+      "diff_rate": {
+        "easy": 1.0,
+        "hard": 1.8,
+        "hell": 2.6
+      },
       "gun_rate": 0.02,
       "born_max_length": 8.0,
       "born_max_fov": 33.0,
       "born_max_fov_wide": 40.0,
-      "born_length_override": { "1": 15.0, "2": 15.0, "3": 15.0, "4": 15.0 },
       "boss": "baotou",
       "boss_group": 4,
       "bgm": "res://assets/audio/bgm/Level1Ex.mp3",
@@ -15,47 +18,169 @@
       "start_music": "res://assets/audio/bgm/Tension.mp3",
       "intro_duration": 19.0,
       "groups": [
-        { "monster_num": 10, "interval": 5.0, "max_alive": 1.5, "bullet_box_rate": 0.05,
-          "pool": ["bull", "bull", "bull", "bull", "bull"] },
-        { "monster_num": 10, "interval": 3.0, "max_alive": 2.0, "bullet_box_rate": 0.05,
-          "pool": ["axe_zombie", "axe_zombie", "axe_zombie", "axe_zombie", "axe_zombie"] },
-        { "monster_num": 15, "interval": 3.0, "max_alive": 2.0, "bullet_box_rate": 0.05,
-          "pool": ["fly_axe_zombie", "fly_axe_zombie", "fly_axe_zombie", "bull", "bull", "bull"] },
-        { "monster_num": 15, "interval": 3.0, "max_alive": 2.0, "bullet_box_rate": 0.05,
-          "pool": ["fly_axe_zombie", "fly_axe_zombie", "fly_axe_zombie", "fly_axe_zombie", "axe_zombie", "axe_zombie", "bull", "bull"] },
-        { "monster_num": 20, "interval": 3.0, "max_alive": 3.0, "bullet_box_rate": 0.05,
-          "pool": ["skeleton", "skeleton", "skeleton", "skeleton", "fly_axe_zombie", "fly_axe_zombie"] }
-      ]
+        {
+          "monster_num": 10,
+          "interval": 5.0,
+          "max_alive": 1.5,
+          "bullet_box_rate": 0.05,
+          "pool": [
+            "bull",
+            "bull",
+            "bull",
+            "bull",
+            "bull"
+          ]
+        },
+        {
+          "monster_num": 10,
+          "interval": 3.0,
+          "max_alive": 2.0,
+          "bullet_box_rate": 0.05,
+          "pool": [
+            "axe_zombie",
+            "axe_zombie",
+            "axe_zombie",
+            "axe_zombie",
+            "axe_zombie"
+          ]
+        },
+        {
+          "monster_num": 15,
+          "interval": 3.0,
+          "max_alive": 2.0,
+          "bullet_box_rate": 0.05,
+          "pool": [
+            "fly_axe_zombie",
+            "fly_axe_zombie",
+            "fly_axe_zombie"
+          ]
+        },
+        {
+          "monster_num": 15,
+          "interval": 3.0,
+          "max_alive": 2.0,
+          "bullet_box_rate": 0.05,
+          "pool": [
+            "axe_zombie",
+            "axe_zombie",
+            "fly_axe_zombie",
+            "fly_axe_zombie",
+            "fly_axe_zombie",
+            "fly_axe_zombie"
+          ]
+        },
+        {
+          "monster_num": 20,
+          "interval": 3.0,
+          "max_alive": 3.0,
+          "bullet_box_rate": 0.05,
+          "pool": [
+            "skeleton",
+            "skeleton",
+            "skeleton@1",
+            "skeleton@1",
+            "fly_axe_zombie",
+            "fly_axe_zombie"
+          ]
+        }
+      ],
+      "born_fov_override": {
+        "1": 15.0,
+        "2": 15.0,
+        "3": 15.0,
+        "4": 15.0
+      }
     },
     "level2": {
       "scene": "res://scenes/levels/level2.tscn",
-      "diff_rate": { "easy": 1.0, "hard": 1.5, "hell": 2.0 },
+      "diff_rate": {
+        "easy": 1.0,
+        "hard": 1.5,
+        "hell": 2.0
+      },
       "gun_rate": 0.05,
       "born_max_length": 8.0,
       "born_max_fov": 33.0,
       "born_max_fov_wide": 40.0,
-      "box_born": { "max_fov": 33.0, "max_length": 12.0 },
+      "box_born": {
+        "max_fov": 33.0,
+        "max_length": 12.0
+      },
       "boss": "level2_boss",
       "boss_group": 2,
       "boss_delay": 15.0,
-      "boss_level": { "easy": 0, "hard": 3, "hell": 6 },
+      "boss_level": {
+        "easy": 0,
+        "hard": 3,
+        "hell": 6
+      },
       "bgm": "res://assets/audio/bgm/Level2.mp3",
       "boss_bgm": "res://assets/audio/bgm/Level2Boss.mp3",
-      "monster_max_level": { "easy": 3, "hard": 4, "hell": 5 },
+      "monster_max_level": {
+        "easy": 3,
+        "hard": 4,
+        "hell": 5
+      },
       "level_cap": 6,
       "use_fire_windows": true,
       "groups": [
-        { "monster_num": 30, "interval": 3.0, "max_alive": 3.0, "bullet_box_rate": 0.05, "windows": 7, "base_level": 0,
-          "pool": ["toon_shoot", "toon_shoot", "toon_shoot", "toon_shoot", "toon_shoot", "toon_shoot", "toon_shoot"] },
-        { "monster_num": 30, "interval": 3.0, "max_alive": 3.0, "bullet_box_rate": 0.05, "windows": 5, "base_level": 1,
-          "pool": ["toon_shoot", "toon_shoot", "toon_shoot", "toon_shoot", "toon_shoot", "toon_shoot", "toon_shoot"] },
-        { "monster_num": 40, "interval": 4.0, "max_alive": 2.0, "bullet_box_rate": 0.08, "windows": 3, "base_level": 0,
-          "pool": ["toon_shoot_alien", "toon_shoot_alien", "toon_shoot", "toon_shoot"] }
+        {
+          "monster_num": 30,
+          "interval": 3.0,
+          "max_alive": 3.0,
+          "bullet_box_rate": 0.05,
+          "windows": 7,
+          "base_level": 0,
+          "pool": [
+            "toon_shoot",
+            "toon_shoot",
+            "toon_shoot",
+            "toon_shoot",
+            "toon_shoot",
+            "toon_shoot",
+            "toon_shoot"
+          ]
+        },
+        {
+          "monster_num": 30,
+          "interval": 3.0,
+          "max_alive": 3.0,
+          "bullet_box_rate": 0.05,
+          "windows": 5,
+          "base_level": 1,
+          "pool": [
+            "toon_shoot",
+            "toon_shoot",
+            "toon_shoot",
+            "toon_shoot",
+            "toon_shoot",
+            "toon_shoot",
+            "toon_shoot"
+          ]
+        },
+        {
+          "monster_num": 40,
+          "interval": 4.0,
+          "max_alive": 2.0,
+          "bullet_box_rate": 0.08,
+          "windows": 3,
+          "base_level": 0,
+          "pool": [
+            "toon_shoot_alien",
+            "toon_shoot_alien",
+            "toon_shoot",
+            "toon_shoot"
+          ]
+        }
       ]
     },
     "level3": {
       "scene": "res://scenes/levels/level3.tscn",
-      "diff_rate": { "easy": 1.0, "hard": 1.5, "hell": 2.0 },
+      "diff_rate": {
+        "easy": 1.0,
+        "hard": 1.5,
+        "hell": 2.0
+      },
       "gun_rate": 0.05,
       "born_max_length": 8.0,
       "born_max_fov": 33.0,
@@ -65,25 +190,125 @@
       "bgm": "res://assets/audio/bgm/Level3.ogg",
       "boss_bgm": "res://assets/audio/bgm/Level3Boss.mp3",
       "groups": [
-        { "monster_num": 15, "interval": 4.0, "max_alive": 2.0, "bullet_box_rate": 0.08,
-          "pool": ["wolf", "wolf", "wolf", "wolf", "wolf", "wolf", "wolf"] },
-        { "monster_num": 15, "interval": 3.0, "max_alive": 3.0, "bullet_box_rate": 0.08,
-          "pool": ["wolf", "wolf", "wolf", "wolf", "wolf_blue", "wolf_blue", "wolf_green", "wolf_green"] },
-        { "monster_num": 15, "interval": 2.0, "max_alive": 3.0, "bullet_box_rate": 0.08,
-          "pool": ["wolf", "wolf_blue", "wolf_green", "toon_shoot_alien", "toon_shoot_alien"] },
-        { "monster_num": 15, "interval": 2.0, "max_alive": 4.0, "bullet_box_rate": 0.08,
-          "pool": ["fat_zombie", "fat_zombie", "fat_zombie", "wolf", "wolf_blue", "wolf_green", "toon_shoot_alien", "toon_shoot_alien"] },
-        { "monster_num": 15, "interval": 2.0, "max_alive": 4.0, "bullet_box_rate": 0.08,
-          "pool": ["fly_axe_zombie", "fly_axe_zombie", "fly_axe_zombie", "fat_zombie", "fat_zombie", "wolf", "wolf_blue", "wolf_green"] },
-        { "monster_num": 15, "interval": 2.0, "max_alive": 4.0, "bullet_box_rate": 0.08,
-          "pool": ["fly_axe_zombie", "fly_axe_zombie", "fly_axe_zombie", "skeleton", "skeleton", "wolf", "wolf_blue", "wolf_green"] },
-        { "monster_num": 15, "interval": 2.0, "max_alive": 4.0, "bullet_box_rate": 0.08,
-          "pool": ["wolf", "wolf", "wolf", "wolf", "wolf", "fly_axe_zombie", "fly_axe_zombie", "fly_axe_zombie", "wolf_blue", "wolf_green"] }
+        {
+          "monster_num": 15,
+          "interval": 4.0,
+          "max_alive": 2.0,
+          "bullet_box_rate": 0.08,
+          "pool": [
+            "wolf",
+            "wolf",
+            "wolf",
+            "wolf",
+            "wolf",
+            "wolf",
+            "wolf"
+          ]
+        },
+        {
+          "monster_num": 15,
+          "interval": 3.0,
+          "max_alive": 3.0,
+          "bullet_box_rate": 0.08,
+          "pool": [
+            "wolf",
+            "wolf",
+            "wolf",
+            "wolf",
+            "wolf_blue",
+            "wolf_blue",
+            "wolf_green",
+            "wolf_green"
+          ]
+        },
+        {
+          "monster_num": 15,
+          "interval": 2.0,
+          "max_alive": 3.0,
+          "bullet_box_rate": 0.08,
+          "pool": [
+            "wolf",
+            "wolf_blue",
+            "wolf_green",
+            "toon_shoot_alien",
+            "toon_shoot_alien"
+          ]
+        },
+        {
+          "monster_num": 15,
+          "interval": 2.0,
+          "max_alive": 4.0,
+          "bullet_box_rate": 0.08,
+          "pool": [
+            "fat_zombie",
+            "fat_zombie",
+            "fat_zombie",
+            "wolf",
+            "wolf_blue",
+            "wolf_green",
+            "toon_shoot_alien",
+            "toon_shoot_alien"
+          ]
+        },
+        {
+          "monster_num": 15,
+          "interval": 2.0,
+          "max_alive": 4.0,
+          "bullet_box_rate": 0.08,
+          "pool": [
+            "fly_axe_zombie",
+            "fly_axe_zombie",
+            "fly_axe_zombie",
+            "fat_zombie",
+            "fat_zombie",
+            "wolf",
+            "wolf_blue",
+            "wolf_green"
+          ]
+        },
+        {
+          "monster_num": 15,
+          "interval": 2.0,
+          "max_alive": 4.0,
+          "bullet_box_rate": 0.08,
+          "pool": [
+            "fly_axe_zombie",
+            "fly_axe_zombie",
+            "fly_axe_zombie",
+            "skeleton",
+            "skeleton",
+            "wolf",
+            "wolf_blue",
+            "wolf_green"
+          ]
+        },
+        {
+          "monster_num": 15,
+          "interval": 2.0,
+          "max_alive": 4.0,
+          "bullet_box_rate": 0.08,
+          "pool": [
+            "wolf",
+            "wolf",
+            "wolf",
+            "wolf",
+            "wolf",
+            "fly_axe_zombie",
+            "fly_axe_zombie",
+            "fly_axe_zombie",
+            "wolf_blue",
+            "wolf_green"
+          ]
+        }
       ]
     },
     "level4": {
       "scene": "res://scenes/levels/level4.tscn",
-      "diff_rate": { "easy": 1.0, "hard": 1.5, "hell": 2.0 },
+      "diff_rate": {
+        "easy": 1.0,
+        "hard": 1.5,
+        "hell": 2.0
+      },
       "gun_rate": 0.05,
       "born_max_length": 6.0,
       "born_max_fov": 0.0,
@@ -92,20 +317,84 @@
       "boss_group": -1,
       "bgm": "res://assets/audio/bgm/level4.mp3",
       "groups": [
-        { "monster_num": 0, "interval": 0.0, "max_alive": 0.0, "bullet_box_rate": 0.08, "pool": [] },
-        { "monster_num": 1, "interval": 5.0, "max_alive": 1.0, "bullet_box_rate": 0.08,
-          "pool": ["dragon_red"], "force_pool": true },
-        { "monster_num": 5, "interval": 5.0, "max_alive": 3.0, "bullet_box_rate": 0.08,
-          "pool": ["dragon_red", "dragon_red", "dragon_green", "dragon_blue"] },
-        { "monster_num": 2, "interval": 2.0, "max_alive": 1.0, "bullet_box_rate": 0.08,
-          "pool": ["axe_zombie", "axe_zombie"] },
-        { "monster_num": 2, "interval": 5.0, "max_alive": 1.0, "bullet_box_rate": 0.08,
-          "pool": ["skeleton", "skeleton"] },
-        { "monster_num": 15, "interval": 5.0, "max_alive": 3.0, "bullet_box_rate": 0.08,
-          "pool": ["dragon_red", "dragon_green", "dragon_blue", "magma_demon", "magma_demon", "magma_demon", "magma_demon"] },
-        { "monster_num": 15, "interval": 5.0, "max_alive": 3.0, "bullet_box_rate": 0.08, "pool": [] }
+        {
+          "monster_num": 0,
+          "interval": 0.0,
+          "max_alive": 0.0,
+          "bullet_box_rate": 0.08,
+          "pool": []
+        },
+        {
+          "monster_num": 1,
+          "interval": 5.0,
+          "max_alive": 1.0,
+          "bullet_box_rate": 0.08,
+          "pool": [
+            "dragon_red"
+          ],
+          "force_pool": true
+        },
+        {
+          "monster_num": 5,
+          "interval": 5.0,
+          "max_alive": 3.0,
+          "bullet_box_rate": 0.08,
+          "pool": [
+            "dragon_red",
+            "dragon_red",
+            "dragon_green",
+            "dragon_blue"
+          ]
+        },
+        {
+          "monster_num": 2,
+          "interval": 2.0,
+          "max_alive": 1.0,
+          "bullet_box_rate": 0.08,
+          "pool": [
+            "axe_zombie",
+            "axe_zombie"
+          ]
+        },
+        {
+          "monster_num": 2,
+          "interval": 5.0,
+          "max_alive": 1.0,
+          "bullet_box_rate": 0.08,
+          "pool": [
+            "skeleton",
+            "skeleton"
+          ]
+        },
+        {
+          "monster_num": 15,
+          "interval": 5.0,
+          "max_alive": 3.0,
+          "bullet_box_rate": 0.08,
+          "pool": [
+            "dragon_red",
+            "dragon_green",
+            "dragon_blue",
+            "magma_demon",
+            "magma_demon",
+            "magma_demon",
+            "magma_demon"
+          ]
+        },
+        {
+          "monster_num": 15,
+          "interval": 5.0,
+          "max_alive": 3.0,
+          "bullet_box_rate": 0.08,
+          "pool": []
+        }
       ]
     }
   },
-  "level_order": ["level1", "level2", "level3", "level4"]
+  "level_order": [
+    "level1",
+    "level2",
+    "level3",
+    "level4"
+  ]
 }

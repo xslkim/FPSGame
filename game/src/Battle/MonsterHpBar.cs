@@ -3,8 +3,8 @@ using Godot;
 namespace FPSGame;
 
 /// <summary>
-/// 怪物头顶血条(世界空间,1:1 Monster/Bull.prefab 的 MonstHp:60×10 绿底 Hp_Green_bg
-/// + 黄血 Hp_Yellow 填充,scale 0.01 世界画布语义)。掉血飘字池在 FireSystem。
+/// 怪物头顶血条(世界空间,1:1 Monster/HpReduceNumber.prefab 的 MonstHp:60×10 底
+/// + Hp_Yellow 填充 ×红色 tint(1,0,0),scale 0.01 世界画布语义)。掉血飘字池在 FireSystem。
 /// </summary>
 public partial class MonsterHpBar : Node3D
 {
@@ -36,6 +36,7 @@ public partial class MonsterHpBar : Node3D
             Transparency = BaseMaterial3D.TransparencyEnum.Alpha,
             BillboardMode = BaseMaterial3D.BillboardModeEnum.Enabled,
             AlbedoTexture = fillTex,
+            AlbedoColor = new Color(1.0f, 0.0f, 0.0f, 1.0f), // 原作 HpReduceNumber fill 红色 tint
         };
         _fill = new MeshInstance3D
         {
@@ -57,6 +58,6 @@ public partial class MonsterHpBar : Node3D
         Vector3 p = _fill.Position;
         p.X = -(_maxWidth - _maxWidth * value) * 0.5f;
         _fill.Position = p;
-        Visible = value < 1.0f && value > 0.0f;
+        Visible = value > 0.0f; // 原作血条常显(出生即见,满血满条)
     }
 }

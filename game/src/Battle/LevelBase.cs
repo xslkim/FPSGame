@@ -12,7 +12,7 @@ public partial class LevelBase : Node3D
     [Signal] public delegate void LevelVictoryEventHandler();
     [Signal] public delegate void OpenContinueEventHandler(bool isOpen, int side);
 
-    public const float CamBlendTime = 1.5f;    // 机位切换 Tween(Cinemachine blend 近似)
+    public const float CamBlendTime = 1.0f;    // 机位切换 Tween(原作自定义 Blend 资产 Level1.asset:1s)
     public const float SpawnFreezeTime = 2.0f; // 切机位后冻结刷怪 2 秒
     public const float VictoryDelay = 2.0f;    // 胜利延迟(原作 Invoke 2s,单次触发)
 
@@ -40,6 +40,7 @@ public partial class LevelBase : Node3D
 
     protected Godot.Collections.Dictionary Cur = new();
     protected float SpawnTimer;
+    protected readonly System.Collections.Generic.List<(Monster Inst, int Level)> _slots = new(); // 本波槽位
     protected float FreezeTimer;
     private float _dbgTimer;
     protected int PoolIdx;
@@ -54,7 +55,6 @@ public partial class LevelBase : Node3D
     public bool StatBossBgm;
     public readonly System.Collections.Generic.List<int> StatGroupsStarted = new();
     public double BattleStartTime;
-    public int LastStars;
 
     public override void _Ready()
     {
@@ -169,6 +169,23 @@ public partial class LevelBase : Node3D
         FreezeTimer = SpawnFreezeTime * TimeScaleTest; // 切机位后冻结刷怪 2 秒
         StatFreezes += 1;
         SwitchCamera(i);
+        // 波次槽位:每槽预绑定一只池实例+等级("type@lv";原作槽位=场景预摆实例,含 null 空槽)
+        _slots.Clear();
+        foreach (var e in SaveService.Get(Cur, "pool", new Godot.Collections.Array()).AsGodotArray())
+        {
+            string entry = e.AsString();
+            string type = entry;
+            int level = 0;
+            int at = entry.IndexOf('@');
+            if (at > 0)
+            {
+                type = entry[..at];
+                level = int.Parse(entry[(at + 1)..]);
+            }
+            var inst = Pool.GetMonster(type);
+            if (inst != null)
+                _slots.Add((inst, level));
+        }
         if (i == SaveService.Get(Meta, "boss_group", -1).AsInt32()
             && SaveService.Get(Meta, "boss", "").AsString() != "")
         {
@@ -178,7 +195,7 @@ public partial class LevelBase : Node3D
         }
         GD.Print($"[{LevelKey}] group {i} start: num={MonsterLeft} " +
             $"interval={SaveService.Get(Cur, "interval", 3.0).AsDouble():0.00} " +
-            $"max_alive={SaveService.Get(Cur, "max_alive", 0).AsInt32()}");
+            $"max_alive={SaveService.Get(Cur, "max_alive", 0).AsInt32()} slots={_slots.Count}");
     }
 
     protected void SwitchCamera(int i)
@@ -188,7 +205,8 @@ public partial class LevelBase : Node3D
         StatCamSwitches += 1;
         var tw = CreateTween();
         tw.TweenProperty(Camera, "global_transform", CamPositions[i].GlobalTransform,
-            CamBlendTime * Mathf.Max(TimeScaleTest, 0.05f)).SetTrans(Tween.TransitionType.Sine);
+            CamBlendTime * Mathf.Max(TimeScaleTest, 0.05f))
+            .SetTrans(Tween.TransitionType.Cubic).SetEase(Tween.EaseType.InOut); // 原作 EaseInOut
     }
 
     protected void SpawnBoss()
@@ -200,14 +218,12 @@ public partial class LevelBase : Node3D
             GD.PushError($"[{LevelKey}] boss pool empty: {key}");
             return;
         }
-        var bornOverride = SaveService.Get(Meta, "boss_born_override",
-            new Godot.Collections.Dictionary()).AsGodotDictionary();
-        float fov = (float)SaveService.Get(bornOverride, "max_fov",
-            SaveService.Get(Meta, "born_max_fov", 33.0)).AsDouble();
-        float len = (float)SaveService.Get(bornOverride, "max_length",
-            SaveService.Get(Meta, "born_max_length", 8.0)).AsDouble();
-        var prm = Boss.GetBornParams(fov, len);
-        Boss.Born(Boss.GetBornPosition(prm.X, prm.Y), 0, 0.0f);
+        // 原作 InitBoss:Baotou.born() + SetActive——Boss 用场景预摆固定点(z=66),不走随机出生
+        var bornPos = SaveService.Get(Meta, "boss_pos",
+            new Godot.Collections.Dictionary { ["x"] = 0.0, ["y"] = 0.885, ["z"] = 66.0 }).AsGodotDictionary();
+        var pos = new Vector3((float)bornPos["x"].AsDouble(), (float)bornPos["y"].AsDouble(),
+            (float)bornPos["z"].AsDouble());
+        Boss.Born(pos, 0, 0.0f);
         Boss.Died += _ => { };
         GD.Print($"[{LevelKey}] boss {key} born at {Boss.GlobalPosition}");
         if (DebugAutoKill)
@@ -242,7 +258,8 @@ public partial class LevelBase : Node3D
         CheckProgress();
     }
 
-    /// <summary>刷怪 tick:先判子弹箱 → gun_rate 判枪箱(AK/M4 各半)→ 从本波 pool 轮询取怪</summary>
+    /// <summary>刷怪 tick:先判子弹箱 → gun_rate 判枪箱(AK/M4 各半)→ 随机槽位扫第一个未激活怪
+    /// (原作 FindReadyMonster:Random.Range 起点 + 线性扫描;宝箱/枪箱占配额)</summary>
     protected virtual void SpawnTick()
     {
         if (MonsterLeft <= 0)
@@ -251,56 +268,66 @@ public partial class LevelBase : Node3D
             return;
         if (PlayerState.CurAliveMonster >= SaveService.Get(Cur, "max_alive", 0).AsInt32())
             return;
-        var poolArr = SaveService.Get(Cur, "pool", new Godot.Collections.Array()).AsGodotArray();
-        if (poolArr.Count == 0)
-        {
-            MonsterLeft = 0; // 空波(L4 G0/G6 语义)
-            return;
-        }
-        string key = "";
+        Monster m = null;
         int boxKind = -1;
         StatBoxRolls += 1;
         if (Pool.HasInactive("box"))
         {
             if (GD.Randf() < SaveService.Get(Cur, "bullet_box_rate", 0.05).AsSingle())
             {
-                key = "box";
+                m = Pool.GetMonster("box");
                 boxKind = (int)BoxMonster.BoxKind.Bullet;
             }
             else if (GD.Randf() < SaveService.Get(Meta, "gun_rate", 0.02).AsSingle())
             {
-                key = "box";
+                m = Pool.GetMonster("box");
                 boxKind = GD.Randf() < 0.5f
                     ? (int)BoxMonster.BoxKind.GunAK
                     : (int)BoxMonster.BoxKind.GunM4;
             }
         }
-        if (key == "")
-        {
-            key = poolArr[PoolIdx % poolArr.Count].AsString();
-            PoolIdx += 1;
-        }
-        var m = Pool.GetMonster(key);
+        int level = 0;
         if (m == null)
         {
-            if (boxKind < 0)
-                PoolIdx -= 1; // 池满,下 tick 重试同一只
-            return;
+            if (_slots.Count == 0)
+            {
+                MonsterLeft = 0; // 空波(L4 G0/G6 语义)
+                return;
+            }
+            // 随机起点 + 前向扫描第一个未激活槽位(原作 FindReadyMonster)
+            int idx = GD.RandRange(0, _slots.Count - 1);
+            for (int k = 0; k < _slots.Count; k++)
+            {
+                var s = _slots[(idx + k) % _slots.Count];
+                if (!s.Inst.IsActiveState)
+                {
+                    m = s.Inst;
+                    level = s.Level;
+                    break;
+                }
+            }
+            if (m == null)
+                return; // 槽位全忙,下 tick 重试
         }
         if (m is BoxMonster bm)
             bm.Kind = (BoxMonster.BoxKind)boxKind;
-        // 出生点:±33°(FOV>50 → ±40°)/ 8m,按波覆盖 born_length_override
+        // 出生点:±33°(FOV>50 → ±40°)/ 8m,born_fov_override 按波覆盖(原作 GroupMaxBornFov)
         float fov = SaveService.Get(Meta, "born_max_fov", 33.0).AsSingle();
         if (Camera != null && Camera.Fov > 50.0f)
             fov = SaveService.Get(Meta, "born_max_fov_wide", 40.0).AsSingle();
         float length = SaveService.Get(Meta, "born_max_length", 8.0).AsSingle();
-        var overrides = SaveService.Get(Meta, "born_length_override",
+        var fovOverrides = SaveService.Get(Meta, "born_fov_override",
             new Godot.Collections.Dictionary()).AsGodotDictionary();
         string gk = CurGroup.ToString();
-        if (overrides.ContainsKey(gk))
-            length = (float)overrides[gk].AsDouble();
+        if (fovOverrides.ContainsKey(gk))
+            fov = (float)fovOverrides[gk].AsDouble();
+        var lenOverrides = SaveService.Get(Meta, "born_length_override",
+            new Godot.Collections.Dictionary()).AsGodotDictionary();
+        if (lenOverrides.ContainsKey(gk))
+            length = (float)lenOverrides[gk].AsDouble();
         var prm = m.GetBornParams(fov, length);
-        m.Born(m.GetBornPosition(prm.X, prm.Y), 0, DifficultyWaittingTime());
+        m.Born(m.GetBornPosition(prm.X, prm.Y), level, 0.0f); // WaittingTime 由关卡钩子按类型设置
+        OnMonsterBorn(m);
         MonsterLeft -= 1; // 箱子占本波配额
         if (DebugAutoKill)
             GetTree().CreateTimer(0.15).Timeout += () =>
@@ -309,6 +336,9 @@ public partial class LevelBase : Node3D
                     m.Hit(99999.0f, m.GlobalPosition, Game.HitType.Body, PlayerState.Side.Right);
             };
     }
+
+    /// <summary>出生后关卡钩子(原作各级 LevelUpdate:全体面向相机;Level1 另有位置/等待修正)</summary>
+    protected virtual void OnMonsterBorn(Monster m) => m.FaceCamera();
 
     /// <summary>等待时长按难度:Easy rand(3,8) / Hard rand(0,2) / Hell 0</summary>
     protected static float DifficultyWaittingTime() =>
@@ -344,46 +374,18 @@ public partial class LevelBase : Node3D
             StartGroup(CurGroup + 1);
     }
 
-    /// <summary>胜利延迟 2s,单次触发(修原作每帧重复注册 bug)</summary>
+    /// <summary>胜利延迟 2s,单次触发(修原作每帧重复注册 bug);
+    /// 原作 Victory 只弹面板回菜单、无任何星级/分数结算(全工程无星级写入点),不写档</summary>
     protected async void TriggerVictory()
     {
         VictoryState = 1;
-        SettleStars();
         GD.Print($"[{LevelKey}] level clear → victory in {VictoryDelay:0.0}s");
         await ToSignal(GetTree().CreateTimer(VictoryDelay), SceneTreeTimer.SignalName.Timeout);
         if (VictoryState != 1)
             return;
         VictoryState = 2;
-        GD.Print($"[{LevelKey}] level_victory (stars={LastStars})");
+        GD.Print($"[{LevelKey}] level_victory");
         EmitSignal(SignalName.LevelVictory);
-    }
-
-    /// <summary>通关星级本地结算(替代原作服务器下发):通关保底 1 星;活跃玩家平均 HP≥50 +1;
-    /// 用时 ≤par_time(默认 300s)+1。分数=星级×1000+平均 HP×10;取历史最高落盘。</summary>
-    protected void SettleStars()
-    {
-        var order = SaveService.Get(SaveService.Instance.GetLevelMeta(), "level_order",
-            new Godot.Collections.Array()).AsGodotArray();
-        int idx = order.IndexOf(LevelKey);
-        if (idx < 0)
-            return;
-        float hpSum = 0.0f;
-        int n = 0;
-        foreach (var side in new[] { PlayerState.Side.Left, PlayerState.Side.Right })
-        {
-            var p = PlayerState.Instance.GetPlayer(side);
-            if (p.Active)
-            {
-                hpSum += p.Hp;
-                n += 1;
-            }
-        }
-        float avgHp = hpSum / Mathf.Max(n, 1);
-        double elapsed = Time.GetTicksMsec() / 1000.0 - BattleStartTime;
-        float par = SaveService.Get(Meta, "par_time", 300.0).AsSingle();
-        LastStars = 1 + (avgHp >= 50.0f ? 1 : 0) + (elapsed <= par ? 1 : 0);
-        int score = LastStars * 1000 + (int)avgHp * 10;
-        SaveService.Instance.SetLevelResult(idx, LastStars, score, 0);
     }
 
     protected void OnPlayerDied(int side)

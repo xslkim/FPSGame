@@ -16,6 +16,13 @@ public partial class BaotouMonster : Monster
 
     protected override void OnBorn() => IsBoss = true; // Boss 不超时自毁
 
+    public override void _Ready()
+    {
+        base._Ready();
+        // 弱点爱心(原作 FX_Pickup_Heart_01 挂脊柱骨;本体 Untagged 打不到,打爱心=打 Boss)
+        Callable.From(() => BossHeart.Create(this)).CallDeferred();
+    }
+
     protected override void UpdateActive(float delta)
     {
         Velocity = new Vector3(0.0f, IsOnFloor() ? 0.0f : -SinkSpeed, 0.0f);

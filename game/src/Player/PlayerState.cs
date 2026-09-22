@@ -163,6 +163,7 @@ public partial class PlayerState : Node
     private TextureProgressBar _hpLeft = null!;
     private TextureRect _hurtRight = null!;
     private TextureRect _hurtLeft = null!;
+    private TextureRect _headLeftIcon = null!; // 左头像图标(左手未激活时藏,只留红环)
     private Tween? _hurtRightTween;
     private Tween? _hurtLeftTween;
 
@@ -174,9 +175,9 @@ public partial class PlayerState : Node
         _hudLayer.AddChild(_battleRoot);
 
         _bulletRight = MakeBulletHud("BulletRight", new Color(0.0f, 0.7255f, 0.2824f),
-            new Color(0.0088f, 0.3113f, 0.1265f), out _bulletRightText);
+            new Color(0.0088f, 0.3113f, 0.1265f), new Vector2(185.12f, 0.0f), out _bulletRightText);
         _bulletLeft = MakeBulletHud("BulletLeft", new Color(0.7062f, 0.7255f, 0.0f),
-            new Color(0.3973f, 0.4057f, 0.0f), out _bulletLeftText);
+            new Color(0.3973f, 0.4057f, 0.0f), new Vector2(-258.72f, 31.4f), out _bulletLeftText);
         _headRight = MakeHeadHud("HeadRight", true, out _hpRight);
         _headLeft = MakeHeadHud("HeadLeft", false, out _hpLeft);
         _hurtRight = MakeHurtOverlay("RightHurt", "res://assets/textures/ui/bloodEffectRight.png");
@@ -184,15 +185,16 @@ public partial class PlayerState : Node
         _battleRoot.Visible = false;
     }
 
-    private Control MakeBulletHud(string name, Color iconTint, Color xColor, out Label countLabel)
+    private Control MakeBulletHud(string name, Color iconTint, Color xColor, Vector2 offset, out Label countLabel)
     {
-        // 64×64 底中(anchor 0.5,0 pivot 0.5,0);X 28 号;数字 52 号白向右延伸
+        // 64×64(anchor 底中 + offset;原作 BulletRight (185.12,0) / BulletLeft (-258.72,31.4));
+        // X 28 号;数字 52 号白向右延伸(原作 BulletRightText 相对左中 (83.31,-3.1))
         var root = new Control { Name = name, MouseFilter = Control.MouseFilterEnum.Ignore };
         root.SetAnchorsPreset(Control.LayoutPreset.CenterBottom);
-        root.OffsetLeft = -32.0f;
-        root.OffsetRight = 32.0f;
-        root.OffsetTop = -64.0f;
-        root.OffsetBottom = 0.0f;
+        root.OffsetLeft = offset.X - 32.0f;
+        root.OffsetRight = offset.X + 32.0f;
+        root.OffsetTop = offset.Y - 64.0f;
+        root.OffsetBottom = offset.Y;
         _battleRoot.AddChild(root);
         var icon = new TextureRect
         {
@@ -228,7 +230,7 @@ public partial class PlayerState : Node
         };
         countLabel.AddThemeFontSizeOverride("font_size", 52);
         countLabel.SetAnchorsPreset(Control.LayoutPreset.CenterLeft);
-        countLabel.Position = new Vector2(64.0f, -30.0f);
+        countLabel.Position = new Vector2(83.31f, -3.1f - 30.0f); // 原作 (83.31,-3.1) 左中锚
         countLabel.Size = new Vector2(120.0f, 60.0f);
         root.AddChild(countLabel);
         return root;
@@ -266,6 +268,8 @@ public partial class PlayerState : Node
         head.Size = new Vector2(100.0f, 100.0f);
         head.Position = new Vector2(-50.0f, -50.0f);
         root.AddChild(head);
+        if (!isRight)
+            _headLeftIcon = head;
         slider = new TextureProgressBar
         {
             Name = "HPSlider",
@@ -363,10 +367,12 @@ public partial class PlayerState : Node
             if (_battleRoot != null)
             {
                 _battleRoot.Visible = true;
-                // 单人(仅右玩家)只显示右侧一套;左手玩家活跃才显示左侧
-                bool leftOn = PlayerLeft.Active;
-                _bulletLeft.Visible = false; // 子弹 HUD 开战后由 ShowBattleBullets 显形
-                _headLeft.Visible = leftOn;
+                // 原作战斗 HUD:左侧红环头像常显(即使左手玩家未激活);
+                // 子弹 HUD 开战后由 ShowBattleBullets 显形(左弹仅左手活跃时)
+                _bulletLeft.Visible = false;
+                _headLeft.Visible = true;
+                if (_headLeftIcon != null)
+                    _headLeftIcon.Visible = PlayerLeft.Active; // 原作:左手未激活只显红环
                 _bulletRight.Visible = false;
                 _headRight.Visible = true;
             }

@@ -15,7 +15,7 @@ G:\FPSGame\
 │   ├── src/Player/     # PlayerState(双玩家/受击/金币 HUD)、Player(单玩家数据)
 │   ├── src/UI/         # MenuScreen、StartupScreen、LevelChooseScreen、DeviceConnectionScreen、LoadingScreen、
 │   │                   # MessageBox、UiKit(坐标构建辅助)、UiSwapButton(SpriteSwap 按钮)、UiTheme、JustRotate、
-│   │                   # GunUiController、UiButton3D、UiAimGuide(2D 激光指引:画在 UI 最上层的光束+红点,悬停放光)
+│   │                   # GunUiController、UiButton3D、UiAimGuide(2D 激光指引:画在 UI 最上层的锥形光束(枪原点→200m)+命中光点,悬停放光)
 │   ├── scenes/ui/      # startup → menu → level_choose / device_connection → loading
 │   ├── assets/ data/   # 贴图/模型/音频/字体、数值 JSON
 │   └── FPSGame.csproj / FPSGame.sln / NuGet.config
@@ -136,13 +136,16 @@ $G --path . scenes/levels/level1_battle.tscn -- "--level1-shot:out.png"         
 - K-POP 舞蹈:原作 200.83s 完整版(K-POP Dance 1.anim)资产不可得;演员 `_anims.tres` 内置 4s dance 循环(legacy 占位),剧情 54.8s 用循环替代,3 学生错开 0.07s 相位照原作。
 - blade_girl:原作场景中 inactive 且 Animator 被清空(不参与演出),剧情不创建该角色。
 - 怪物攻击动画事件:原作各 FBX 的 event 帧不可得,统一 0.3s(legacy 定值)。
-- 相机切换:Cinemachine blend 曲线无精确值,统一 1.5s Sine ease;vcam3 系 GroupComposer 阻尼跟踪以每帧 LookAt 近似。
+- 相机切换:Level1 用原作自定义 Blend 资产 Level1.asset 的 1s(Cubic EaseInOut 近似);vcam3 系 GroupComposer 阻尼跟踪以每帧 LookAt 近似。
 - 难度数量截断:Unity float 数学改 double 精确(10×1.8 恒 18,不再掉 17)。
-- 胜利结算:原作只弹 VectoryPanel 无星数;本地版另做 HP+用时星级落盘(原作服务器下发不可得)。
+- 胜利结算:原作只弹 VectoryPanel 无星数(全工程无星级写入点,选关星数恒默认值)——1:1 照此,无本地结算(此前版本的星级落盘已移除)。
 - Level2/3/4 原工程 `Invoke("FinishLevel")` bug(方法不存在永不触发)在 LevelBase 统一修复。
 - Level2:烘焙 lightmap 不可得,实时等效光照观感偏白日;Boss 模型未按 Unity ×3 缩放(照 legacy 结构)。
 - Level3:烘焙导出的坐标约定为 mirror-X(SceneExporter.cs 注释),机位照此换算并经落位验证;部分机位视野内城市观感偏空;线性管线下画面比 Unity gamma 工程偏暗。
 - Level4:env 同 mirror-X 约定;雾用 Godot 指数雾近似 Unity ExpSquared;fire_breath 特效 emit 默认值 bug-for-bug 保留。
+- Level1 战斗场景环境(env_school_hallway)整体为原作 X 镜像(FBX 导入差异)——机位/平行光全部按"镜像四元数"换算对齐真值截图;雾原作线性 5→12m,本引擎 fog_depth_begin/end 无效,以指数 0.08 校准。
+- Level1 Boss(包头僵尸):本体不可被打(layer5 只起弹着特效),弱点为脊柱上悬浮爱心(BossHeart,BoxHead 转发语义),被打 0.5s 瞬移;爱心贴图黑底加色染红。
+- Level1 出生:±33°(FOV>50→40°)/8m 射线落点,G1~G4 覆盖散开角 15°(原作 GroupMaxBornFov);宝箱/枪箱占刷怪配额(5%/2%);只有牛魔王/斧头/骷髅(原作 _Name 序列化同 0)吃难度等待 Easy3~8s。
 - 各关环境烘焙坐标约定可能不同(走廊=数值不变 / 城市与村庄=mirror-X),机位均按各自 env 已验证约定换算,场景内自洽。
 
 其余关卡自检:

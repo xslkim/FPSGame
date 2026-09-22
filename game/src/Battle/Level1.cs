@@ -39,10 +39,17 @@ public partial class Level1 : LevelBase
             _env = GetNodeOrNull<Node3D>(EnvPath)!;
             if (_badGroup != null)
                 _badGroup.Visible = false;
+            if (Camera != null)
+                Camera.Fov = 45.0f; // 战斗机位 FOV45(原作 vcam;debug 无开场混合直接设)
             StartBattle();
             foreach (var a in args)
             {
-                if (a.StartsWith("--level1-shot-battle:"))
+                if (a.StartsWith("--level1-shot-boss:"))
+                {
+                    // 直跳 G4 Boss 波截图(验证爱心弱点/瞬移)
+                    CallDeferred(nameof(DebugJumpBoss), a["--level1-shot-boss:".Length..]);
+                }
+                else if (a.StartsWith("--level1-shot-battle:"))
                 {
                     // 格式 --level1-shot-battle:<path>[:delaySec](从右往左拆,兼容盘符)
                     var rest = a["--level1-shot-battle:".Length..];
@@ -132,6 +139,42 @@ public partial class Level1 : LevelBase
             }
             StartBattle();
         };
+    }
+
+    /// <summary>出生后修正(原作 Level1.LevelUpdate):全体面向相机;
+    /// 牛魔王/斧头/小骷髅(原作 _Name 序列化同为 0,同一分支)y+0.2、x<0 时 x+0.3,
+    /// 等待时长按难度 Easy rand(3,8)/Hard rand(0,2)/Hell 0;飞斧/宝箱不等待(默认值 0)</summary>
+    protected override void OnMonsterBorn(Monster m)
+    {
+        m.FaceCamera();
+        if (m.MetaKey is "bull" or "axe_zombie" or "skeleton")
+        {
+            var p = m.GlobalPosition;
+            p.Y += 0.2f;
+            if (p.X < 0.0f)
+                p.X += 0.3f;
+            m.GlobalPosition = p;
+            m.WaittingTime = DifficultyWaittingTime();
+        }
+    }
+
+    /// <summary>debug:跳 G4 Boss 波并截图(爱心弱点验证)</summary>
+    private async void DebugJumpBoss(string path)
+    {
+        // 等一帧确保视口尺寸就绪,瞄准 Boss 方位(屏幕中心偏左,z=66 方向)
+        await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+        InputRouter.Instance.MouseGun.SimulateMove(GetViewport().GetVisibleRect().Size / 2.0f);
+        await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+        // 直接清场跳到 G4(清掉 G0 已刷的怪,避免堆叠)
+        foreach (var m in GetTree().GetNodesInGroup("monster"))
+            if (m is Monster mm && mm.IsActiveState)
+                mm.Hit(99999.0f, mm.GlobalPosition, Game.HitType.Body, PlayerState.Side.Right);
+        StartGroup(4);
+        await ToSignal(GetTree().CreateTimer(3.5f, true, true), SceneTreeTimer.SignalName.Timeout);
+        var img = GetViewport().GetTexture().GetImage();
+        img.SavePng(path.Replace('/', '\\'));
+        GD.Print($"[L1] boss shot saved: {path}");
+        GetTree().Quit();
     }
 
     private static void PlayMusic(string path, AudioStreamPlayer player)
