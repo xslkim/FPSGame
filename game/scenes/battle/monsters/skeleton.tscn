@@ -6,8 +6,8 @@
 [ext_resource type="AnimationLibrary" path="res://assets/models/monsters/skeleton/skeleton_anims.tres" id="4"]
 
 [sub_resource type="CapsuleShape3D" id="BodyShape"]
-radius = 0.4
-height = 1.6
+radius = 0.25
+height = 1.2
 
 [node name="Skeleton" type="CharacterBody3D"]
 collision_layer = 2
@@ -16,7 +16,7 @@ script = ExtResource("1")
 MetaKey = "skeleton"
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.8, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.6, 0)
 shape = SubResource("BodyShape")
 
 [node name="AnimationPlayer" type="AnimationPlayer" parent="."]
@@ -25,10 +25,10 @@ libraries = {
 }
 
 [node name="HpAnchor" type="Node3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.1, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.53, 0)
 script = ExtResource("2")
 
 [node name="AudioStreamPlayer3D" type="AudioStreamPlayer3D" parent="."]
 
 [node name="Model" parent="." instance=ExtResource("3")]
-transform = Transform3D(-0.8, 0, 0, 0, 0.8, 0, 0, 0, -0.8, 0, 0, 0)
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0, 0, 0)

@@ -22,6 +22,7 @@
     "axe_zombie": {
       "cn_name": "斧头僵尸",
       "behavior": "axe",
+      "max_distance": 6.0,
       "attack_anims": ["Attack1", "Attack2", "AttackL", "AttackR"],
       "damage_anim": "Damage1",
       "dead_anim": "Damage3"
@@ -29,6 +30,7 @@
     "fly_axe_zombie": {
       "cn_name": "飞斧头僵尸",
       "behavior": "fly_axe",
+      "max_distance": 20.0,
       "attack_radius_base": 7.0,
       "attack_radius_rand": 3.0,
       "attack_anims": ["Skill"],
@@ -41,9 +43,16 @@
       "behavior": "box",
       "hp": 1.0,
       "move_speed": 3.0,
+      "born_anim": "Idle02",
+      "idle2_anim": "LickAttack",
       "damage_anim": "TakeDamage",
       "dead_anim": "Die",
-      "life_active_time": 20.0
+      "life_active_time": 20.0,
+      "kinds": {
+        "bullet": { "waitting_time": 20.0, "idle2_interval": 3.0 },
+        "gun_ak": { "waitting_time": 20.0, "idle2_interval": 3.0 },
+        "gun_m4": { "waitting_time": 20.0, "idle2_interval": 5.0 }
+      }
     },
     "baotou": {
       "cn_name": "包头僵尸",
@@ -171,7 +180,7 @@
       "attack_cd": 8.0,
       "attack_radius": 36.0,
       "move_speed": 3.0,
-      "move_speed_level_rate": 0.5,
+      "move_speed_level_rate": 0.3,
       "attack_type": 2,
       "attack_anims": ["atk01"],
       "damage_anim": "hit",
@@ -180,6 +189,7 @@
     "skeleton": {
       "cn_name": "小骷髅",
       "behavior": "skeleton",
+      "max_distance": 6.0,
       "damage_anim": "Damage1",
       "dead_anim": "Damage4",
       "impact_tag": "Concrete",
@@ -188,6 +198,8 @@
     "bull": {
       "cn_name": "牛魔王",
       "behavior": "bull",
+      "max_distance": 6.0,
+      "idle2_anim": "",
       "attack_anims": ["attack_01", "attack_02", "attack_03"],
       "damage_anim": "damage",
       "dead_anim": "die",

@@ -21,6 +21,7 @@ public partial class MonsterHpBar : Node3D
             ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded,
             Transparency = BaseMaterial3D.TransparencyEnum.Alpha,
             BillboardMode = BaseMaterial3D.BillboardModeEnum.Enabled,
+            BillboardKeepScale = true, // billboard 默认丢弃世界缩放;Boss 根 ×3/×5 时血条须随放大(Unity 画布随父缩放)
             AlbedoTexture = bgTex,
         };
         var bg = new MeshInstance3D
@@ -35,8 +36,10 @@ public partial class MonsterHpBar : Node3D
             ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded,
             Transparency = BaseMaterial3D.TransparencyEnum.Alpha,
             BillboardMode = BaseMaterial3D.BillboardModeEnum.Enabled,
+            BillboardKeepScale = true,
             AlbedoTexture = fillTex,
             AlbedoColor = new Color(1.0f, 0.0f, 0.0f, 1.0f), // 原作 HpReduceNumber fill 红色 tint
+            RenderPriority = 1, // 底/填充同深度:填充后画,稳定压过暗轨(透明同深度次序不定)
         };
         _fill = new MeshInstance3D
         {

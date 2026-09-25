@@ -3,68 +3,82 @@ using Godot;
 namespace FPSGame;
 
 /// <summary>
-/// 牙齿宝箱:HP1、移速 3、20 秒自毁。逃跑跳:每 2 秒反向跳一次(6.2/6.3)。
-/// 死亡掉落按箱类型:Bullet → +BoxBullet 弹;GunAK/GunM4 → 解锁对应枪位。
+/// 牙齿宝箱(原作 BoxMonster.cs + 场景三箱序列化):HP1、移速 3(实际不移动)。
+/// 真值流程:原地等待 WaittingTime(school_day 三箱全 20s,BoxAk.prefab 本体为 15 但本关未用),
+/// 等待期每 Idle02Time 秒插播 LickAttack(BoxBullet/BoxAK=3s、BoxM4=5s);LifeActiveTime=20s 到
+/// → HP=0 → Invoke("DestorySelf", 1.5) 自灭(无掉落、无死亡演出)。
+/// 逃跑跳分支(RunAway)与自灭同帧,原作实际永不触发,不移植。
+/// 被打(HP1 即死)才掉落,只发受击侧(原作 OnDead(bool Right)):子弹箱 +BoxBullet(60) 弹、
+/// AK/M4 箱解锁对应枪;原作无掉落光效/音效。
 /// </summary>
 public partial class BoxMonster : Monster
 {
     public enum BoxKind { Bullet, GunAK, GunM4 }
 
-    public const float HopInterval = 2.0f;
-    public const float HopVy = 4.0f;
-
     public BoxKind Kind = BoxKind.Bullet;
 
-    private Vector3 _moveDir = Vector3.Forward;
-    private float _hopTime;
+    private bool _expiring;
+
+    /// <summary>按箱 kind 取 prefab/场景序列化等待时间(school_day:Bullet 20 / AK 20 / M4 20)</summary>
+    public static float WaittingTimeOf(BoxKind kind) => KindValue(kind, "waitting_time", 20.0f);
+
+    /// <summary>按箱 kind 取 Idle02Time(BoxBullet/BoxAK=3、BoxM4=5)</summary>
+    public static float Idle2IntervalOf(BoxKind kind) => KindValue(kind, "idle2_interval", 3.0f);
+
+    private static float KindValue(BoxKind kind, string key, float def)
+    {
+        var info = MonsterInfo.Load("box");
+        if (info.Kinds == null)
+            return def;
+        string k = kind switch
+        {
+            BoxKind.GunAK => "gun_ak",
+            BoxKind.GunM4 => "gun_m4",
+            _ => "bullet",
+        };
+        if (info.Kinds.ContainsKey(k))
+        {
+            var d = info.Kinds[k].AsGodotDictionary();
+            if (d.ContainsKey(key))
+                return (float)d[key].AsDouble();
+        }
+        return def;
+    }
 
     protected override void OnBorn()
     {
-        // 初始逃跑方向:背向相机
-        var cam = GetViewport().GetCamera3D();
-        if (cam != null)
-        {
-            Vector3 d = GlobalPosition - cam.GlobalPosition;
-            d.Y = 0.0f;
-            if (d.LengthSquared() > 0.01f)
-                _moveDir = d.Normalized();
-        }
-        _hopTime = 0.0f;
+        _expiring = false;
+        Info.Idle2Interval = Idle2IntervalOf(Kind); // 等待期插播 LickAttack 的间隔
     }
 
+    /// <summary>等待结束(与 20s 自灭同帧,原作 RunAway 分支永不触发):原地站立</summary>
     protected override void UpdateActive(float delta)
     {
-        _hopTime += delta;
-        if (_hopTime >= HopInterval)
-        {
-            _hopTime = 0.0f;
-            _moveDir = -_moveDir; // 每 2 秒反向
-            if (IsOnFloor())
-                Velocity = new Vector3(Velocity.X, HopVy, Velocity.Z);
-        }
-        Velocity = new Vector3(_moveDir.X * GetMoveSpeed(), Velocity.Y, _moveDir.Z * GetMoveSpeed());
+        Velocity = new Vector3(0.0f, Velocity.Y, 0.0f);
         ApplyGravity(delta);
         MoveAndSlide();
-        if (_moveDir.LengthSquared() > 0.01f)
-        {
-            Vector3 rot = Rotation;
-            rot.Y = YawTowards(rot.Y, Mathf.Atan2(-_moveDir.X, -_moveDir.Z), Info.TurnSpeed * delta);
-            Rotation = rot;
-        }
     }
 
-    /// <summary>掉落:对所有活跃玩家生效;死亡点放掉落光效</summary>
+    /// <summary>20s 到:原作 HP=0 → Invoke("DestorySelf", 1.5)——无掉落、无死亡演出</summary>
+    protected override void OnLifeTimeout()
+    {
+        if (_expiring)
+            return;
+        _expiring = true;
+        Hp = 0.0f;
+        GetTree().CreateTimer(RecycleDelay).Timeout += () =>
+        {
+            if (CurState != State.Idle)
+                Recycle();
+        };
+    }
+
+    /// <summary>掉落(原作 OnDead(bool Right)):只发受击侧;子弹箱 +60 弹、枪箱解锁对应枪;无掉落 FX</summary>
     protected override void OnDeath()
     {
-        var fx = GD.Load<PackedScene>("res://assets/effects/pickup_drop.tscn").Instantiate<EffectBase>();
-        GetTree().CurrentScene.AddChild(fx);
-        fx.GlobalPosition = GlobalPosition + new Vector3(0.0f, 0.5f, 0.0f);
-        fx.Activate();
-        foreach (var side in new[] { PlayerState.Side.Left, PlayerState.Side.Right })
+        var p = PlayerState.Instance.GetPlayer(LastHitSide);
+        if (p.Active)
         {
-            var p = PlayerState.Instance.GetPlayer(side);
-            if (!p.Active)
-                continue;
             switch (Kind)
             {
                 case BoxKind.Bullet:
@@ -77,7 +91,7 @@ public partial class BoxMonster : Monster
                     p.AddGun(1);
                     break;
             }
+            PlayerState.Instance.NotifyUiChanged();
         }
-        PlayerState.Instance.NotifyUiChanged();
     }
 }

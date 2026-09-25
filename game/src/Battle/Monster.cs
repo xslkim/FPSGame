@@ -5,9 +5,11 @@ namespace FPSGame;
 /// <summary>
 /// 怪物基类:生命周期(出生等待→追击→攻击→死亡回收)全量实现。
 /// 对应原作 MonsterBase.cs / legacy monster_base.gd:
-///   出生站桩 WaittingTime(每 5s 插播 Idle02)→ 追相机进 AttackRadius 且 CD 到 → 播攻击动画
-///   → 0.3s 动画事件 EventAttack(按屏幕 x 分侧命中,转嫁在 PlayerState)→ 死亡播 Dead + 血花
-///   → 1.5s 回收;非 Boss 25s(宝箱 20s)超时自毁。刷怪点:相机前方 ±fov 射线(最长 len)。
+///   出生进 controller 默认态(不抢播 Idle02)→ 等待期每 Idle02Time 秒插播 Idle02、3m/s 下坠落地
+///   → 水平距进 AttackRadius 且 CD 到且在 Locomotion 且 3D 距 &lt; maxDistance → 站桩播攻击动画(CD 期原地等待)
+///   → 0.3s 动画事件 EventAttack(lastAttackTime=now,按屏幕 x 分侧命中,转嫁在 PlayerState)→ 死亡播 Dead + 血花(挂原点)
+///   → 1.5s 回收;非 Boss 25s(宝箱 20s,HP=0 后 1.5s 缓期)超时自毁。
+///   刷怪点:相机 3D forward ±fov 射线(最长 len),落点 y -= CC.center.y + 0.1(悬空出生,重力落地)。
 /// 数值全来自 MonsterInfo(data/monster_meta.json),派生类只做行为差异。
 /// </summary>
 public partial class Monster : CharacterBody3D
@@ -16,10 +18,10 @@ public partial class Monster : CharacterBody3D
 
     public const float MaxLifeTime = 25.0f;   // 原 ResetMaxLifeTimeDeath 恒 25s(保留行为)
     public const float FallSpeed = 3.0f;      // 等待期持续下坠速度
-    public const float Idle2Interval = 5.0f;
     public const float RecycleDelay = 1.5f;   // 死亡 1.5s 后回收
     public const float Gravity = 9.8f;
-    public const uint BornRayMask = 0xFFFFFFF5; // 排除 layer2(Enemy)与 layer4(CameraWall)
+    public const uint BornRayMask = 0xFFFFFFF1; // 排除 layer2(Enemy)/layer3(UI按钮)/layer4(CameraWall)
+    // 注:UI 按钮(隐藏面板的按钮碰撞仍激活,挂相机前 1m)不挡出生射线——原作隐藏 UI 不参与物理射线
     public const float AttackEventDelay = 0.3f; // 攻击动画事件(原动画事件≈起手后,legacy 定 0.3s)
 
     [Signal] public delegate void DiedEventHandler(Monster monster);
@@ -30,7 +32,6 @@ public partial class Monster : CharacterBody3D
     public int Level;
     public float WaittingTime;                 // 由关卡按难度设置:Easy rand(3,8)/Hard rand(0,2)/Hell 0
     public double LastAttackTime = -99.0;      // 出生即可攻
-    public float MaxDistance = 2000.0f;
 
     public MonsterInfo Info = null!;
     public float Hp;
@@ -44,7 +45,8 @@ public partial class Monster : CharacterBody3D
     protected float Idle2Time;
     protected AnimationPlayer Anim = null!;
     protected AudioStreamPlayer3D Audio = null!;
-    protected MonsterHpBar HpBar = null!;
+    protected MonsterHpBar HpBar = null!;      // 可空:宝箱无血条(原作 BoxBullet.prefab 无 HpReduceNumber)
+    protected PlayerState.Side LastHitSide = PlayerState.Side.Right; // 最后一击侧(原作 OnDead(bool Right))
 
     private CollisionShape3D _col = null!;
     private Tween? _attackEventTween;
@@ -57,8 +59,10 @@ public partial class Monster : CharacterBody3D
         Info = MonsterInfo.Load(MetaKey);
         Anim = GetNode<AnimationPlayer>("AnimationPlayer");
         Audio = GetNode<AudioStreamPlayer3D>("AudioStreamPlayer3D");
-        HpBar = GetNode<MonsterHpBar>("HpAnchor");
+        HpBar = GetNodeOrNull<MonsterHpBar>("HpAnchor")!;
         _col = GetNode<CollisionShape3D>("CollisionShape3D");
+        // clip 自带的 event_attack/baotou_skill 方法轨与基类 0.3s 事件 Tween 重复,剥离(同 WolfMonster 先例)
+        AnimTrackUtil.StripMethodTracks(Anim);
         Deactivate();
     }
 
@@ -83,11 +87,14 @@ public partial class Monster : CharacterBody3D
         SetProcess(true);
         SetPhysicsProcess(true);
         _col.SetDeferred(CollisionShape3D.PropertyName.Disabled, false);
-        HpBar.SetHp(1.0f);
+        HpBar?.SetHp(1.0f);
         PlayerState.CurAliveMonster += 1;
         OnBorn();
-        if (Anim.HasAnimation(Info.Idle2Anim))
-            Anim.Play(Info.Idle2Anim);
+        // 出生进控制器默认态(原作 Animator m_DefaultState:骷髅/斧/飞斧/牛=Locomotion、
+        // 宝箱=Idle、Boss=anim_idle),不抢播 Idle02(等待期每 Idle02Time 才插播一次)
+        string bornAnim = Info.BornAnim.Length > 0 ? Info.BornAnim : (Info.IdleAnim ?? "locomotion");
+        if (Anim.HasAnimation(bornAnim))
+            Anim.Play(bornAnim);
     }
 
     // ---- 等级公式(原作 6.1.6)----
@@ -106,7 +113,7 @@ public partial class Monster : CharacterBody3D
         float limit = Info.LifeActiveTime > 0.0f ? Info.LifeActiveTime : MaxLifeTime;
         if (!IsBoss && CurState != State.Dead && LifeTime >= limit)
         {
-            Recycle(); // 超时自毁(无死亡演出,也推进波次)
+            OnLifeTimeout(); // 超时自毁(宝箱:HP=0 → 1.5s 缓期回收,原作 Invoke DestorySelf)
             return;
         }
         switch (CurState)
@@ -116,18 +123,28 @@ public partial class Monster : CharacterBody3D
         }
     }
 
-    /// <summary>等待期:持续下坠;每 5s 插播 Idle02;超 WaittingTime 进追击</summary>
+    /// <summary>寿命到:默认即刻回收(无死亡演出,也推进波次);宝箱覆盖为 1.5s 缓期</summary>
+    protected virtual void OnLifeTimeout() => Recycle();
+
+    /// <summary>等待期:持续下坠;每 Idle02Time 秒插播一次 Idle02(播完回默认态);超 WaittingTime 进追击</summary>
     protected virtual void UpdateWaiting(float delta)
     {
         WaitTime += delta;
         Idle2Time += delta;
         Velocity = new Vector3(0.0f, IsOnFloor() ? 0.0f : -FallSpeed, 0.0f);
         MoveAndSlide();
-        if (Idle2Time >= Idle2Interval)
+        if (Idle2Time >= Info.Idle2Interval)
         {
             Idle2Time = 0.0f;
-            if (!IsCurrentAnim(Info.Idle2Anim) && Anim.HasAnimation(Info.Idle2Anim))
+            if (Info.Idle2Anim.Length > 0 && !IsCurrentAnim(Info.Idle2Anim) && Anim.HasAnimation(Info.Idle2Anim))
                 Anim.Play(Info.Idle2Anim, 0.3);
+        }
+        else if (!Anim.IsPlaying())
+        {
+            // Idle02 播完回默认姿态(原作 controller 播完自动回默认态;牛魔王无 Idle02 状态恒 Locomotion)
+            string bornAnim = Info.BornAnim.Length > 0 ? Info.BornAnim : (Info.IdleAnim ?? "locomotion");
+            if (!IsCurrentAnim(bornAnim) && Anim.HasAnimation(bornAnim))
+                Anim.Play(bornAnim, 0.3);
         }
         if (WaitTime >= WaittingTime)
         {
@@ -136,7 +153,9 @@ public partial class Monster : CharacterBody3D
         }
     }
 
-    /// <summary>追击 + 攻击:目标=相机(y 压平);进半径且 CD 到且在移动动画 → 攻击</summary>
+    /// <summary>追击 + 攻击(原作 MonsterBase.MoveToPlayerAndAttack:168-210):
+    /// 攻击/受伤动画播放中原地站桩;水平距 &lt; AttackRadius 且过 CD 且在 Locomotion 且 3D 距 &lt; maxDistance
+    /// → 站桩攻击;半径内 CD 未到原地等待(不收脚走进相机);半径外才转身移动(3m 内移速钳 1)</summary>
     protected virtual void MoveToPlayerAndAttack(float delta, string locomotionName, float maxDistance)
     {
         var cam = GetViewport().GetCamera3D();
@@ -149,15 +168,25 @@ public partial class Monster : CharacterBody3D
             MoveAndSlide();
             return;
         }
+        // 攻击/受伤播完 → 回 Locomotion(原作 Animator 播完自动回默认态,后续攻击门控也要求 Locomotion)
+        if (!IsCurrentAnim(locomotionName) && Anim.HasAnimation(locomotionName))
+            Anim.Play(locomotionName, 0.2);
         Vector3 target = cam.GlobalPosition;
         target.Y = GlobalPosition.Y;
         Vector3 toTarget = target - GlobalPosition;
         float flatDist = new Vector2(toTarget.X, toTarget.Z).Length();
-        float realDist = GlobalPosition.DistanceTo(cam.GlobalPosition);
-        if (flatDist < AttackRadius && AttackReady() && IsCurrentAnim(locomotionName)
-            && realDist < maxDistance)
+        if (flatDist < AttackRadius)
         {
-            DoAttack();
+            float realDist = GlobalPosition.DistanceTo(cam.GlobalPosition);
+            if (AttackReady() && IsCurrentAnim(locomotionName) && realDist < maxDistance)
+            {
+                DoAttack();
+                return;
+            }
+            // 半径内 CD 未到:原地等待(只重力,不继续逼近/不收脚走进相机)
+            Velocity = new Vector3(0.0f, Velocity.Y, 0.0f);
+            ApplyGravity(delta);
+            MoveAndSlide();
             return;
         }
         Vector3 dir = new(toTarget.X, 0.0f, toTarget.Z);
@@ -172,16 +201,13 @@ public partial class Monster : CharacterBody3D
         Velocity = new Vector3(dir.X * speed, Velocity.Y, dir.Z * speed);
         ApplyGravity(delta);
         MoveAndSlide();
-        if (!IsCurrentAnim(locomotionName) && Anim.HasAnimation(locomotionName))
-            Anim.Play(locomotionName, 0.2);
     }
 
-    /// <summary>随机播一个攻击动画;0.3s 后触发攻击事件(原动画事件)</summary>
+    /// <summary>随机播一个攻击动画(原作 CrossFade(att,0) 零混合);0.3s 后触发攻击事件(原动画事件)</summary>
     protected virtual void DoAttack()
     {
-        LastAttackTime = Time.GetTicksMsec() / 1000.0;
         string anim = Info.AttackAnims[GD.RandRange(0, Info.AttackAnims.Length - 1)];
-        Anim.Play(anim, 0.1);
+        Anim.Play(anim, 0.0f);
         _attackEventTween?.Kill();
         _attackEventTween = CreateTween();
         _attackEventTween.TweenInterval(AttackEventDelay);
@@ -190,11 +216,12 @@ public partial class Monster : CharacterBody3D
 
     protected bool AttackReady() => Time.GetTicksMsec() / 1000.0 - LastAttackTime >= GetAttackCd();
 
-    /// <summary>攻击事件(原 EventAttack):按怪在屏幕 x 分侧 → PlayerState 结算(含转嫁)</summary>
+    /// <summary>攻击事件(原 EventAttack:lastAttackTime=now,按怪在屏幕 x 分侧 → PlayerState 结算(含转嫁))</summary>
     protected virtual void TriggerAttackEvent()
     {
         if (CurState == State.Dead || CurState == State.Idle)
             return;
+        LastAttackTime = Time.GetTicksMsec() / 1000.0;
         PlayerState.Instance.HitPlayer(GetAttack(), Info.AttackType, PickTargetSide());
     }
 
@@ -214,8 +241,9 @@ public partial class Monster : CharacterBody3D
         if (CurState == State.Dead || CurState == State.Idle)
             return Info.ImpactTag;
         Hp -= attack;
+        LastHitSide = side; // 原作 OnDead(bool Right):掉落只发受击侧
         FireSystem.ShowDamage($"- {(int)attack}", point, this);
-        HpBar.SetHp(Mathf.Max(Hp, 0.0f) / GetMaxHp());
+        HpBar?.SetHp(Mathf.Max(Hp, 0.0f) / GetMaxHp());
         if (Hp <= 0.0f)
             Die();
         else
@@ -234,7 +262,7 @@ public partial class Monster : CharacterBody3D
         Velocity = Vector3.Zero;
         _col.SetDeferred(CollisionShape3D.PropertyName.Disabled, true);
         PlaySound("dead");
-        FireSystem.SpawnBloodFlower(this, new Vector3(0.0f, 1.0f, 0.0f));
+        FireSystem.SpawnBloodFlower(this, Vector3.Zero); // 原作血花挂怪原点(贴脚底)
         if (Anim.HasAnimation(Info.DeadAnim))
             Anim.Play(Info.DeadAnim, 0.1, Info.DeadAnimSpeed);
         OnDeath();
@@ -265,26 +293,32 @@ public partial class Monster : CharacterBody3D
 
     // ------------------------------------------------ 刷怪点(原 GetBornPosition)
 
-    /// <summary>相机前方 ±maxFov 随机偏转,射线最长 maxLength,命中退 0.5m;落点做地面探测</summary>
+    /// <summary>相机 3D forward(带俯仰)绕相机 up ±maxFov 随机偏转,射线最长 maxLength,命中退 0.5m;
+    /// 落点 y -= 胶囊中心 y + 0.1(原作 LevelBase.UpdateMonsterBorn:231-233,不做贴地探测,
+    /// 怪可悬空出生,靠等待期 3m/s 下坠落地——可见"空降"过程)</summary>
     public Vector3 GetBornPosition(float maxFov, float maxLength)
     {
         var cam = GetViewport().GetCamera3D();
         if (cam == null)
             return GlobalPosition;
-        Vector3 forward = -cam.GlobalBasis.Z;
-        Vector3 flat = new(forward.X, 0.0f, forward.Z);
-        if (flat.LengthSquared() < 0.001f)
-            flat = Vector3.Forward;
-        Vector3 dir = flat.Normalized().Rotated(Vector3.Up, Mathf.DegToRad((float)GD.RandRange(-maxFov, maxFov)));
+        Vector3 up = cam.GlobalBasis.Y.Normalized();
+        Vector3 dir = (-cam.GlobalBasis.Z).Normalized()
+            .Rotated(up, Mathf.DegToRad((float)GD.RandRange(-maxFov, maxFov)));
         Vector3 from = cam.GlobalPosition;
         Vector3 to = from + dir * maxLength;
         var space = GetWorld3D().DirectSpaceState;
         var query = PhysicsRayQueryParameters3D.Create(from, to, BornRayMask);
         var result = space.IntersectRay(query);
         Vector3 pos = result.Count == 0 ? to : (Vector3)result["position"] - dir * 0.5f;
-        var ground = space.IntersectRay(PhysicsRayQueryParameters3D.Create(
-            pos + new Vector3(0.0f, 0.5f, 0.0f), pos + new Vector3(0.0f, -2.5f, 0.0f), BornRayMask));
-        pos.Y = ground.Count == 0 ? 0.0f : ((Vector3)ground["position"]).Y;
+        pos.Y -= _col != null ? _col.Position.Y : 0.0f; // pos.y -= CC.center.y
+        pos.Y += 0.1f;
+        // 防嵌地(原作 Unity CC.Move 会自动把嵌入地面的胶囊推出去,Godot CharacterBody3D 不会):
+        // 原点埋进脚下 1.6m 内的地面时抬到地面表面;悬空出生(高于地面/下方无地面)不贴地,
+        // 仍由等待期 3m/s 下坠落地(保留原作"空降"过程)
+        var dep = space.IntersectRay(PhysicsRayQueryParameters3D.Create(
+            pos + new Vector3(0.0f, 1.2f, 0.0f), pos + new Vector3(0.0f, -0.4f, 0.0f), BornRayMask));
+        if (dep.Count != 0 && ((Vector3)dep["position"]).Y > pos.Y)
+            pos.Y = ((Vector3)dep["position"]).Y;
         return pos;
     }
 
@@ -315,8 +349,15 @@ public partial class Monster : CharacterBody3D
 
     public bool IsCurrentAnim(string name) => Anim.CurrentAnimation == name;
 
-    protected bool IsPlayingAny(string[] names) =>
-        Anim.IsPlaying() && System.Array.IndexOf(names, Anim.CurrentAnimation) >= 0;
+    protected bool IsPlayingAny(string[] names)
+    {
+        if (!Anim.IsPlaying())
+            return false;
+        foreach (var n in names)
+            if (Anim.CurrentAnimation == n) // StringName==string 内容比较(IndexOf 装箱永假,勿用)
+                return true;
+        return false;
+    }
 
     protected virtual void ApplyGravity(float delta) =>
         Velocity = new Vector3(Velocity.X, IsOnFloor() ? 0.0f : Velocity.Y - Gravity * delta, Velocity.Z);
@@ -359,7 +400,7 @@ public partial class Monster : CharacterBody3D
     protected virtual void OnBorn() { }
     protected virtual void EnterActive() { }
     protected virtual void UpdateActive(float delta) =>
-        MoveToPlayerAndAttack(delta, "locomotion", MaxDistance);
+        MoveToPlayerAndAttack(delta, "locomotion", Info.MaxDistance);
     protected virtual void OnHurt(Vector3 point, Game.HitType hitType, PlayerState.Side side) { }
     protected virtual void OnDeath() { }
 }

@@ -7,8 +7,8 @@
 [ext_resource type="Material" path="res://assets/models/monsters/axe_zombie/axe_zombie_mat.tres" id="5"]
 
 [sub_resource type="CapsuleShape3D" id="BodyShape"]
-radius = 0.4
-height = 1.6
+radius = 0.3
+height = 2.0
 
 [node name="FlyAxeZombie" type="CharacterBody3D"]
 collision_layer = 2
@@ -17,7 +17,7 @@ script = ExtResource("1")
 MetaKey = "fly_axe_zombie"
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.8, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.0, 0)
 shape = SubResource("BodyShape")
 
 [node name="AnimationPlayer" type="AnimationPlayer" parent="."]
@@ -26,7 +26,7 @@ libraries = {
 }
 
 [node name="HpAnchor" type="Node3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.1, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.53, 0)
 script = ExtResource("2")
 
 [node name="AudioStreamPlayer3D" type="AudioStreamPlayer3D" parent="."]

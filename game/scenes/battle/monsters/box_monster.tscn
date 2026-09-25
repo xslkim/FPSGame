@@ -1,14 +1,13 @@
-[gd_scene load_steps=8 format=3]
+[gd_scene load_steps=7 format=3]
 
 [ext_resource type="Script" path="res://src/Battle/BoxMonster.cs" id="1"]
-[ext_resource type="Script" path="res://src/Battle/MonsterHpBar.cs" id="2"]
 [ext_resource type="PackedScene" path="res://assets/models/monsters/box_monster/treasure_chest_monster.FBX" id="3"]
 [ext_resource type="AnimationLibrary" path="res://assets/models/monsters/box_monster/box_monster_anims.tres" id="4"]
 [ext_resource type="Material" path="res://assets/models/monsters/box_monster/box_monster_mat.tres" id="5"]
 
 [sub_resource type="CapsuleShape3D" id="BodyShape"]
-radius = 0.35
-height = 0.8
+radius = 0.4
+height = 0.4
 
 [node name="BoxMonster" type="CharacterBody3D"]
 collision_layer = 2
@@ -17,17 +16,13 @@ script = ExtResource("1")
 MetaKey = "box"
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.4, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.2, 0)
 shape = SubResource("BodyShape")
 
 [node name="AnimationPlayer" type="AnimationPlayer" parent="."]
 libraries = {
 &"": ExtResource("4")
 }
-
-[node name="HpAnchor" type="Node3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.0, 0)
-script = ExtResource("2")
 
 [node name="AudioStreamPlayer3D" type="AudioStreamPlayer3D" parent="."]
 

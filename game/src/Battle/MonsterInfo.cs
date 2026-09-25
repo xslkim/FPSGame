@@ -34,8 +34,13 @@ public sealed class MonsterInfo
     public float LifeActiveTime;     // >0 覆盖 25s 超时(box=20)
     public float? BornMaxFov;        // born_override(飞斧 15/12、胖僵尸 30/12)
     public float? BornMaxLength;
-    public float? AttackRadiusBase;  // 飞斧:7+rand(0,3)
+    public float? AttackRadiusBase;  // 飞斧:7+rand(0,3)(原作 int 重载,7/8/9)
     public float? AttackRadiusRand;
+    public float HitRate;            // 飞斧命中率(原作 MonsterMeta.HitRate=0.15)
+    public float MaxDistance;        // 攻击距离闸门(原作骷髅/斧/牛=6、飞斧=20)
+    public string BornAnim = "";     // 出生默认动画(原作 controller 默认态;空→IdleAnim??"locomotion")
+    public float Idle2Interval = 5.0f; // 等待期 Idle02 插播间隔(原作 Idle02Time,宝箱 3)
+    public Godot.Collections.Dictionary? Kinds; // 宝箱按 kind 的序列化值(waitting_time/idle2_interval)
 
     public MonsterInfo(string key, Godot.Collections.Dictionary defaults, Godot.Collections.Dictionary over)
     {
@@ -71,6 +76,11 @@ public sealed class MonsterInfo
         }
         AttackRadiusBase = over.ContainsKey("attack_radius_base") ? (float)over["attack_radius_base"].AsDouble() : null;
         AttackRadiusRand = over.ContainsKey("attack_radius_rand") ? (float)over["attack_radius_rand"].AsDouble() : null;
+        HitRate = GetF(over, "hit_rate", GetF(defaults, "hit_rate", 0.15f));
+        MaxDistance = GetF(over, "max_distance", GetF(defaults, "max_distance", 2000.0f));
+        BornAnim = GetStr(over, "born_anim", GetStr(defaults, "born_anim", ""));
+        Idle2Interval = GetF(over, "idle2_interval", GetF(defaults, "idle2_interval", 5.0f));
+        Kinds = over.ContainsKey("kinds") ? over["kinds"].AsGodotDictionary() : null;
     }
 
     public static MonsterInfo Load(string key)
