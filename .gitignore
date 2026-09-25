@@ -21,3 +21,6 @@ game/obj/
 
 # 本地调试日志
 /tools/logs/
+
+# 战斗审计大批量对照截图(161MB,留盘不入库;单张对照图仍放 tools/screenshots 根)
+/tools/screenshots/audit/
