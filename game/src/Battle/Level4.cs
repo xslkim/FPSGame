@@ -17,8 +17,11 @@ public partial class Level4 : LevelBase
     public readonly System.Collections.Generic.List<string> StatG1Keys = new();
     public int StatG6LeftAtStart { get; private set; } = -1; // G6 开始时的 MonsterLeft(空池应为 0)
     public double StatG6StartTime { get; private set; } = -1.0; // G6 开始时刻(验证 2s 胜利延迟)
+    public DragonMonster? StatFirstDragon { get; private set; } // G1 首只红龙(四点/瞬移断言用)
 
     private bool _testFailed;
+    private bool _dragonChecked;
+    private readonly System.Collections.Generic.List<(string Path, float Delay)> _shots = new();
 
     protected override void RegisterMonsterTypes()
     {
@@ -30,7 +33,14 @@ public partial class Level4 : LevelBase
         Pool.RegisterType("dragon_blue",
             GD.Load<PackedScene>("res://scenes/battle/monsters/dragon_blue.tscn"), 4);
         Pool.RegisterType("magma_demon",
-            GD.Load<PackedScene>("res://scenes/battle/monsters/magma_demon.tscn"), 5);
+            GD.Load<PackedScene>("res://scenes/battle/monsters/magma_demon.tscn"), 3);
+        // L4-3:Unity G5 池 Magma Demon-Blue/Green/Orange/Purple 四色各一(材质变体场景,MetaKey 同 magma_demon)
+        Pool.RegisterType("magma_demon_green",
+            GD.Load<PackedScene>("res://scenes/battle/monsters/magma_demon_green.tscn"), 2);
+        Pool.RegisterType("magma_demon_orange",
+            GD.Load<PackedScene>("res://scenes/battle/monsters/magma_demon_orange.tscn"), 2);
+        Pool.RegisterType("magma_demon_purple",
+            GD.Load<PackedScene>("res://scenes/battle/monsters/magma_demon_purple.tscn"), 2);
     }
 
     protected override void EnterLevel()
@@ -46,29 +56,60 @@ public partial class Level4 : LevelBase
         {
             if (a.StartsWith("--level4-shot:"))
             {
-                // 格式 --level4-shot:<path>[:delaySec](从右往左拆,兼容盘符)
-                var rest = a["--level4-shot:".Length..];
-                float delay = 4.0f;
-                string path = rest;
-                int ci = rest.LastIndexOf(':');
-                if (ci > 1 && float.TryParse(rest[(ci + 1)..], out var d))
-                {
-                    delay = d;
-                    path = rest[..ci];
-                }
-                TakeShotDelayed(path, delay);
+                // 格式 --level4-shot:<path>[:delaySec](从右往左拆,兼容盘符),可多次传入
+                var (path, delay) = SplitShotArg(a["--level4-shot:".Length..], 4.0f);
+                _shots.Add((path, delay));
             }
+        }
+        if (_shots.Count > 0)
+        {
+            ShotGuardLoop(); // X-2:同 L3 多 shot + 防玩家死亡守护
+            ShotsSequence();
         }
     }
 
-    /// <summary>延迟截图(真值对比用):窗口模式 --shot-res 设定分辨率</summary>
-    private async void TakeShotDelayed(string path, float delay)
+    /// <summary>截图模式防护(同 L3):外设重连会重置玩家 HP,轮询补无敌并关掉续币面板</summary>
+    private async void ShotGuardLoop()
     {
-        await ToSignal(GetTree().CreateTimer(delay, true, true), SceneTreeTimer.SignalName.Timeout);
-        var img = GetViewport().GetTexture().GetImage();
-        img.SavePng(path.Replace('/', '\\'));
-        GD.Print($"[L4] shot saved: {path}");
+        while (true)
+        {
+            PlayerState.Instance.PlayerRight.Hp = 1.0e6f;
+            PlayerState.Instance.PlayerLeft.Hp = 1.0e6f;
+            if (Game.Instance.IsGamePause)
+            {
+                PlayerState.Instance.PlayerRight.Relife();
+                PlayerState.Instance.PlayerLeft.Relife();
+                var panel = GetNodeOrNull("Camera3D/InGamePanel");
+                if (panel != null && panel.HasMethod("CloseAll"))
+                    panel.Call("CloseAll");
+            }
+            await ToSignal(GetTree().CreateTimer(0.3, true, false, true), SceneTreeTimer.SignalName.Timeout);
+        }
+    }
+
+    /// <summary>统一截图序列(同 L3):等 G0 blend 完成 → 按开战起算时刻依次截图,拍完退出</summary>
+    private async void ShotsSequence()
+    {
+        double t0 = Time.GetTicksMsec() / 1000.0;
+        await ToSignal(GetTree().CreateTimer(2.0, true, false, true), SceneTreeTimer.SignalName.Timeout);
+        KillCameraTweens();
+        foreach (var (path, delay) in _shots)
+        {
+            double remain = delay - (Time.GetTicksMsec() / 1000.0 - t0);
+            if (remain > 0.0)
+                await ToSignal(GetTree().CreateTimer(remain, true, false, true), SceneTreeTimer.SignalName.Timeout);
+            var img = GetViewport().GetTexture().GetImage();
+            img.SavePng(path.Replace('/', '\\'));
+            GD.Print($"[L4] shot saved: {path}");
+        }
         GetTree().Quit();
+    }
+
+    /// <summary>杀掉所有活动 Tween(截图模式防 G0 blend 覆写摆好的机位)</summary>
+    private void KillCameraTweens()
+    {
+        foreach (var tw in GetTree().GetProcessedTweens())
+            tw.Kill();
     }
 
     protected override void StartGroup(int i)
@@ -123,7 +164,11 @@ public partial class Level4 : LevelBase
         BornAhead(m);
         MonsterLeft -= 1;
         if (CurGroup == 1)
+        {
             StatG1Keys.Add(key);
+            if (m is DragonMonster d && StatFirstDragon == null)
+                StatFirstDragon = d; // L4-1/L4-2 自检锚点
+        }
         if (DebugAutoKill)
             GetTree().CreateTimer(0.15).Timeout += () =>
             {
@@ -145,7 +190,9 @@ public partial class Level4 : LevelBase
         if (overrides.ContainsKey(gk))
             length = (float)overrides[gk].AsDouble();
         var prm = m.GetBornParams(fov, length);
-        m.Born(m.GetBornPosition(prm.X, prm.Y), 0, DifficultyWaittingTime());
+        // Unity prefab WaittingTime=0(Dragon-Red / Magma Demon 四色):龙与 Magma 出生即动,不走难度等待
+        float wait = m is DragonMonster or MagmaDemon ? 0.0f : DifficultyWaittingTime();
+        m.Born(m.GetBornPosition(prm.X, prm.Y), 0, wait);
     }
 
     // ------------------------------------------------ 自检
@@ -181,12 +228,55 @@ public partial class Level4 : LevelBase
         LoadMeta();
     }
 
+    /// <summary>L4-3:G5 池构成 = 三色龙 + 四色 Magma 键(Unity MonsterGroup5:Dragon-Red/Blue/Green +
+    /// Magma Demon-Blue/Green/Orange/Purple 各一)</summary>
+    private void CheckG5Pool()
+    {
+        var pool = SaveService.Get(Groups[5].AsGodotDictionary(), "pool",
+            new Godot.Collections.Array()).AsGodotArray();
+        var keys = new System.Collections.Generic.HashSet<string>();
+        foreach (var e in pool)
+            keys.Add(e.AsString());
+        Check(keys.Count == 7 && keys.Contains("dragon_red") && keys.Contains("dragon_blue")
+            && keys.Contains("dragon_green") && keys.Contains("magma_demon")
+            && keys.Contains("magma_demon_green") && keys.Contains("magma_demon_orange")
+            && keys.Contains("magma_demon_purple"),
+            $"G5 pool = 3 dragons + 4 magma colors: {string.Join(",", keys)}");
+    }
+
+    /// <summary>L4-1/L4-2:龙四点公式与出生瞬移断言(G1 波内相机静止,当场重算期望)</summary>
+    private void CheckDragonPoints(DragonMonster d)
+    {
+        var pts = d.GetMovePoints();
+        var cam = Camera!;
+        Vector3 p = cam.GlobalPosition;
+        Vector3 fwd = -cam.GlobalBasis.Z;
+        Vector3 right = cam.GlobalBasis.X;
+        Vector3 up = cam.GlobalBasis.Y;
+        Check(d.StatTeleportPos.DistanceTo(pts[(int)DragonMonster.FlySeg.FarWay]) < 0.01f,
+            $"dragon born teleported to FarWay point ({d.StatTeleportPos})"); // L4-2
+        var exp1 = p + fwd * 75.0f + right * 80.0f;
+        Check(pts[(int)DragonMonster.FlySeg.FarWay].DistanceTo(exp1) < 0.01f,
+            $"FarWay = cam+fwd·75+right·80 (got {pts[(int)DragonMonster.FlySeg.FarWay]})"); // L4-1
+        var d2 = pts[(int)DragonMonster.FlySeg.InCamera] - (p + fwd * 150.0f);
+        float r2 = d2.Dot(right), u2 = d2.Dot(up), f2 = Mathf.Abs(d2.Dot(fwd));
+        Check(f2 < 0.01f && r2 is >= 4.99f and <= 25.01f && u2 is >= -0.01f and <= 40.01f,
+            $"InCamera = cam+fwd·150+right·(15±10)+up·(20±20) (r={r2:0.0} u={u2:0.0} f={f2:0.00})"); // L4-1
+        float d3 = pts[(int)DragonMonster.FlySeg.Attack].DistanceTo(p + up * 0.1f);
+        Check(Mathf.Abs(d3 - 20.0f) < 0.01f,
+            $"Attack = cam+above·0.1 沿(Pos3-Pos2)方向 20m (d={d3:0.00})"); // L4-1
+        var d4 = pts[(int)DragonMonster.FlySeg.CamOffset] - pts[(int)DragonMonster.FlySeg.Attack];
+        Check(Mathf.Abs(d4.Length() - 20.0f) < 0.01f && d4.Dot(right) > 19.99f,
+            $"CamOffset = Attack+right·20 (d={d4.Length():0.00})"); // L4-1
+    }
+
     /// <summary>headless 自检:godot --headless --path game scenes/levels/level4.tscn -- --level4-selftest</summary>
     private async void SelfTest()
     {
         TimeScaleTest = 0.04f;
         DebugAutoKill = true;
         CheckDifficultyCounts();
+        CheckG5Pool();
         int victoryCount = 0;
         double victoryTime = 0.0;
         LevelVictory += () =>
@@ -217,7 +307,15 @@ public partial class Level4 : LevelBase
         // G1 force_pool:只出红龙
         double t1 = Time.GetTicksMsec() / 1000.0;
         while (CurGroup < 2 && Time.GetTicksMsec() / 1000.0 - t1 < 90.0)
+        {
+            if (StatFirstDragon != null && !_dragonChecked)
+            {
+                _dragonChecked = true;
+                CheckDragonPoints(StatFirstDragon); // L4-1/L4-2(相机在 G1 波内静止)
+            }
             await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+        }
+        Check(_dragonChecked, "G1 dragon born → four-point/teleport assertions ran");
         Check(StatG1Keys.Count > 0 && StatG1Keys.TrueForAll(k => k == "dragon_red"),
             $"G1 force_pool spawned only dragon_red: {string.Join(",", StatG1Keys)}");
         // 等胜利信号(G6 空池清场即胜)

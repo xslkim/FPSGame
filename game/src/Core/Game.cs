@@ -20,7 +20,7 @@ public partial class Game : Node
     public GameState SceneState = GameState.UI;
     public Difficulty CurrentDifficulty = Difficulty.Easy;
     public bool IsGamePause;
-    public bool IsDebug = true; // 调试期默认开(照原作)
+    public bool IsDebug = false; // 原作发布态:常关(Player.cs:50-57 子弹 120;Level1 播 19s 开场)
 
     /// <summary>Loading 场景目标(LevelChoose 选定关卡后写入)</summary>
     public string NextScenePath = "";

@@ -11,6 +11,7 @@ namespace FPSGame;
 ///   --level3-selftest       headless 加速全流程断言
 ///   --level3-shot:<path>[:delaySec]       延迟截图(真值对比用),可多次传入
 ///   --level3-camshot:<idx>:<path>         直接机位 idx 截图(相机/环境自查),可多次传入
+///   --level3-freeshot:<x>:<y>:<z>:<lx>:<ly>:<lz>:<path>[:delay]  自由机位(delay 可选,0=立即)
 /// </summary>
 public partial class Level3 : LevelBase
 {
@@ -18,7 +19,7 @@ public partial class Level3 : LevelBase
     private readonly System.Collections.Generic.List<(string Path, float Delay)> _shots = new();
     private readonly System.Collections.Generic.List<(int Idx, string Path)> _camShots = new();
     private readonly System.Collections.Generic.List<((float X, float Y, float Z) Pos,
-        (float X, float Y, float Z) Look, string Path)> _freeShots = new();
+        (float X, float Y, float Z) Look, string Path, float Delay)> _freeShots = new();
 
     /// <summary>L3 怪池:wolf 系新场景 + fat_zombie/rock_warrior;fly_axe/skeleton/box 复用基类注册</summary>
     protected override void RegisterMonsterTypes()
@@ -73,7 +74,8 @@ public partial class Level3 : LevelBase
             }
             else if (a.StartsWith("--level3-freeshot:"))
             {
-                // 格式 --level3-freeshot:<x>:<y>:<z>:<lookX>:<lookY>:<lookZ>:<path>(自由机位,调试)
+                // 格式 --level3-freeshot:<x>:<y>:<z>:<lookX>:<lookY>:<lookZ>:<path>[:delaySec]
+                // (自由机位,调试;delay 可选——相对路径无冒号时可用,0=立即,wave2_i)
                 var rest = a["--level3-freeshot:".Length..];
                 var vals = new float[6];
                 int idx = -1;
@@ -86,7 +88,17 @@ public partial class Level3 : LevelBase
                     idx = ni;
                 }
                 if (ok && idx + 1 < rest.Length)
-                    _freeShots.Add(((vals[0], vals[1], vals[2]), (vals[3], vals[4], vals[5]), rest[(idx + 1)..]));
+                {
+                    string path = rest[(idx + 1)..];
+                    float delay = 0.0f;
+                    int ci = path.LastIndexOf(':');
+                    if (ci > 0 && float.TryParse(path[(ci + 1)..], out var d))
+                    {
+                        delay = d;
+                        path = path[..ci];
+                    }
+                    _freeShots.Add(((vals[0], vals[1], vals[2]), (vals[3], vals[4], vals[5]), path, delay));
+                }
             }
         }
         if (_shots.Count > 0 || _camShots.Count > 0 || _freeShots.Count > 0)
@@ -139,8 +151,11 @@ public partial class Level3 : LevelBase
             await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
             SaveShot(path, $"camshot {idx}");
         }
-        foreach (var (pos, look, path) in _freeShots)
+        foreach (var (pos, look, path, delay) in _freeShots)
         {
+            double remain = delay - (Time.GetTicksMsec() / 1000.0 - t0);
+            if (remain > 0.0)
+                await ToSignal(GetTree().CreateTimer(remain, true, false, true), SceneTreeTimer.SignalName.Timeout);
             if (Camera != null)
             {
                 Camera.GlobalPosition = new Vector3(pos.X, pos.Y, pos.Z);
@@ -240,6 +255,10 @@ public partial class Level3 : LevelBase
         while (Boss == null && Time.GetTicksMsec() / 1000.0 - tWait < 180.0)
             await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
         Check(Boss != null, "G6: boss (rock_warrior) born");
+        // L3-1:boss 出生点 = meta boss_pos(Level3.unity RockWarrior (83.83,-0.02,-101.3) mirror-X)
+        var expectBossPos = new Vector3(-83.83f, -0.02f, -101.3f);
+        Check(Boss != null && Boss.GlobalPosition.DistanceTo(expectBossPos) < 1.0f,
+            $"boss born at meta boss_pos (got {Boss?.GlobalPosition}, expect ≈{expectBossPos})");
         Check(CurGroup == 6, $"boss born at G6 (cur_group={CurGroup})");
         Check(StatBossBgm, "G6: boss_bgm switched");
         if (BgmPlayer != null && BgmPlayer.Stream != null)

@@ -1042,9 +1042,10 @@ sky_material = SubResource("PanoramaSkyMaterial_ajl6r")
 [sub_resource type="Environment" id="Environment_msof2"]
 background_mode = 2
 sky = SubResource("Sky_62mla")
-ambient_light_source = 3
-ambient_light_energy = 0.6
-; Unity RenderSettings 测绘:Fog=ExpSquared(density 0.005,color 0.1408/0.2182/0.2388);环境光=Sky 0.6(夜景烘焙,legacy 视觉基线)
+ambient_light_source = 2
+ambient_light_color = Color(0.8014706, 0.80081123, 0.7543253, 1)
+ambient_light_energy = 1.0
+; Unity RenderSettings 测绘:Fog=ExpSquared(density 0.005,color 0.1408/0.2182/0.2388);环境光=flat (0.8015,0.8008,0.7543)×1(AmbientMode 3,Level4.unity)
 fog_enabled = true
 fog_light_color = Color(0.14078858, 0.21824287, 0.23880595, 1)
 fog_density = 0.005
@@ -1825,11 +1826,9 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -38.281006, 19.497322, -2.042
 
 [node name="Directional light" type="DirectionalLight3D" parent="Light" unique_id=1401883805]
 transform = Transform3D(0.9967621, 0.0036198646, -0.080325045, -0.060178414, -0.6289605, -0.7751047, -0.053327043, 0.77742887, -0.6267062, 50.543945, 785.09625, 679.5963)
-visible = false
 light_color = Color(0.8358209, 0.944891, 1, 1)
 light_energy = 0.57
 shadow_enabled = true
-metadata/deactivated_by_budget = true
 
 [node name="Pointlights" type="Node3D" parent="Light" unique_id=503646765]
 

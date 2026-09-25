@@ -123,9 +123,15 @@
       },
       "level_cap": 6,
       "use_fire_windows": true,
+      "box_wait_ak": 15.0,
+      "box_wait_m4": 20.0,
+      "box_wait_bullet": 20.0,
       "groups": [
         {
           "monster_num": 30,
+          "num_override": {
+            "hard": 30
+          },
           "interval": 3.0,
           "max_alive": 3.0,
           "bullet_box_rate": 0.05,
@@ -187,6 +193,11 @@
       "born_max_fov_wide": 40.0,
       "boss": "rock_warrior",
       "boss_group": 6,
+      "boss_pos": {
+        "x": -83.83,
+        "y": -0.02,
+        "z": -101.3
+      },
       "bgm": "res://assets/audio/bgm/Level3.ogg",
       "boss_bgm": "res://assets/audio/bgm/Level3Boss.mp3",
       "groups": [
@@ -373,12 +384,12 @@
           "bullet_box_rate": 0.08,
           "pool": [
             "dragon_red",
-            "dragon_green",
             "dragon_blue",
+            "dragon_green",
             "magma_demon",
-            "magma_demon",
-            "magma_demon",
-            "magma_demon"
+            "magma_demon_green",
+            "magma_demon_orange",
+            "magma_demon_purple"
           ]
         },
         {

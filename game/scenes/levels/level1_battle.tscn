@@ -14,8 +14,10 @@ ambient_light_source = 2
 ambient_light_color = Color(1, 1, 1, 1)
 ambient_light_energy = 1.0
 fog_enabled = true
+fog_mode = 1
 fog_light_color = Color(0.581, 0.585, 0.43, 1)
-fog_density = 0.08
+fog_depth_begin = 5.0
+fog_depth_end = 12.0
 
 [node name="Level1Battle" type="Node3D"]
 script = ExtResource("1")

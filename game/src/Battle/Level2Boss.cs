@@ -7,9 +7,12 @@ namespace FPSGame;
 /// 动画速度体系 Normal0.5/Attack0.3/Slow0.05,难度倍率由关卡设置(easy×1/hard×2.25/hell×4);
 /// 出场 0.8s 震屏信号;移动目标=相机位置+forward*12、y=-8、速度 4(直接 translate 不用碰撞移动),
 /// 朝目标以 5*dt 插值转身;到位后按 CD 攻击:
-///   50% Skill1(物理单体,50% 选边) / 50% Skill2(冰,雷柱特效激活 0.5s 后 Both,伤害×0.5);
+///   50% Skill1(物理单体,50% 选边优先、目标不活跃回退另一边;出手前按选边 transform.Rotate
+///   SkillRight1=(-20,0,0)/SkillLeft1=(-20,80,0),Level2.unity 序列化值,Skill2 的 SkillRight2=(0,0,0) 为无操作)
+///   / 50% Skill2(冰,雷柱特效激活 0.5s 后 Both,伤害×0.5);
 /// 部位判定:Armour 只弹金属音效不掉血;Head/Body 掉血(FireSystem 默认 Body);
-/// Damage02 状态中无敌;死亡不回收(关卡处理胜利与清理)。
+/// Damage02 状态中无敌;Dead 状态持续下沉(Unity m_char.Move(Vector3.down*dt)=1m/s);
+/// 死亡不回收(关卡处理胜利与清理)。
 /// </summary>
 public partial class Level2Boss : Monster
 {
@@ -28,6 +31,10 @@ public partial class Level2Boss : Monster
     public const float HurtCdPenalty = 3.0f;
     public const double EntranceShakeTime = 0.8;
 
+    /// <summary>Skill1 出手旋转(Level2.unity 序列化值,度;SkillRight2/SkillLeft2=(0,0,0) 无操作不实现)</summary>
+    public static readonly Vector3 SkillRight1 = new(-20.0f, 0.0f, 0.0f);
+    public static readonly Vector3 SkillLeft1 = new(-20.0f, 80.0f, 0.0f);
+
     private const string LightningScenePath = "res://assets/effects/lightning_pillar.tscn";
     private const string BodyMatPath = "res://assets/models/monsters/level2_boss/level2_boss_mat.tres";
     private const string WeaponMatPath = "res://assets/models/monsters/level2_boss/level2_boss_weapon_mat.tres";
@@ -37,11 +44,14 @@ public partial class Level2Boss : Monster
 
     // 自检统计:技能实际结算次数(Skill1/Skill2 事件)
     public int StatSkillCount;
+    public int StatSkill1RotateCount;         // Skill1 出手旋转次数(L2-6)
+    public Vector3 StatLastSkill1Rotate;      // 最近一次旋转向量(度)
 
     private bool _arrived;
     private Node3D? _lightningFx;
     private float _lightningTime;
     private Tween? _eventTween;
+    private PlayerState.Side _skill1Side = PlayerState.Side.Right;
 
     public void SetDifficultyAnimRate(double rate) => AnimSpeedRate = rate;
 
@@ -116,12 +126,39 @@ public partial class Level2Boss : Monster
         {
             LastAttackTime = Time.GetTicksMsec() / 1000.0;
             string skill = GD.Randf() < 0.5f ? "Skill1" : "Skill2"; // 50% Skill1 / 50% Skill2
+            if (skill == "Skill1")
+                _skill1Side = PickSkill1SideAndRotate(); // L2-6:出手前按选边 Rotate
             Anim.Play(skill, 0.1, SpeedAttack * (float)AnimSpeedRate);
             _eventTween?.Kill();
             _eventTween = CreateTween();
             _eventTween.TweenInterval(AttackEventDelay);
             _eventTween.TweenCallback(Callable.From(TriggerAttackEvent));
         }
+    }
+
+    /// <summary>Skill1 选边(Unity Attack:50% 先选右/左,不活跃回退另一边)并按选边本地旋转
+    /// SkillRight1=(-20,0,0)/SkillLeft1=(-20,80,0)(Unity transform.Rotate,Space.Self)</summary>
+    private PlayerState.Side PickSkill1SideAndRotate()
+    {
+        bool rightUp = IsSideUp(PlayerState.Side.Right);
+        bool leftUp = IsSideUp(PlayerState.Side.Left);
+        var side = GD.Randf() < 0.5f
+            ? (rightUp ? PlayerState.Side.Right : PlayerState.Side.Left)
+            : (leftUp ? PlayerState.Side.Left : PlayerState.Side.Right);
+        var deg = side == PlayerState.Side.Right ? SkillRight1 : SkillLeft1;
+        var t = Transform;
+        t.Basis *= Basis.FromEuler(new Vector3(
+            Mathf.DegToRad(deg.X), Mathf.DegToRad(deg.Y), Mathf.DegToRad(deg.Z)));
+        Transform = t;
+        StatSkill1RotateCount += 1;
+        StatLastSkill1Rotate = deg;
+        return side;
+    }
+
+    private static bool IsSideUp(PlayerState.Side side)
+    {
+        var p = PlayerState.Instance.GetPlayer(side);
+        return p.Active && p.Hp > 0.0f;
     }
 
     private void LerpFace(Vector3 to, float delta)
@@ -152,12 +189,11 @@ public partial class Level2Boss : Monster
             HertPlayerSkill2();
     }
 
-    /// <summary>Skill1:物理单体,50% 选边(目标不活跃由 HitPlayer 转嫁换边)</summary>
+    /// <summary>Skill1:物理单体(选边在出手时已定,L2-6;目标不活跃由 HitPlayer 转嫁换边)</summary>
     private void HertPlayerSkill1()
     {
         StatSkillCount += 1;
-        var side = GD.Randf() < 0.5f ? PlayerState.Side.Right : PlayerState.Side.Left;
-        PlayerState.Instance.HitPlayer(GetAttack(), Game.AttackType.Phy, side);
+        PlayerState.Instance.HitPlayer(GetAttack(), Game.AttackType.Phy, _skill1Side);
     }
 
     /// <summary>Skill2:冰,雷柱特效激活,0.5s 后 Both,伤害×0.5</summary>
@@ -223,7 +259,8 @@ public partial class Level2Boss : Monster
         return Info.ImpactTag;
     }
 
-    /// <summary>死亡:播 dead(Slow 0.05 慢速体系),发 died 信号,不回收(关卡处理胜利与清理)</summary>
+    /// <summary>死亡:播 dead(Slow 0.05 慢速体系),发 died 信号,不回收(关卡处理胜利与清理);
+    /// Dead 状态持续下沉(Unity Update Dead 分支 m_char.Move(Vector3.down*dt)=1m/s)</summary>
     protected async override void Die()
     {
         CurState = State.Dead;
@@ -237,6 +274,17 @@ public partial class Level2Boss : Monster
         OnDeath();
         EmitSignal(SignalName.Died, this);
         await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame); // 保持 async 签名同基类
+    }
+
+    /// <summary>L2-7:Dead 状态 1m/s 持续下沉(等效 Unity m_char.Move(down*dt)),由关卡胜利后清理</summary>
+    public override void _PhysicsProcess(double delta)
+    {
+        if (CurState == State.Dead)
+        {
+            GlobalPosition += Vector3.Down * (float)delta;
+            return;
+        }
+        base._PhysicsProcess(delta);
     }
 
     /// <summary>胜利后由关卡清理(基类 Deactivate 为 protected,这里开公共口)</summary>

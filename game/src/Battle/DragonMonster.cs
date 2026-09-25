@@ -4,30 +4,38 @@ namespace FPSGame;
 
 /// <summary>
 /// Dragon 红/蓝/绿共用(6.3 Dragon;meta key 区分,attack_type: 红=Phy / 蓝=Ice / 绿=Poison):
-/// 四点巡回飞行 FarWay→InCamera→Attack→CamOffset 循环(照 legacy dragon.gd):
-/// 参数 Forward150/Right160/Up20/CamUp0.1/CamRight20/RightOffset15,
-/// Pos2(InCamera)带 rand(-10,10) 横向与 rand(-20,20) 竖向抖动;
-/// 入场点恒取右侧(原作左右随机分支为死代码,保留语义);非 Attack 段速度×2;
+/// 四点巡回飞行 FarWay→InCamera→Attack→CamOffset 循环,逐帧公式照 Unity DragonMonster.cs:43-92
+/// InitMovePosition(参数 Forward150/Right160/Up20/CamUp0.1/CamRight20/RightOffset15):
+///   Pos1(FarWay)  = cam + fwd·(150/2) + right·(160/2)          (无 up 分量)
+///   Pos2(InCamera)= cam + fwd·150 + right·(15±10) + up·(20±20)
+///   Pos3(Attack)  = cam + up·0.1 + (Pos3-Pos2).normalized·20   (贴脸:过相机点沿远离 Pos2 方向 20m)
+///   Pos4(CamOffset)= Pos3 + right·20
+/// born 时直接瞬移到 FarWay(Unity born() transform.position=FarWay),首个移动目标 InCamera;
+/// 入场恒取右侧(原作 Random.Range(0,100)>0 仅 1% 走左,保留"恒右"语义并标注);
+/// 非 Attack 段移速×2 且飞行动画 speed=2(Unity born/每循环 m_ani.speed=2);
 /// Attack 段与相机距离&lt;attack_radius(75) 播 FireBreathOnce(0.75 倍速)+ 火焰锥特效
 /// (fire_breath.tscn 挂龙口 (0,1,-3);蓝/绿逐实例改火焰色调)+ 攻击事件基类半屏结算;
-/// TakeDamage 播放中无敌(hit 返回空);死亡坠落 y&lt;-3 回收(不走基类 1.5s 定时)。
-/// 三色变体材质由 .tscn BodyMaterial 注入。
+/// TakeDamage 播放中无敌(hit 返回空);死亡恒速 3/s 下落(Unity DropToDie m_char.Move(down·3·dt)),
+/// y&lt;-3 回收(不走基类 1.5s 定时)。三色变体材质由 .tscn BodyMaterial 注入。
 /// </summary>
 public partial class DragonMonster : Monster
 {
     public enum FlySeg { FarWay, InCamera, Attack, CamOffset }
 
-    public const float PForward = 150.0f;
-    public const float PRight = 160.0f;
-    public const float PUp = 20.0f;
-    public const float PCamUp = 0.1f;
-    public const float PCamRight = 20.0f;
-    public const float PRightOffset = 15.0f;
+    public const float PForward = 150.0f;  // Pos2 前距;Pos1 取其半
+    public const float PRight = 160.0f;    // Pos1 右距取其半(80)
+    public const float PUp = 20.0f;        // Pos2 竖向基准
+    public const float PCamUp = 0.1f;      // Pos3 相机上方偏移
+    public const float PCamRight = 20.0f;  // Pos4 横向偏移
+    public const float PRightOffset = 15.0f; // Pos2 横向基准
     public const float Pos2JitterX = 10.0f;  // Pos2 横向 rand(-10,10)
     public const float Pos2JitterY = 20.0f;  // Pos2 竖向 rand(-20,20)
+    public const float AttackPointDist = 20.0f; // Pos3 距相机上方点 20m
     public const float ArriveDist = 2.0f;
+    public const float FlyAnimSpeed = 2.0f;    // 非 Attack 段飞行动画倍速(Unity m_ani.speed=2)
     public const float BreathAnimSpeed = 0.75f;
     public const float BreathClipLen = 0.8f; // clip 0.8s ÷ 0.75 倍速
+    public const float DeadFallSpeed = 3.0f; // 死亡恒速下落(Unity down*3*dt)
     public const float FallRecycleY = -3.0f;
     public const string LocomotionAnim = "locomotion";
 
@@ -40,12 +48,19 @@ public partial class DragonMonster : Monster
 
     [Export] public Material BodyMaterial = null!; // M7 颜色变体材质(red/blue/green .tscn 配置)
 
+    // 自检钩子:born 时四点快照与瞬移落点(Level4 断言四点公式/出生瞬移)
+    public Vector3 StatTeleportPos { get; private set; }
+    private readonly Vector3[] _points = new Vector3[4];
+
     private FlySeg _segment = FlySeg.FarWay;
     private Vector3 _target;
     private GpuParticles3D _breathFx = null!;
     private Node3D _breathRoot = null!;
     private float _breathTime;
     private AudioStreamPlayer3D _breathAudio = null!;
+
+    /// <summary>当前四点快照(自检用,索引=FlySeg)</summary>
+    public Vector3[] GetMovePoints() => (Vector3[])_points.Clone();
 
     public override void _Ready()
     {
@@ -60,34 +75,39 @@ public partial class DragonMonster : Monster
         }
     }
 
+    /// <summary>born:四点初始化后直接瞬移到 FarWay,首个目标 InCamera(Unity born() 语义)</summary>
     protected override void OnBorn()
     {
-        _segment = FlySeg.FarWay;
         _breathTime = 0.0f;
-        _target = MakePoint(_segment);
+        InitMovePosition();
+        GlobalPosition = _points[(int)FlySeg.FarWay]; // L4-2:出生瞬移到画外远点
+        StatTeleportPos = GlobalPosition;
+        _segment = FlySeg.InCamera;
+        _target = _points[(int)FlySeg.InCamera];
         EnsureBreathFx();
     }
 
-    /// <summary>入场点恒取右侧(+right*160):原作左右随机分支为死代码恒右(方案 §10),保留语义并标注。</summary>
-    private Vector3 MakePoint(FlySeg seg)
+    /// <summary>四点公式(Unity InitMovePosition,isRight 恒 true;up/right 取相机基向量)</summary>
+    private void InitMovePosition()
     {
         var cam = GetViewport().GetCamera3D();
         if (cam == null)
-            return GlobalPosition;
+            return;
         Vector3 p = cam.GlobalPosition;
         Vector3 fwd = -cam.GlobalBasis.Z;
         Vector3 right = cam.GlobalBasis.X;
-        return seg switch
-        {
-            FlySeg.FarWay => p + fwd * PForward + right * PRight + Vector3.Up * PUp,
-            FlySeg.InCamera => p + fwd * PCamRight + Vector3.Up * PCamUp
-                + right * (float)GD.RandRange(-Pos2JitterX, Pos2JitterX)
-                + Vector3.Up * (float)GD.RandRange(-Pos2JitterY, Pos2JitterY),
-            // 攻击点取 attack_radius 内(75×0.8=60&lt;75),到位即进入吐息判定
-            FlySeg.Attack => p + fwd * AttackRadius * 0.8f + right * PRightOffset,
-            FlySeg.CamOffset => p + fwd * PCamRight + right * PRightOffset + Vector3.Up * PCamUp,
-            _ => p,
-        };
+        Vector3 up = cam.GlobalBasis.Y;
+        Vector3 pos1 = p + fwd * (PForward / 2.0f) + right * (PRight / 2.0f);
+        Vector3 pos2 = p + fwd * PForward
+            + right * (PRightOffset + (float)GD.RandRange(-Pos2JitterX, Pos2JitterX))
+            + up * (PUp + (float)GD.RandRange(-Pos2JitterY, Pos2JitterY));
+        Vector3 pos3 = p + up * PCamUp;
+        pos3 += (pos3 - pos2).Normalized() * AttackPointDist;
+        Vector3 pos4 = pos3 + right * PCamRight;
+        _points[(int)FlySeg.FarWay] = pos1;
+        _points[(int)FlySeg.InCamera] = pos2;
+        _points[(int)FlySeg.Attack] = pos3;
+        _points[(int)FlySeg.CamOffset] = pos4;
     }
 
     protected override void UpdateActive(float delta)
@@ -106,8 +126,15 @@ public partial class DragonMonster : Monster
         Vector3 to = _target - GlobalPosition;
         if (to.Length() < ArriveDist)
         {
-            _segment = (FlySeg)(((int)_segment + 1) % 4); // CamOffset 后回 FarWay,重随机(抖动在 MakePoint)
-            _target = MakePoint(_segment);
+            // 段推进:FarWay→InCamera→Attack→CamOffset→FarWay;到 Attack 后重算四点(原作循环重启)
+            _segment = (FlySeg)(((int)_segment + 1) % 4);
+            if (_segment == FlySeg.CamOffset)
+            {
+                InitMovePosition();
+                if (_breathFx != null)
+                    _breathFx.Emitting = false; // VFX.SetActive(false)
+            }
+            _target = _points[(int)_segment];
             return;
         }
         Vector3 dir = to.Normalized();
@@ -118,7 +145,8 @@ public partial class DragonMonster : Monster
         GlobalPosition += dir * speed * delta;
         if (!IsCurrentAnim(LocomotionAnim) && !IsPlayingAny(Info.AttackAnims)
             && Anim.HasAnimation(LocomotionAnim))
-            Anim.Play(LocomotionAnim, 0.2);
+            // L4-8:非 Attack 段飞行动画 speed=2(Unity m_ani.speed=2)
+            Anim.Play(LocomotionAnim, 0.2, _segment == FlySeg.Attack ? 1.0f : FlyAnimSpeed);
         if (_segment == FlySeg.Attack)
             UpdateBreath(cam);
     }
@@ -182,7 +210,7 @@ public partial class DragonMonster : Monster
         return base.Hit(attack, point, hitType, side);
     }
 
-    /// <summary>死亡:坠落 y&lt;-3 回收(不调基类 1.5s 定时回收)</summary>
+    /// <summary>死亡:恒速 3/s 坠落,y&lt;-3 回收(不调基类 1.5s 定时回收)</summary>
     protected override void Die()
     {
         CurState = State.Dead;
@@ -202,9 +230,8 @@ public partial class DragonMonster : Monster
     {
         if (CurState == State.Dead)
         {
-            float d = (float)delta;
-            Velocity = new Vector3(Velocity.X, Velocity.Y - Gravity * d, Velocity.Z);
-            GlobalPosition += Velocity * d;
+            // L4-9:恒速 3/s 下落(Unity DropToDie m_char.Move(Vector3.down*3*dt))
+            GlobalPosition += Vector3.Down * (DeadFallSpeed * (float)delta);
             if (GlobalPosition.Y < FallRecycleY)
                 Recycle();
             return;

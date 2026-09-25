@@ -39,6 +39,10 @@ public partial class Level2 : LevelBase
     public double StatBossAnimRate;
     public int StatBossLevel = -1;
     public double StatBossDeadTime = -1.0;
+    public int StatToonBorn;             // L2-2:Toon 出生数(wait 恒 0 断言用)
+    public double StatLastToonWait = -1.0;
+
+    private readonly System.Collections.Generic.List<(string Path, float Delay)> _shots = new();
 
     // ------------------------------------------------ 进场/元数据
 
@@ -65,29 +69,60 @@ public partial class Level2 : LevelBase
         {
             if (a.StartsWith("--level2-shot:"))
             {
-                // 格式 --level2-shot:<path>[:delaySec](从右往左拆,兼容盘符)
-                var rest = a["--level2-shot:".Length..];
-                float delay = 8.0f;
-                string path = rest;
-                int ci = rest.LastIndexOf(':');
-                if (ci > 1 && float.TryParse(rest[(ci + 1)..], out var d))
-                {
-                    delay = d;
-                    path = rest[..ci];
-                }
-                TakeShotDelayed(path, delay);
+                // 格式 --level2-shot:<path>[:delaySec](从右往左拆,兼容盘符),可多次传入
+                var (path, delay) = SplitShotArg(a["--level2-shot:".Length..], 8.0f);
+                _shots.Add((path, delay));
             }
+        }
+        if (_shots.Count > 0)
+        {
+            ShotGuardLoop(); // X-2:同 L3 多 shot + 防玩家死亡守护
+            ShotsSequence();
         }
     }
 
-    /// <summary>延迟截图(真值对比用):窗口模式 --shot-res 设定分辨率</summary>
-    private async void TakeShotDelayed(string path, float delay)
+    /// <summary>截图模式防护(同 L3):外设重连会重置玩家 HP,轮询补无敌并关掉续币面板</summary>
+    private async void ShotGuardLoop()
     {
-        await ToSignal(GetTree().CreateTimer(delay, true, true), SceneTreeTimer.SignalName.Timeout);
-        var img = GetViewport().GetTexture().GetImage();
-        img.SavePng(path.Replace('/', '\\'));
-        GD.Print($"[L2] shot saved: {path}");
+        while (true)
+        {
+            PlayerState.Instance.PlayerRight.Hp = 1.0e6f;
+            PlayerState.Instance.PlayerLeft.Hp = 1.0e6f;
+            if (Game.Instance.IsGamePause)
+            {
+                PlayerState.Instance.PlayerRight.Relife();
+                PlayerState.Instance.PlayerLeft.Relife();
+                var panel = GetNodeOrNull("Camera3D/InGamePanel");
+                if (panel != null && panel.HasMethod("CloseAll"))
+                    panel.Call("CloseAll");
+            }
+            await ToSignal(GetTree().CreateTimer(0.3, true, false, true), SceneTreeTimer.SignalName.Timeout);
+        }
+    }
+
+    /// <summary>统一截图序列(同 L3):等 G0 blend 完成 → 按开战起算时刻依次截图,拍完退出</summary>
+    private async void ShotsSequence()
+    {
+        double t0 = Time.GetTicksMsec() / 1000.0;
+        await ToSignal(GetTree().CreateTimer(2.0, true, false, true), SceneTreeTimer.SignalName.Timeout);
+        KillCameraTweens();
+        foreach (var (path, delay) in _shots)
+        {
+            double remain = delay - (Time.GetTicksMsec() / 1000.0 - t0);
+            if (remain > 0.0)
+                await ToSignal(GetTree().CreateTimer(remain, true, false, true), SceneTreeTimer.SignalName.Timeout);
+            var img = GetViewport().GetTexture().GetImage();
+            img.SavePng(path.Replace('/', '\\'));
+            GD.Print($"[L2] shot saved: {path}");
+        }
         GetTree().Quit();
+    }
+
+    /// <summary>杀掉所有活动 Tween(截图模式防 G0 blend 覆写摆好的机位)</summary>
+    private void KillCameraTweens()
+    {
+        foreach (var tw in GetTree().GetProcessedTweens())
+            tw.Kill();
     }
 
     private void CollectWindows()
@@ -127,12 +162,37 @@ public partial class Level2 : LevelBase
     private int _curBaseLevel;
     private int _curGroupNum = 1; // 本波总数(等级公式分母,基类 CalcGroupParams 非 virtual,自取)
 
+    /// <summary>本波有效数量:基类公式 num=(int)(monster_num×DiffRate),组内 num_override 按难度覆盖优先。
+    /// L2-1 bug-for-bug:Unity Level2.cs:54 Hard G0 有 (int)DiffRateHard 强转 bug
+    /// ((int)(30×(int)1.5)=30×1=30,非 45;G1/G2 无强转两边一致),json G0 num_override.hard=30 数据化还原</summary>
+    private int EffectiveGroupNum(int i)
+    {
+        var g = Groups[i].AsGodotDictionary();
+        var ov = SaveService.Get(g, "num_override",
+            new Godot.Collections.Dictionary()).AsGodotDictionary();
+        string dk = Game.Instance.CurrentDifficulty switch
+        {
+            Game.Difficulty.Hard => "hard",
+            Game.Difficulty.Hell => "hell",
+            _ => "easy",
+        };
+        if (ov.ContainsKey(dk))
+            return ov[dk].AsInt32();
+        return (int)(SaveService.Get(g, "monster_num", 0).AsDouble() * DiffRate);
+    }
+
     protected override void StartGroup(int i)
     {
         base.StartGroup(i);
         var g = Groups[i].AsGodotDictionary();
         _curBaseLevel = SaveService.Get(g, "base_level", 0).AsInt32();
-        _curGroupNum = Mathf.Max((int)(SaveService.Get(g, "monster_num", 0).AsDouble() * DiffRate), 1);
+        int effNum = EffectiveGroupNum(i);
+        if (effNum != SaveService.Get(Cur, "num", 0).AsInt32())
+        {
+            Cur["num"] = effNum; // num_override 覆盖基类计算值(L2-1)
+            MonsterLeft = effNum;
+        }
+        _curGroupNum = Mathf.Max(effNum, 1);
         _activeWindows.Clear();
         if (i < _windowGroups.Length)
             _activeWindows.AddRange(_windowGroups[i]);
@@ -249,7 +309,10 @@ public partial class Level2 : LevelBase
             int lv = CalcMonsterLevel();
             w!.FireMonster = tm;
             tm.FireWindow = w;
-            tm.Born(w.GetSrcPosition(), lv, DifficultyWaittingTime()); // 从 SrcPosition 翻窗爬入
+            // L2-2:Unity ToonSolder/Alien1 prefab WaittingTime=0,出生即到窗即射(不走难度等待)
+            StatToonBorn += 1;
+            StatLastToonWait = 0.0;
+            tm.Born(w.GetSrcPosition(), lv, 0.0f); // 从 SrcPosition 翻窗爬入
         }
         else
         {
@@ -269,14 +332,17 @@ public partial class Level2 : LevelBase
             };
     }
 
-    /// <summary>补给箱出生(box_born 参数,不占窗口);G0 静态(原作 StaticBox:born 后移速清零,G1 起恢复)</summary>
+    /// <summary>补给箱出生(box_born 参数,不占窗口);G0 静态(原作 StaticBox:born 后移速清零,G1 起恢复);
+    /// L2-3:等待时间按箱 kind 从 meta 读(box_wait_ak=15/box_wait_m4=20/box_wait_bullet=20,
+    /// 字段名与 BoxMonster/meta 约定一致;Unity BoxAk/BoxM4/BoxBullet prefab WaittingTime=15/20/20)</summary>
     private void BornBox(Monster m)
     {
         var bb = SaveService.Get(Meta, "box_born", new Godot.Collections.Dictionary()).AsGodotDictionary();
         float fov = (float)SaveService.Get(bb, "max_fov", 33.0).AsDouble();
         float len = (float)SaveService.Get(bb, "max_length", 12.0).AsDouble();
         var prm = m.GetBornParams(fov, len);
-        m.Born(m.GetBornPosition(prm.X, prm.Y), 0, DifficultyWaittingTime());
+        float wait = m is BoxMonster box ? BoxWaitByKind(box.Kind) : 0.0f;
+        m.Born(m.GetBornPosition(prm.X, prm.Y), 0, wait);
         if (CurGroup == 0)
         {
             m.Info.MoveSpeed = 0.0f; // 静态箱(下一波 born 时恢复 3)
@@ -287,6 +353,14 @@ public partial class Level2 : LevelBase
             m.Info.MoveSpeed = 3.0f; // 恢复默认逃跑跳(meta box move_speed)
         }
     }
+
+    /// <summary>箱等待按 kind:AK 15s / M4 20s / 子弹 20s(Unity 箱 prefab WaittingTime)</summary>
+    private float BoxWaitByKind(BoxMonster.BoxKind kind) => kind switch
+    {
+        BoxMonster.BoxKind.GunAK => (float)SaveService.Get(Meta, "box_wait_ak", 15.0).AsDouble(),
+        BoxMonster.BoxKind.GunM4 => (float)SaveService.Get(Meta, "box_wait_m4", 20.0).AsDouble(),
+        _ => (float)SaveService.Get(Meta, "box_wait_bullet", 20.0).AsDouble(),
+    };
 
     // ------------------------------------------------ 等级公式(7.2)
 
@@ -420,21 +494,18 @@ public partial class Level2 : LevelBase
             _testFailed = true;
     }
 
-    /// <summary>本波数量(同基类公式:num=(int)(monster_num×DiffRate))</summary>
-    private int GroupNum(int i)
-    {
-        var g = Groups[i].AsGodotDictionary();
-        return (int)(SaveService.Get(g, "monster_num", 0).AsDouble() * DiffRate);
-    }
+    /// <summary>本波数量(同 StartGroup 有效公式:基类 (int)(monster_num×DiffRate) + num_override 覆盖)</summary>
+    private int GroupNum(int i) => EffectiveGroupNum(i);
 
-    /// <summary>难度数量断言:Easy 30/30/40,Hard 45/45/60,Hell 60/60/80</summary>
+    /// <summary>难度数量断言:Easy 30/30/40,Hard 30/45/60(G0=30 为 Unity (int) 强转 bug-for-bug,
+    /// L2-1;G1/G2 无强转 45/60),Hell 60/60/80</summary>
     private void CheckDifficultyCounts()
     {
         var saved = Game.Instance.CurrentDifficulty;
         var cases = new System.Collections.Generic.Dictionary<Game.Difficulty, int[]>
         {
             [Game.Difficulty.Easy] = new[] { 30, 30, 40 },
-            [Game.Difficulty.Hard] = new[] { 45, 45, 60 },
+            [Game.Difficulty.Hard] = new[] { 30, 45, 60 },
             [Game.Difficulty.Hell] = new[] { 60, 60, 80 },
         };
         foreach (var kv in cases)
@@ -564,6 +635,13 @@ public partial class Level2 : LevelBase
         Check(victoryCount == 1, "level_victory emitted exactly once");
         Check(bossRef != null && bossRef.StatSkillCount > 0,
             $"boss skill fired in battle ({bossRef?.StatSkillCount} hits)");
+        // L2-6:Skill1 若出手,旋转向量必为 SkillRight1/SkillLeft1 之一(本局可能只放了 Skill2)
+        Check(bossRef == null || bossRef.StatSkill1RotateCount == 0
+            || bossRef.StatLastSkill1Rotate == Level2Boss.SkillRight1
+            || bossRef.StatLastSkill1Rotate == Level2Boss.SkillLeft1,
+            $"skill1 rotate vector ∈ {{SkillRight1,SkillLeft1}} (count={bossRef?.StatSkill1RotateCount})");
+        Check(StatToonBorn > 0 && StatLastToonWait == 0.0,
+            $"toon born wait=0 (Unity prefab WaittingTime=0, {StatToonBorn} born)"); // L2-2
         Check(StatBossDeadTime > 0.0 && victoryTime - StatBossDeadTime >= 1.8,
             $"boss died → ~2s → victory (delay={victoryTime - StatBossDeadTime:0.00}s)");
         Check(StatGroupsStarted.Count == 3 && string.Join("", StatGroupsStarted) == "012",

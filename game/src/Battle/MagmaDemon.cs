@@ -3,12 +3,13 @@ using Godot;
 namespace FPSGame;
 
 /// <summary>
-/// MagmaDemonBlue(6.3 MagmaDemon,照 legacy magma_demon.gd):
+/// MagmaDemonBlue(6.3 MagmaDemon,照 Unity MagmaDemon.cs;四色变体共用,meta 同取 magma_demon):
 /// 出生自定义:忽略关卡传入点,相机前 10m + 四方向(右/左/上/下,Right=2/Up=2 + OutOffset=6,
-/// 合计 8)随机一边;先飞到屏幕内随机点(相机前 8~12m、±4m 横向、-1~3m 竖向),
+/// 合计 8)随机一边,正交轴带 rand(±2) 抖动(Unity GetBornPosition:左右轴抖 up±2,上下轴抖 right±2);
+/// 先飞到屏幕内随机点(相机前 10m、right±2、up rand(-3,1),Unity screenPos 区间),
 /// 到位面向相机进 idle → CD 到 → attack01/02 循环;
-/// 受击动画半速重播,播完回 idle 恢复;死亡坠落 y&lt;-3 回收;等待期悬浮。
-/// 移速恒 8(meta move_speed=8,出生 level=0 即 8);颜色变体材质 .tscn BodyMaterial 注入。
+/// 受击动画半速重播,播完回 idle 恢复;死亡恒速 3/s 下落(Unity DropToDie down·3·dt),y&lt;-3 回收;
+/// 等待期悬浮。移速恒 8(meta move_speed=8,出生 level=0 即 8);颜色变体材质 .tscn BodyMaterial 注入。
 /// </summary>
 public partial class MagmaDemon : Monster
 {
@@ -16,8 +17,14 @@ public partial class MagmaDemon : Monster
     public const float BornRight = 2.0f;
     public const float BornUp = 2.0f;
     public const float BornOutOffset = 6.0f;
+    public const float BornJitter = 2.0f;   // 出生正交轴 rand(±2) 抖动(Unity GetBornPosition)
+    public const float ScreenFwd = 10.0f;   // 屏幕内落点前距(Unity screenPos forward=10)
+    public const float ScreenRight = 2.0f;  // 落点横向 rand(±2)
+    public const float ScreenUpMin = -3.0f; // 落点竖向 rand(-Up-1, Up-1)=(-3,1)
+    public const float ScreenUpMax = 1.0f;
     public const float FlyArrive = 0.5f;
     public const float HurtAnimSpeed = 0.5f;
+    public const float DeadFallSpeed = 3.0f; // 死亡恒速下落(Unity DropToDie down*3*dt)
     public const float FallRecycleY = -3.0f;
 
     public enum Phase { FlyIn, Combat }
@@ -43,34 +50,36 @@ public partial class MagmaDemon : Monster
         }
     }
 
-    /// <summary>出生自定义:相机前 10m + 四向随机一边(偏移 2+6=8)</summary>
+    /// <summary>出生自定义:相机前 10m + 四向随机一边(偏移 2+6=8),正交轴 rand(±2) 抖动</summary>
     protected override void OnBorn()
     {
         var cam = GetViewport().GetCamera3D();
         if (cam == null)
             return;
         Vector3 p = cam.GlobalPosition + -cam.GlobalBasis.Z * BornForward;
+        Vector3 right = cam.GlobalBasis.X;
+        Vector3 up = cam.GlobalBasis.Y;
         BornAxis = (int)(GD.Randi() % 4);
         Vector3 off = BornAxis switch
         {
-            0 => cam.GlobalBasis.X * (BornRight + BornOutOffset),
-            1 => -cam.GlobalBasis.X * (BornRight + BornOutOffset),
-            2 => Vector3.Up * (BornUp + BornOutOffset),
-            _ => -Vector3.Up * (BornUp + BornOutOffset),
+            0 => right * (BornRight + BornOutOffset) + up * (float)GD.RandRange(-BornJitter, BornJitter),
+            1 => -right * (BornRight + BornOutOffset) + up * (float)GD.RandRange(-BornJitter, BornJitter),
+            2 => up * (BornUp + BornOutOffset) + right * (float)GD.RandRange(-BornJitter, BornJitter),
+            _ => -up * (BornUp + BornOutOffset) + right * (float)GD.RandRange(-BornJitter, BornJitter),
         };
         GlobalPosition = p + off;
         BornPos = GlobalPosition;
     }
 
-    /// <summary>进入活跃:先飞到屏幕内随机点</summary>
+    /// <summary>进入活跃:先飞到屏幕内随机点(Unity screenPos:fwd·10 / right±2 / up(-3~1))</summary>
     protected override void EnterActive()
     {
         _phase = Phase.FlyIn;
         var cam = GetViewport().GetCamera3D();
         if (cam != null)
-            _screenPoint = cam.GlobalPosition + -cam.GlobalBasis.Z * (float)GD.RandRange(8.0, 12.0)
-                + cam.GlobalBasis.X * (float)GD.RandRange(-4.0, 4.0)
-                + Vector3.Up * (float)GD.RandRange(-1.0, 3.0);
+            _screenPoint = cam.GlobalPosition + -cam.GlobalBasis.Z * ScreenFwd
+                + cam.GlobalBasis.X * (float)GD.RandRange(-ScreenRight, ScreenRight)
+                + cam.GlobalBasis.Y * (float)GD.RandRange(ScreenUpMin, ScreenUpMax);
     }
 
     protected override void UpdateActive(float delta)
@@ -117,7 +126,7 @@ public partial class MagmaDemon : Monster
             Anim.Play(Info.DamageAnim, 0.1, HurtAnimSpeed);
     }
 
-    /// <summary>死亡:坠落 y&lt;-3 回收(不调基类 1.5s 定时回收)</summary>
+    /// <summary>死亡:恒速 3/s 坠落,y&lt;-3 回收(不调基类 1.5s 定时回收)</summary>
     protected override void Die()
     {
         CurState = State.Dead;
@@ -135,9 +144,8 @@ public partial class MagmaDemon : Monster
     {
         if (CurState == State.Dead)
         {
-            float d = (float)delta;
-            Velocity = new Vector3(Velocity.X, Velocity.Y - Gravity * d, Velocity.Z);
-            GlobalPosition += Velocity * d;
+            // L4-9:恒速 3/s 下落(Unity DropToDie m_char.Move(Vector3.down*3*dt))
+            GlobalPosition += Vector3.Down * (DeadFallSpeed * (float)delta);
             if (GlobalPosition.Y < FallRecycleY)
                 Recycle();
             return;

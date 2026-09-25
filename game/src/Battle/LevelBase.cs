@@ -75,6 +75,7 @@ public partial class LevelBase : Node3D
         PlayerState.Instance.PlayerDied += OnPlayerDied;
         if (FireSys != null)
             FireSys.OpenContinue += (isOpen, side) => EmitSignal(SignalName.OpenContinue, isOpen, side);
+        ApplyShotRes(); // --shot-res:WxH 截图分辨率(全关卡生效)
         ResetGameState();
         EnterLevel();
     }
@@ -107,6 +108,31 @@ public partial class LevelBase : Node3D
 
     /// <summary>派生覆盖:开场演出,结束后调 StartBattle()</summary>
     protected virtual void EnterLevel() => StartBattle();
+
+    /// <summary>截图分辨率:--shot-res:WxH → 切窗口模式并设尺寸(真值对比用,同 UI 屏)</summary>
+    protected static void ApplyShotRes()
+    {
+        foreach (var a in OS.GetCmdlineUserArgs())
+        {
+            if (!a.StartsWith("--shot-res:"))
+                continue;
+            var wh = a["--shot-res:".Length..].Split('x');
+            if (wh.Length == 2 && int.TryParse(wh[0], out var w) && int.TryParse(wh[1], out var h))
+            {
+                DisplayServer.WindowSetMode(DisplayServer.WindowMode.Windowed);
+                DisplayServer.WindowSetSize(new Vector2I(w, h));
+            }
+        }
+    }
+
+    /// <summary>从右往左拆 &lt;path&gt;:&lt;tailNum&gt;(兼容盘符冒号);拆不出给默认值</summary>
+    protected static (string Path, float Num) SplitShotArg(string rest, float defNum)
+    {
+        int ci = rest.LastIndexOf(':');
+        if (ci > 1 && float.TryParse(rest[(ci + 1)..], out var d))
+            return (rest[..ci], d);
+        return (rest, defNum);
+    }
 
     /// <summary>开场结束/无开场 → 开战:开输入、绑枪、播 bgm、开 G0</summary>
     protected virtual void StartBattle()
@@ -165,7 +191,9 @@ public partial class LevelBase : Node3D
         Cur = CalcGroupParams(i);
         MonsterLeft = SaveService.Get(Cur, "num", 0).AsInt32();
         PoolIdx = 0;
-        SpawnTimer = 0.0f;
+        // 原作 lastBornTime 初值 0:冻结结束首 tick 立即刷(Time.time-0>interval 恒成立);
+        // 预置为 interval,冻结后第一帧即刷(G0 首怪 ~21s 入中景,对位 l1u_intro_21s)
+        SpawnTimer = SaveService.Get(Cur, "interval", 3.0).AsSingle() * TimeScaleTest;
         FreezeTimer = SpawnFreezeTime * TimeScaleTest; // 切机位后冻结刷怪 2 秒
         StatFreezes += 1;
         SwitchCamera(i);
@@ -251,8 +279,11 @@ public partial class LevelBase : Node3D
             SpawnTimer += (float)delta;
             if (SpawnTimer >= SaveService.Get(Cur, "interval", 3.0).AsSingle() * TimeScaleTest)
             {
-                SpawnTimer = 0.0f;
+                // 原作 lastBornTime 仅在 born 成功时更新:未刷出(槽位忙/达上限)保持计时,下帧重试
+                int leftBefore = MonsterLeft;
                 SpawnTick();
+                if (MonsterLeft < leftBefore)
+                    SpawnTimer = 0.0f;
             }
         }
         CheckProgress();
@@ -326,7 +357,10 @@ public partial class LevelBase : Node3D
         if (lenOverrides.ContainsKey(gk))
             length = (float)lenOverrides[gk].AsDouble();
         var prm = m.GetBornParams(fov, length);
-        m.Born(m.GetBornPosition(prm.X, prm.Y), level, 0.0f); // WaittingTime 由关卡钩子按类型设置
+        // 宝箱按 kind 传 prefab/场景序列化等待时间(school_day 三箱全 20s,原作恒传 WaittingTime=20 级别;
+        // 普通怪 WaittingTime=0,由关卡钩子(Level1.OnMonsterBorn)按难度覆盖)
+        float waitTime = m is BoxMonster bm2 ? BoxMonster.WaittingTimeOf(bm2.Kind) : 0.0f;
+        m.Born(m.GetBornPosition(prm.X, prm.Y), level, waitTime);
         OnMonsterBorn(m);
         MonsterLeft -= 1; // 箱子占本波配额
         if (DebugAutoKill)

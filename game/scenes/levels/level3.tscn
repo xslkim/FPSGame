@@ -1,4 +1,4 @@
-[gd_scene load_steps=11 format=3]
+[gd_scene load_steps=12 format=3]
 
 [ext_resource type="Script" path="res://src/Battle/Level3.cs" id="1"]
 [ext_resource type="Script" path="res://src/Battle/FireSystem.cs" id="2"]
@@ -6,6 +6,9 @@
 [ext_resource type="Script" path="res://src/Battle/InGamePanel.cs" id="4"]
 [ext_resource type="PackedScene" path="res://scenes/levels/env_level3.tscn" id="5"]
 [ext_resource type="Texture2D" path="res://assets/textures/skybox/level3_sky.png" id="6"]
+
+[sub_resource type="BoxShape3D" id="BoxShape_BossGround"]
+size = Vector3(20, 1, 30)
 
 [sub_resource type="PanoramaSkyMaterial" id="Pano"]
 panorama = ExtResource("6")
@@ -17,11 +20,11 @@ sky_material = SubResource("Pano")
 background_mode = 2
 sky = SubResource("Sky")
 ambient_light_source = 2
-ambient_light_color = Color(0.4672, 0.4672, 0.4672, 1)
+ambient_light_color = Color(0.7075472, 0.7075472, 0.7075472, 1)
 ambient_light_energy = 1.0
 fog_enabled = true
 fog_mode = 1
-fog_light_color = Color(0.1028, 0.1949, 0.2965, 1)
+fog_light_color = Color(0.3555981, 0.47552913, 0.5754717, 1)
 fog_depth_begin = 20.0
 fog_depth_end = 90.0
 fog_sky_affect = 0.0
@@ -85,3 +88,13 @@ transform = Transform3D(-0.642791, -0.133016, 0.754408, 6.4922e-06, 0.984808, 0.
 script = ExtResource("3")
 
 [node name="BGM" type="AudioStreamPlayer" parent="."]
+
+; wave2_i:Boss 走位地面补丁——烘焙环境在 boss_pos(meta,-83.83,-0.02,-101.3,mirror-X 真值)
+; 所在街区块(x≈-96..-80 条带)缺碰撞(Unity 该处有地面,Boss 站立/走向 36m 攻击圈);
+; 待环境重导出补齐后删除。顶面 y=-0.02 = Unity Boss 脚底高度;layer1/mask0 照环境件约定。
+[node name="BossGroundPatch" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -88, -0.52, -98.5)
+collision_mask = 0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="BossGroundPatch"]
+shape = SubResource("BoxShape_BossGround")

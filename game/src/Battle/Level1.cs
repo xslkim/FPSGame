@@ -31,7 +31,10 @@ public partial class Level1 : LevelBase
         }
         bool wantIntro = System.Array.IndexOf(args, "--level1-intro") >= 0
             || System.Array.FindIndex(args, a => a.StartsWith("--level1-shot:")) >= 0;
-        if (Game.Instance.IsDebug && !wantIntro)
+        // 截图/跳波挂接显式走 debug 直开,与 IsDebug 开关解耦(正常游戏流程应播 19s 开场)
+        bool wantDebugJump = System.Array.FindIndex(args, a => a.StartsWith("--level1-shot-battle:")
+            || a.StartsWith("--level1-shot-boss:") || a.StartsWith("--level1-shot-group:")) >= 0;
+        if ((Game.Instance.IsDebug || wantDebugJump) && !wantIntro)
         {
             GD.Print("[L1] debug: 跳过 19s 开场直接开战");
             // 开场对象清理(debug 直开)
@@ -52,16 +55,14 @@ public partial class Level1 : LevelBase
                 else if (a.StartsWith("--level1-shot-battle:"))
                 {
                     // 格式 --level1-shot-battle:<path>[:delaySec](从右往左拆,兼容盘符)
-                    var rest = a["--level1-shot-battle:".Length..];
-                    float delay = 4.0f;
-                    string path = rest;
-                    int ci = rest.LastIndexOf(':');
-                    if (ci > 1 && float.TryParse(rest[(ci + 1)..], out var d))
-                    {
-                        delay = d;
-                        path = rest[..ci];
-                    }
+                    var (path, delay) = SplitShotArg(a["--level1-shot-battle:".Length..], 4.0f);
                     TakeShotDelayed(path, delay);
+                }
+                else if (a.StartsWith("--level1-shot-group:"))
+                {
+                    // 直跳第 g 波截图(原作 Level1Shot L1_SHOT_GROUPS:强制 StartMonsterGroup(g) 2.5s 后截)
+                    var (path, g) = SplitShotArg(a["--level1-shot-group:".Length..], 0);
+                    CallDeferred(nameof(DebugJumpGroup), path, (int)g);
                 }
             }
             return;
@@ -70,14 +71,19 @@ public partial class Level1 : LevelBase
         foreach (var a in args)
         {
             if (a.StartsWith("--level1-shot:"))
-                TakeShotDelayed(a["--level1-shot:".Length..], 6.0f); // 开场行进中
+            {
+                var (path, delay) = SplitShotArg(a["--level1-shot:".Length..], 6.0f);
+                TakeShotDelayed(path, delay); // 开场行进中(可指定秒,对位真值时间戳)
+            }
         }
     }
 
     /// <summary>延迟截图(真值对比用):窗口模式 --shot-res 设定分辨率</summary>
     private async void TakeShotDelayed(string path, float delay)
     {
+        ApplyShotRes();
         // 激光验证:瞄准可视区中心(光束从枪口到命中点,红点贴面);等一帧确保视口尺寸就绪
+        await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
         await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
         InputRouter.Instance.MouseGun.SimulateMove(GetViewport().GetVisibleRect().Size / 2.0f);
         await ToSignal(GetTree().CreateTimer(delay, true, true), SceneTreeTimer.SignalName.Timeout);
@@ -143,7 +149,9 @@ public partial class Level1 : LevelBase
 
     /// <summary>出生后修正(原作 Level1.LevelUpdate):全体面向相机;
     /// 牛魔王/斧头/小骷髅(原作 _Name 序列化同为 0,同一分支)y+0.2、x<0 时 x+0.3,
-    /// 等待时长按难度 Easy rand(3,8)/Hard rand(0,2)/Hell 0;飞斧/宝箱不等待(默认值 0)</summary>
+    /// 等待时长按难度 Easy rand(3,8)/Hard rand(0,2)/Hell 0;飞斧/宝箱不等待(默认值 0)。
+    /// 注意:本场景环境整体 X 镜像,x 微调随之翻转(原作 x<0→+0.3 ⇒ 本侧 x>0→−0.3,
+    /// 裁决见 tools/research/battle_audit/battle0_mirror_verdict.md)</summary>
     protected override void OnMonsterBorn(Monster m)
     {
         m.FaceCamera();
@@ -151,8 +159,8 @@ public partial class Level1 : LevelBase
         {
             var p = m.GlobalPosition;
             p.Y += 0.2f;
-            if (p.X < 0.0f)
-                p.X += 0.3f;
+            if (p.X > 0.0f)
+                p.X -= 0.3f;
             m.GlobalPosition = p;
             m.WaittingTime = DifficultyWaittingTime();
         }
@@ -161,6 +169,7 @@ public partial class Level1 : LevelBase
     /// <summary>debug:跳 G4 Boss 波并截图(爱心弱点验证)</summary>
     private async void DebugJumpBoss(string path)
     {
+        ApplyShotRes();
         // 等一帧确保视口尺寸就绪,瞄准 Boss 方位(屏幕中心偏左,z=66 方向)
         await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
         InputRouter.Instance.MouseGun.SimulateMove(GetViewport().GetVisibleRect().Size / 2.0f);
@@ -174,6 +183,27 @@ public partial class Level1 : LevelBase
         var img = GetViewport().GetTexture().GetImage();
         img.SavePng(path.Replace('/', '\\'));
         GD.Print($"[L1] boss shot saved: {path}");
+        GetTree().Quit();
+    }
+
+    /// <summary>debug:强制切到第 g 波并截图(对位原作 Level1Shot L1_SHOT_GROUPS:强制 StartMonsterGroup(g) 后 2.5s 截,含 1s blend 落定)</summary>
+    private async void DebugJumpGroup(string path, int g)
+    {
+        ApplyShotRes();
+        await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+        await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+        InputRouter.Instance.MouseGun.SimulateMove(GetViewport().GetVisibleRect().Size / 2.0f);
+        // 清场(避免 G0 已刷的怪堆叠,同 DebugJumpBoss)
+        foreach (var m in GetTree().GetNodesInGroup("monster"))
+            if (m is Monster mm && mm.IsActiveState)
+                mm.Hit(99999.0f, mm.GlobalPosition, Game.HitType.Body, PlayerState.Side.Right);
+        StartGroup(g);
+        GD.Print($"[L1] jump group {g}: cam pos={Camera?.GlobalPosition} quat={Camera?.Quaternion} fov={Camera?.Fov}");
+        await ToSignal(GetTree().CreateTimer(2.5f, true, true), SceneTreeTimer.SignalName.Timeout);
+        GD.Print($"[L1] group{g} cam pos={Camera?.GlobalPosition} quat={Camera?.Quaternion} fov={Camera?.Fov}");
+        var img = GetViewport().GetTexture().GetImage();
+        img.SavePng(path.Replace('/', '\\'));
+        GD.Print($"[L1] group{g} shot saved: {path}");
         GetTree().Quit();
     }
 
@@ -224,6 +254,25 @@ public partial class Level1 : LevelBase
         TimeScaleTest = 0.04f;
         DebugAutoKill = true;
         CheckDifficultyCounts();
+        // 怪物真值断言(wave1 修复):宝箱等待/舔舐间隔按 kind(school_day 场景序列化 20/20/20、Idle02Time 3/3/5);
+        // 飞斧命中率的难度倍率走本关 diff_rate(1.8/2.6);近战 max_distance 6 / 飞斧 20
+        Check(BoxMonster.WaittingTimeOf(BoxMonster.BoxKind.Bullet) == 20.0f
+            && BoxMonster.WaittingTimeOf(BoxMonster.BoxKind.GunAK) == 20.0f
+            && BoxMonster.WaittingTimeOf(BoxMonster.BoxKind.GunM4) == 20.0f,
+            "box waitting_time 20/20/20 (school_day serialized)");
+        Check(BoxMonster.Idle2IntervalOf(BoxMonster.BoxKind.Bullet) == 3.0f
+            && BoxMonster.Idle2IntervalOf(BoxMonster.BoxKind.GunAK) == 3.0f
+            && BoxMonster.Idle2IntervalOf(BoxMonster.BoxKind.GunM4) == 5.0f,
+            "box idle2_interval 3/3/5 (prefab Idle02Time)");
+        var flyInfo = MonsterInfo.Load("fly_axe_zombie");
+        Check(flyInfo.HitRate == 0.15f && flyInfo.MaxDistance == 20.0f,
+            "fly axe hit_rate 0.15 / max_distance 20");
+        Check(MonsterInfo.Load("skeleton").MaxDistance == 6.0f
+            && MonsterInfo.Load("axe_zombie").MaxDistance == 6.0f
+            && MonsterInfo.Load("bull").MaxDistance == 6.0f,
+            "melee max_distance 6 (SK/Axe/Nmw)");
+        Check(MonsterInfo.Load("bull").Idle2Anim.Length == 0,
+            "bull no Idle02 state (nmw.controller)");
         int victoryCount = 0;
         double victoryTime = 0.0;
         LevelVictory += () =>
