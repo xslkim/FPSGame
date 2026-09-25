@@ -46,8 +46,10 @@ public partial class LaserSight : Node3D
     private Sprite3D? _dot;
     private double _scroll;
 
-    /// <summary>创建激光:tint=颜色,radius=光束半径(原作 UI 线宽 0.023/战斗 0.03),withDot=是否带终点红点</summary>
-    public static LaserSight Create(Color tint, float radius, bool withDot, float dotWorldSize = 0.09f)
+    /// <summary>创建激光:tint=颜色,radius=远端光束半径(原作战斗 widthCurve 远端 0.03/2),
+    /// withDot=是否带终点红点,nearRadius=近端(枪口)半径(原作 widthCurve 近端 0.0089/2 近细远粗;
+    /// 不传则与 radius 相同成圆柱)</summary>
+    public static LaserSight Create(Color tint, float radius, bool withDot, float dotWorldSize = 0.09f, float nearRadius = -1.0f)
     {
         var l = new LaserSight { Name = "LaserSight", TopLevel = true, Visible = false };
         l._mat = new StandardMaterial3D
@@ -68,12 +70,14 @@ public partial class LaserSight : Node3D
         l._beam = new MeshInstance3D
         {
             Name = "Beam",
-            // 圆柱高沿本地 Y,转 90° 后沿父级 Z 轴;根节点 -Z 指向目标
+            // 圆柱高沿本地 Y,转 90° 后沿父级 Z 轴;根节点 -Z 指向目标。
+            // 转 +90° 后圆柱 Top(+Y)朝 +Z 即枪口(近)端 → TopRadius=近端细,BottomRadius=远端粗
+            // (原作 LineRenderer widthCurve 0.0089→0.03,线性,沿线长 200m)
             Rotation = new Vector3(Mathf.Pi / 2.0f, 0.0f, 0.0f),
             CastShadow = GeometryInstance3D.ShadowCastingSetting.Off,
             Mesh = new CylinderMesh
             {
-                TopRadius = radius,
+                TopRadius = nearRadius >= 0.0f ? nearRadius : radius,
                 BottomRadius = radius,
                 Height = 1.0f,
                 RadialSegments = 8,

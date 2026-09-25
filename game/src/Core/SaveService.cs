@@ -5,7 +5,8 @@ namespace FPSGame;
 
 /// <summary>
 /// SaveService [autoload]:数值配置(data/*.json)+ 用户存档(user://save.json)。
-/// 对应原作 DataMgr / UserData(金币经济:UTC 计时,每 180s +1 币,上限 10,变更落盘)。
+/// 对应原作 DataMgr / UserData(金币经济:UTC 计时,每 180s +1 币,上限 10,变更落盘;
+/// 回复计时仅续币面板打开期间推进 —— 原作 InGamePanel.Update 门控,平时不回复)。
 /// </summary>
 public partial class SaveService : Node
 {
@@ -49,22 +50,25 @@ public partial class SaveService : Node
         LoadUserData();
     }
 
-    public override void _Process(double delta) => RegenCoins();
-
     // ------------------------------------------------ 金币经济(8.3)
 
-    /// <summary>全局回币:UTC 秒,180s +1,上限 MaxCoin,落盘</summary>
-    private void RegenCoins()
+    /// <summary>回币计时推进:仅续币(Continue)面板打开期间由 InGamePanel 逐帧调用(原作
+    /// InGamePanel.cs Update 门控),平时不回复。过期结算:未满每周期 +1,满币仅推进计时
+    /// (面板倒计时循环显示);币数变化时落盘 + Changed。</summary>
+    public void TickCoinRegen()
     {
-        if (Coin >= MaxCoin)
-            return;
         double now = Time.GetUnixTimeFromSystem();
+        if (LastAddCoinTime + AddCoinTime > now)
+            return;
         bool changed = false;
-        while (Coin < MaxCoin && LastAddCoinTime + AddCoinTime <= now)
+        while (LastAddCoinTime + AddCoinTime <= now)
         {
-            Coin += 1;
+            if (Coin < MaxCoin)
+            {
+                Coin += 1;
+                changed = true;
+            }
             LastAddCoinTime += AddCoinTime;
-            changed = true;
         }
         if (changed)
         {
@@ -85,13 +89,9 @@ public partial class SaveService : Node
         return true;
     }
 
-    /// <summary>距下一枚回币的秒数(面板倒计时用);满币返回 0</summary>
-    public double TimeToNextCoin()
-    {
-        if (Coin >= MaxCoin)
-            return 0.0;
-        return System.Math.Max(0.0, LastAddCoinTime + AddCoinTime - Time.GetUnixTimeFromSystem());
-    }
+    /// <summary>距下一枚回币的秒数(面板倒计时用);满币也按周期循环(原作倒计时不受满币特判)</summary>
+    public double TimeToNextCoin() =>
+        System.Math.Max(0.0, LastAddCoinTime + AddCoinTime - Time.GetUnixTimeFromSystem());
 
     /// <summary>通关结算落盘(8.3):星级/分数取历史最高</summary>
     public void SetLevelResult(int idx, int star, int score, int rank)

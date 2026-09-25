@@ -51,8 +51,48 @@ public partial class GunBase : Node3D
         LastFireTime = now;
         Player.UseBullet(BulletCost);
         _flash.Fire();
+        PlayFireAnimation();
         if (_audio.Stream != null)
             _audio.Play();
         return (true, true);
+    }
+
+    private AnimationPlayer? _ani;
+    private bool _aniSearched;
+    private Node3D? _model;
+    private Vector3 _modelBasePos;
+    private Tween? _recoilTween;
+
+    /// <summary>开火后座:原作 Fire 时 _Ani.Play() 播枪 FBX legacy "Shoot" 动画
+    /// (HandGun.cs:36/AKGun.cs:50/M4Gun.cs:36;三枪 FBX 同名 take,Unity 切帧 1-6≈0.2s)。
+    /// 模型带 AnimationPlayer 则整段播放其唯一 take(FBX 仅这一个 take,内容即 Shoot);
+    /// 否则(ak47 导入后无 AnimationPlayer)用等效 tween:枪体沿 +Z 快速后移 0.012m、0.2s 回弹。</summary>
+    private void PlayFireAnimation()
+    {
+        if (!_aniSearched)
+        {
+            _aniSearched = true;
+            _ani = FindChild("AnimationPlayer", true, false) as AnimationPlayer;
+            _model = GetNodeOrNull<Node3D>("Model");
+            if (_model != null)
+                _modelBasePos = _model.Position;
+        }
+        if (_ani != null)
+        {
+            var list = _ani.GetAnimationList();
+            if (list.Length > 0)
+            {
+                _ani.Stop();
+                _ani.Play(list[0]);
+                return;
+            }
+        }
+        if (_model == null)
+            return;
+        _recoilTween?.Kill();
+        _model.Position = _modelBasePos + new Vector3(0, 0, 0.012f);
+        _recoilTween = CreateTween();
+        _recoilTween.TweenProperty(_model, "position", _modelBasePos, 0.2)
+            .SetEase(Tween.EaseType.Out);
     }
 }

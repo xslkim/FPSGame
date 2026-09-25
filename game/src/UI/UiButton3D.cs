@@ -51,12 +51,11 @@ public partial class UiButton3D : StaticBody3D
         {
             ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded,
             AlbedoColor = _bgColor,
+            // 无贴图也要让 AlbedoColor alpha 生效(战斗暂停键底框 alpha 0.2353)
+            Transparency = BaseMaterial3D.TransparencyEnum.Alpha,
         };
         if (_texturePath != null && ResourceLoader.Exists(_texturePath))
-        {
             _mat.AlbedoTexture = GD.Load<Texture2D>(_texturePath);
-            _mat.Transparency = BaseMaterial3D.TransparencyEnum.Alpha;
-        }
         _mesh = new MeshInstance3D
         {
             Name = "Bg",
@@ -81,6 +80,8 @@ public partial class UiButton3D : StaticBody3D
         };
         UiTheme.ApplyLabel3D(_label);
         AddChild(_label);
+        // 透明队列按实例深度排序,微小 z 差可能排不进底图之前;给文字排序偏移兜底
+        _label.SortingOffset = 0.1f;
         UpdateVisual();
     }
 
@@ -115,6 +116,22 @@ public partial class UiButton3D : StaticBody3D
     {
         _bgColor = c;
         UpdateVisual();
+    }
+
+    /// <summary>显隐 + 碰撞联动:隐藏时枪射线不可命中(等价原作 GameObject.SetActive)</summary>
+    public void SetActiveVisible(bool v)
+    {
+        Visible = v;
+        CollisionLayer = v ? 0b100u : 0u;
+    }
+
+    public override void _Process(double delta)
+    {
+        // 自身或父级面板隐藏时禁碰撞(原作 SetActive(false) 碰撞体即失效;
+        // 只设 Visible 的隐藏按钮会继续吃开枪射线)
+        uint want = IsVisibleInTree() ? 0b100u : 0u;
+        if (CollisionLayer != want)
+            CollisionLayer = want;
     }
 
     private void UpdateVisual()

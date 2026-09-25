@@ -5,10 +5,12 @@ namespace FPSGame;
 /// <summary>
 /// FireSystem:挂在战斗相机下,管理左右枪节点(原作 FireSystem.cs)。
 /// 每帧(LateUpdate 语义):枪口旋转 = 输入瞄准 → 枪口射线 2000 →
-/// 激光瞄准器(LaserSight,右红/左绿,照原作 Lazer.mat)从枪口伸到命中点、红点贴面,
-/// 未命中沿瞄准方向伸 200m(照原作线长)→ 命中点摆光标火光(距离衰减公式照 5.3) →
+/// 激光瞄准器(LaserSight,右红/左绿,照原作 Lazer.mat)从枪口恒伸 200m
+/// (原作 LineRenderer (0,0,0)→(0,0,200):打怪穿透,墙体遮挡段由深度剔除) →
+/// 命中点摆光标火光(右手红 Flash.prefab/左手绿 FlashGreen.prefab,距离衰减公式照 5.3) →
 /// 扳机 → Button 触发 / 开枪(CD+耗弹) →
-/// 敌人 hit() 或环境弹着特效(池化)。换枪:key2 边沿 → 旧枪下沉 → 新枪升起(~1s)。
+/// 敌人 hit() 或环境弹着特效(池化)。换枪:key2 边沿 → 旧枪 0.5s 下沉收起 →
+/// 新枪直接出现在最终位置(照原作字面行为:伸出循环作用于已隐藏旧枪,新枪瞬现;换枪期不挡扳机)。
 /// 弹尽且 Battle 态 → OpenContinue(true, side)(只发一次,补弹复位)。
 /// </summary>
 public partial class FireSystem : Node3D
@@ -18,10 +20,13 @@ public partial class FireSystem : Node3D
     public const float RayLength = 2000.0f;
     public const uint RayMask = 0xFFFFFFF7; // 除 layer4(CameraWall)外全部
     public const int PoolSize = 3;
-    public const int BloodFlowerPoolSize = 5;
+    public const int ConcretePoolSize = 4;    // 原作 FireSystem.prefab ConcreteEffect×4(其余×3)
+    public const int BloodFlowerPoolSize = 3; // 原作 _BloodEffects×3
     public const float SwitchSink = 0.10f;   // 换枪下沉量(+Z,相机看 -Z)
     public const float SwitchDownTime = 0.5f;
-    public const float SwitchUpTime = 0.55f;
+    /// <summary>枪模型统一缩放系数:真值截图手枪 ~320×180px vs 旧值 ~440×250px(同 1472×668 FOV45)
+    /// → 0.725;三枪同包(Weapons Pack LOW POLY)同导入管线,AK/M4 无真值截图,按同系数推断</summary>
+    public const float GunModelScale = 0.725f;
 
     public static readonly string[] GunModelPaths =
     {
@@ -51,12 +56,12 @@ public partial class FireSystem : Node3D
     private readonly System.Collections.Generic.Dictionary<PlayerState.Side, GunBase?> _currentGun = new();
     private readonly System.Collections.Generic.Dictionary<PlayerState.Side, MeshInstance3D> _flash = new();
     private readonly System.Collections.Generic.Dictionary<PlayerState.Side, LaserSight> _lazer = new();
-    private readonly System.Collections.Generic.Dictionary<PlayerState.Side, bool> _switching = new();
     private readonly System.Collections.Generic.Dictionary<PlayerState.Side, bool> _emptySignaled = new();
     private readonly System.Collections.Generic.Dictionary<string, EffectBase[]> _effects = new();
     private readonly System.Collections.Generic.Dictionary<string, int> _effectIdx = new();
     private EffectBase[] _bloodFlowers = System.Array.Empty<EffectBase>();
-    private Label3D[] _damageLabels = System.Array.Empty<Label3D>();
+    /// <summary>掉血飘字池(原作 MonstHp HpReduceText:每怪 3 个复用池)</summary>
+    private readonly System.Collections.Generic.Dictionary<Node3D, Label3D[]> _damagePools = new();
     private AudioStreamPlayer? _uiShotPlayer;
 
     public override void _Ready()
@@ -72,16 +77,19 @@ public partial class FireSystem : Node3D
             _anchors[side] = anchor;
             _guns[side] = new System.Collections.Generic.Dictionary<int, GunBase>();
             _currentGun[side] = null;
-            _switching[side] = false;
             _emptySignaled[side] = false;
-            // 命中光标火光(flash_point19 为加色贴图:alpha 全 255、光存 RGB;
-            // 普通 Sprite3D 是 alpha 混合会带黑底 → 用 billboard quad + BlendMode.Add)
+            // 命中光标火光(原作 Effect/Flash.prefab 右手红 (1,0,0) / FlashGreen.prefab 左手绿 (0,1,0.034):
+            // 根 scale 0.5(运行时被 flashScale 公式覆盖)、Darkness 粒子 startSize 0.5、
+            // Blend_CenterGlow alpha 混合;flash_point19.png 与原作 Point19.png 同源但 alpha 全 255
+            // → LoadFlashCursor 取亮度作 alpha,颜色交给 AlbedoColor 按手染色)
             var flashMat = new StandardMaterial3D
             {
                 ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded,
-                BlendMode = BaseMaterial3D.BlendModeEnum.Add,
+                BlendMode = BaseMaterial3D.BlendModeEnum.Mix,
                 Transparency = BaseMaterial3D.TransparencyEnum.Alpha,
-                AlbedoColor = new Color(1.0f, 0.85f, 0.35f, 0.45f), // 加色模式 α=强度;过亮会触发泛光大光晕
+                AlbedoColor = side == PlayerState.Side.Right
+                    ? new Color(1.0f, 0.0f, 0.0f)
+                    : new Color(0.0f, 1.0f, 0.0345f),
                 AlbedoTexture = LoadFlashCursor(),
                 BillboardMode = BaseMaterial3D.BillboardModeEnum.Enabled,
             };
@@ -91,23 +99,25 @@ public partial class FireSystem : Node3D
                 TopLevel = true,
                 CastShadow = GeometryInstance3D.ShadowCastingSetting.Off,
                 Visible = false,
-                Mesh = new QuadMesh { Size = new Vector2(0.12f, 0.12f) }, // 加色下亮核全显,取比原 sprite 小的等效光点
+                Mesh = new QuadMesh { Size = new Vector2(0.5f, 0.5f) }, // = 原作粒子 startSize,软边贴图亮核约 1/3
                 MaterialOverride = flashMat,
             };
             AddChild(flash);
             _flash[side] = flash;
-            // 激光瞄准器(原作 Lazer.prefab:右红/左绿,线宽 0.03);每帧 UpdateSide 拉伸到命中点
+            // 激光瞄准器(原作 Lazer.prefab:右红/左绿;宽度曲线 0.0089→0.03 近细远粗);
+            // 每帧 UpdateSide 恒伸 200m;原作无终点红点(命中指示全靠 Flash),不带 dot
             var lazer = LaserSight.Create(
                 side == PlayerState.Side.Right ? LaserSight.RightRed : LaserSight.LeftGreen,
-                0.015f, withDot: true);
+                0.015f, withDot: false, nearRadius: 0.00894f * 0.5f);
             lazer.Visible = false;
             AddChild(lazer);
             _lazer[side] = lazer;
         }
         foreach (var kv in EffectScenes)
         {
-            var pool = new EffectBase[PoolSize];
-            for (int i = 0; i < PoolSize; i++)
+            int n = kv.Key == "Concrete" ? ConcretePoolSize : PoolSize;
+            var pool = new EffectBase[n];
+            for (int i = 0; i < n; i++)
             {
                 var e = GD.Load<PackedScene>(kv.Value).Instantiate<EffectBase>();
                 e.Name = $"Fx_{kv.Key}_{i}";
@@ -126,23 +136,6 @@ public partial class FireSystem : Node3D
             bf.Visible = false;
             AddChild(bf);
             _bloodFlowers[i] = bf;
-        }
-        // 掉血飘字池:每只怪命中共用(原 HpReduceText 复用池)
-        _damageLabels = new Label3D[8];
-        for (int i = 0; i < _damageLabels.Length; i++)
-        {
-            var lb = new Label3D
-            {
-                Name = $"DamageLabel_{i}",
-                PixelSize = 0.0025f,
-                FontSize = 96,
-                Modulate = new Color(1.0f, 0.3f, 0.2f),
-                Billboard = BaseMaterial3D.BillboardModeEnum.Enabled,
-                Visible = false,
-            };
-            UiTheme.ApplyLabel3D(lb);
-            AddChild(lb);
-            _damageLabels[i] = lb;
         }
         if (ResourceLoader.Exists(UiShotSoundPath))
         {
@@ -189,19 +182,19 @@ public partial class FireSystem : Node3D
             var gun = new GunBase();
             // 先挂枪口节点,Setup 会往 Muzzle 下挂火光
             var muzzle = new Node3D { Name = "Muzzle" };
-            // 原作枪口标记 Sphere @(0,0,0.088)(Unity +Z 前)→ Godot -Z
-            muzzle.Position = new Vector3(0, 0, -0.088f);
+            // 原作枪口标记 Sphere(Unity +Z 前):AK47 z=0.088 / M4 z=0.162 / HandGun z=0.042 → Godot -Z
+            float muzzleZ = type == 1 ? 0.162f : type == 2 ? 0.042f : 0.088f;
+            muzzle.Position = new Vector3(0, 0, -muzzleZ);
             gun.AddChild(muzzle);
             gun.Setup(type, side == PlayerState.Side.Left);
             // 真实枪模型(FBX 导入场景根):ak47 枪管沿 -X(rotY-90→-Z,scale 0.4);
-            // m4/handgun 枪管已沿 -Z 且自带缩放。贴图手动接线(FBX 未内嵌)
+            // m4/handgun 枪管已沿 -Z。统一 ×GunModelScale(0.725) 对真值截图枪占屏比。
+            // 贴图手动接线(FBX 未内嵌)
             var model = GD.Load<PackedScene>(GunModelPaths[type]).Instantiate<Node3D>();
             model.Name = "Model";
             if (type == 0)
-            {
                 model.Rotation = new Vector3(0, -Mathf.Pi / 2.0f, 0);
-                model.Scale = Vector3.One * 0.4f;
-            }
+            model.Scale = Vector3.One * (type == 0 ? 0.4f : 1.0f) * GunModelScale;
             WireGunMaterial(model, type);
             gun.AddChild(model);
             anchor.AddChild(gun);
@@ -265,8 +258,8 @@ public partial class FireSystem : Node3D
             return;
         }
         anchor.Visible = true;
-        // 1. 冰冻且未暂停 → 本帧跳过(不转枪不开火)
-        if (player.Status == Player.HurtState.Frozen)
+        // 1. 冰冻且未暂停 → 本帧跳过(不转枪不开火);暂停期冰冻手仍可触发面板按钮(照原作)
+        if (player.Status == Player.HurtState.Frozen && !Game.Instance.IsGamePause)
         {
             _lazer[side].HideBeam();
             return;
@@ -296,21 +289,17 @@ public partial class FireSystem : Node3D
         }
         var space = GetWorld3D().DirectSpaceState;
         var hit = space.IntersectRay(PhysicsRayQueryParameters3D.Create(from, from + dir * RayLength, RayMask));
-        // 激光指引:枪口 → 命中点(未命中沿瞄准方向伸 200m,照原作线长);红点贴命中表面
+        // 激光:枪口起恒伸 200m(原作 LineRenderer (0,0,0)→(0,0,200):打怪穿透,被墙遮挡段由深度剔除)
         var muzzlePos = gun.Muzzle.GlobalPosition;
+        _lazer[side].SetBeam(muzzlePos, muzzlePos + dir * 200.0f);
         if (hit.Count == 0)
         {
             flash.Visible = false;
-            _lazer[side].SetBeam(muzzlePos, from + dir * 200.0f);
-            _lazer[side].ShowDot(false);
             return;
         }
         var point = (Vector3)hit["position"];
         var normal = (Vector3)hit["normal"];
         var collider = (GodotObject)hit["collider"];
-        _lazer[side].SetBeam(muzzlePos, point);
-        _lazer[side].SetDotPosition(point - dir * 0.02f);
-        _lazer[side].ShowDot(true);
         // 3. 命中 → Flash 光标(距离衰减公式照原作)
         float dist = _camera != null ? _camera.GlobalPosition.DistanceTo(point) : from.DistanceTo(point);
         float flashScale = 1.0f - Mathf.Clamp(3.0f / Mathf.Max(dist, 0.001f), 0.0f, 1.0f) * 0.8f;
@@ -321,7 +310,7 @@ public partial class FireSystem : Node3D
         bool trigger = side == PlayerState.Side.Right
             ? InputRouter.Instance.GetCurKeyRing()
             : InputRouter.Instance.GetCurKeyLeg();
-        if (!trigger || _switching[side])
+        if (!trigger)
             return;
         // 4. 命中 Button(layer 3)→ 触发回调,不耗弹不开火(暂停期唯一放行路径)
         if (collider is CollisionObject3D co && (co.CollisionLayer & 0b100) != 0)
@@ -369,8 +358,6 @@ public partial class FireSystem : Node3D
 
     private void OnSwitchKey(PlayerState.Side side)
     {
-        if (_switching[side])
-            return;
         var player = PlayerState.Instance.GetPlayer(side);
         if (!player.Active)
             return;
@@ -378,19 +365,18 @@ public partial class FireSystem : Node3D
         if (old == null || !player.NextGun())
             return;
         var newGun = _guns[side][player.GunType];
-        _switching[side] = true;
-        Vector3 baseNew = GunBasePos(side, newGun.GunType);
+        // 照原作字面行为(Unity FireSystem.ChangeGun):旧枪 0.5s 下沉 0.1 后 SetActive(false),
+        // 新枪在 CreateGun 中直接出现在最终位置——原作随后的"伸出"循环作用于已隐藏旧枪,
+        // 视觉上新枪瞬现,无升起动画;原作换枪全程不挡扳机(新枪立即可射,收起中旧枪也可射)。
         var tw = CreateTween();
         tw.TweenProperty(old, "position:z", old.Position.Z + SwitchSink, SwitchDownTime);
         tw.TweenCallback(Callable.From(() =>
         {
             old.Hide();
-            newGun.Position = baseNew + new Vector3(0, 0, SwitchSink);
+            old.Position = GunBasePos(side, old.GunType); // 复位,下次切出位置正确
+            newGun.Position = GunBasePos(side, newGun.GunType);
             newGun.Show();
             _currentGun[side] = newGun;
-            var tw2 = CreateTween();
-            tw2.TweenProperty(newGun, "position", baseNew, SwitchUpTime);
-            tw2.TweenCallback(Callable.From(() => _switching[side] = false));
         }));
     }
 
@@ -430,22 +416,60 @@ public partial class FireSystem : Node3D
         e.Activate();
     }
 
-    /// <summary>掉血飘字(静态入口,怪物 hit() 调用):池取第一个未激活,上飘渐隐</summary>
+    /// <summary>掉血飘字(静态入口,怪物 hit() 调用)。
+    /// 照原作 MonstHp.showHpNumber:"- N" 纯红 (1,0,0) 14 号(根缩放 0.01 → 世界字高 ≈0.14m)、
+    /// 上升 5px/s(≈0.05m/s)、alpha 1→0.3(≈0.7s)后消失、每怪 3 个复用池。</summary>
     public static void ShowDamage(string text, Vector3 point, Node3D parent)
     {
-        if (Current == null)
-            return;
-        foreach (var lb in Current._damageLabels)
+        Current?.ShowDamageInternal(text, point, parent);
+    }
+
+    private void ShowDamageInternal(string text, Vector3 point, Node3D parent)
+    {
+        if (!_damagePools.TryGetValue(parent, out var pool))
+        {
+            // 清理由已释放怪物的池(Label3D 挂在 FireSystem 下,随池释放)
+            var dead = new System.Collections.Generic.List<Node3D>();
+            foreach (var kv in _damagePools)
+            {
+                if (!GodotObject.IsInstanceValid(kv.Key))
+                    dead.Add(kv.Key);
+            }
+            foreach (var d in dead)
+            {
+                foreach (var lb in _damagePools[d])
+                    lb.QueueFree();
+                _damagePools.Remove(d);
+            }
+            pool = new Label3D[3];
+            for (int i = 0; i < pool.Length; i++)
+            {
+                var lb = new Label3D
+                {
+                    Name = "DamageLabel",
+                    PixelSize = 0.0025f,
+                    FontSize = 56, // 56×0.0025 ≈ 0.14m 字高(原作 14 号×0.01 缩放)
+                    Modulate = new Color(1.0f, 0.0f, 0.0f),
+                    Billboard = BaseMaterial3D.BillboardModeEnum.Enabled,
+                    Visible = false,
+                };
+                UiTheme.ApplyLabel3D(lb);
+                AddChild(lb);
+                pool[i] = lb;
+            }
+            _damagePools[parent] = pool;
+        }
+        foreach (var lb in pool)
         {
             if (lb.Visible)
                 continue;
             lb.Text = text;
             lb.GlobalPosition = point + new Vector3(0, 0.3f, 0);
-            lb.Modulate = new Color(1.0f, 0.3f, 0.2f, 1.0f);
+            lb.Modulate = new Color(1.0f, 0.0f, 0.0f, 1.0f);
             lb.Visible = true;
-            var tw = Current.CreateTween();
-            tw.TweenProperty(lb, "global_position:y", lb.GlobalPosition.Y + 0.5f, 1.2f);
-            tw.Parallel().TweenProperty(lb, "modulate:a", 0.0f, 1.2f);
+            var tw = CreateTween();
+            tw.TweenProperty(lb, "global_position:y", lb.GlobalPosition.Y + 0.035f, 0.7); // 5px/s×0.7s×0.01
+            tw.Parallel().TweenProperty(lb, "modulate:a", 0.3, 0.7);
             tw.TweenCallback(Callable.From(() => lb.Visible = false));
             return;
         }
@@ -468,19 +492,41 @@ public partial class FireSystem : Node3D
         }
     }
 
+    private static Texture2D? _flashCursorTex;
+
+    /// <summary>命中光标贴图:flash_point19.png 与原作 Point19.png 同源,但 alpha 通道全 255、
+    /// 光存 RGB → 取 R 亮度重写为 alpha(RGB 留白),供 alpha 混合材质按手染色(红/绿)。</summary>
     private static Texture2D LoadFlashCursor()
     {
+        if (_flashCursorTex != null)
+            return _flashCursorTex;
+        Image img;
         if (ResourceLoader.Exists(FlashCursorPath))
-            return GD.Load<Texture2D>(FlashCursorPath);
-        // 程序化径向光点兜底
-        var img = Image.CreateEmpty(64, 64, false, Image.Format.Rgba8);
-        for (int y = 0; y < 64; y++)
-        for (int x = 0; x < 64; x++)
         {
-            float d = new Vector2(x - 31.5f, y - 31.5f).Length() / 32.0f;
-            float a = Mathf.Clamp(1.0f - d, 0.0f, 1.0f);
-            img.SetPixel(x, y, new Color(1.0f, 0.9f, 0.4f, a * a));
+            img = GD.Load<Texture2D>(FlashCursorPath).GetImage();
+            if (img.IsCompressed())
+                img.Decompress();
+            img.Convert(Image.Format.Rgba8);
+            for (int y = 0; y < img.GetHeight(); y++)
+            for (int x = 0; x < img.GetWidth(); x++)
+            {
+                var c = img.GetPixel(x, y);
+                img.SetPixel(x, y, new Color(1.0f, 1.0f, 1.0f, c.R));
+            }
         }
-        return ImageTexture.CreateFromImage(img);
+        else
+        {
+            // 程序化径向光点兜底
+            img = Image.CreateEmpty(64, 64, false, Image.Format.Rgba8);
+            for (int y = 0; y < 64; y++)
+            for (int x = 0; x < 64; x++)
+            {
+                float d = new Vector2(x - 31.5f, y - 31.5f).Length() / 32.0f;
+                float a = Mathf.Clamp(1.0f - d, 0.0f, 1.0f);
+                img.SetPixel(x, y, new Color(1.0f, 1.0f, 1.0f, a * a));
+            }
+        }
+        _flashCursorTex = ImageTexture.CreateFromImage(img);
+        return _flashCursorTex;
     }
 }

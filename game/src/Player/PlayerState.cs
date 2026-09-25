@@ -6,8 +6,8 @@ namespace FPSGame;
 /// <summary>
 /// PlayerState [autoload]:左右双玩家状态 / 受击结算 / 存活怪物计数 / 常驻 HUD。
 /// 对应原作 PlayerSystem.cs(5.5 换枪、6.4 受击状态、8.2 HUD 数据源)。
-/// HUD 对应原作 GlobalObject 下 PlayerSystem.prefab(跨场景 DontDestroyOnLoad),
-/// 当前仅移植 CoinObj(菜单/选关/战斗显示);弹药/头像/血条待战斗界面步骤移植。
+/// HUD 对应原作 GlobalObject 下 PlayerSystem.prefab(跨场景 DontDestroyOnLoad):
+/// CoinObj(菜单/选关/战斗)+ 战斗 HUD(子弹×2/头像环×2/受击闪×2;HP 条按真值截图隐藏,仅内部追踪)。
 /// </summary>
 public partial class PlayerState : Node
 {
@@ -169,15 +169,15 @@ public partial class PlayerState : Node
 
     private void BuildBattleHud()
     {
-        // 战斗容器:子弹×2(底中)/头像+血条×2(右上/左上)/受击全屏闪×2
+        // 战斗容器:子弹×2(底中)/头像×2(右上/左上,HP 条隐藏)/受击全屏闪×2
         _battleRoot = new Control { Name = "BattleHud", MouseFilter = Control.MouseFilterEnum.Ignore };
         _battleRoot.SetAnchorsPreset(Control.LayoutPreset.FullRect);
         _hudLayer.AddChild(_battleRoot);
 
         _bulletRight = MakeBulletHud("BulletRight", new Color(0.0f, 0.7255f, 0.2824f),
-            new Color(0.0088f, 0.3113f, 0.1265f), new Vector2(185.12f, 0.0f), out _bulletRightText);
+            new Color(0.0088f, 0.3113f, 0.1265f), new Vector2(185.12f, 0.0f), 0.0f, out _bulletRightText);
         _bulletLeft = MakeBulletHud("BulletLeft", new Color(0.7062f, 0.7255f, 0.0f),
-            new Color(0.3973f, 0.4057f, 0.0f), new Vector2(-258.72f, 31.4f), out _bulletLeftText);
+            new Color(0.3973f, 0.4057f, 0.0f), new Vector2(-258.72f, 31.4f), 0.5f, out _bulletLeftText);
         _headRight = MakeHeadHud("HeadRight", true, out _hpRight);
         _headLeft = MakeHeadHud("HeadLeft", false, out _hpLeft);
         _hurtRight = MakeHurtOverlay("RightHurt", "res://assets/textures/ui/bloodEffectRight.png");
@@ -185,16 +185,19 @@ public partial class PlayerState : Node
         _battleRoot.Visible = false;
     }
 
-    private Control MakeBulletHud(string name, Color iconTint, Color xColor, Vector2 offset, out Label countLabel)
+    private Control MakeBulletHud(string name, Color iconTint, Color xColor, Vector2 offset, float pivotY, out Label countLabel)
     {
-        // 64×64(anchor 底中 + offset;原作 BulletRight (185.12,0) / BulletLeft (-258.72,31.4));
-        // X 28 号;数字 52 号白向右延伸(原作 BulletRightText 相对左中 (83.31,-3.1))
+        // 64×64(anchor 底中 + offset)。原作 pivot 左右不同:BulletRight pivot(0.5,0) pos (185.12,0)
+        // → 图标底贴屏底;BulletLeft pivot(0.5,0.5) pos (-258.72,31.4) → 图标中心在屏底上方 31.4px。
+        // Godot 底锚偏移 = pivotY*64 - offset.Y(Unity +y 向上, Godot 偏移向下为正)。
         var root = new Control { Name = name, MouseFilter = Control.MouseFilterEnum.Ignore };
         root.SetAnchorsPreset(Control.LayoutPreset.CenterBottom);
         root.OffsetLeft = offset.X - 32.0f;
         root.OffsetRight = offset.X + 32.0f;
-        root.OffsetTop = offset.Y - 64.0f;
-        root.OffsetBottom = offset.Y;
+        root.OffsetTop = pivotY * 64.0f - offset.Y - 64.0f;
+        root.OffsetBottom = pivotY * 64.0f - offset.Y;
+        // AddBulletAni 放大绕原作 pivot:右 (0.5,0)=底中,左 (0.5,0.5)=中心
+        root.PivotOffset = new Vector2(32.0f, 64.0f - pivotY * 64.0f);
         _battleRoot.AddChild(root);
         var icon = new TextureRect
         {
@@ -206,6 +209,7 @@ public partial class PlayerState : Node
         };
         icon.SetAnchorsPreset(Control.LayoutPreset.FullRect);
         root.AddChild(icon);
+        // "X":60×60,中心相对图标中心 (+58.43,+23.58)(原作 (58.43,-23.58) +y 向上 → 图标右下),28 号
         var x = new Label
         {
             Name = "X",
@@ -216,10 +220,10 @@ public partial class PlayerState : Node
         x.AddThemeFontSizeOverride("font_size", 28);
         x.AddThemeColorOverride("font_color", xColor);
         x.SetAnchorsPreset(Control.LayoutPreset.TopLeft);
-        x.OffsetLeft = 32.0f - 30.0f;
-        x.OffsetRight = 32.0f + 30.0f;
-        x.OffsetTop = 32.0f - 30.0f;
-        x.OffsetBottom = 32.0f + 30.0f;
+        x.OffsetLeft = 32.0f + 58.43f - 30.0f;
+        x.OffsetRight = 32.0f + 58.43f + 30.0f;
+        x.OffsetTop = 32.0f + 23.58f - 30.0f;
+        x.OffsetBottom = 32.0f + 23.58f + 30.0f;
         root.AddChild(x);
         countLabel = new Label
         {
@@ -230,7 +234,8 @@ public partial class PlayerState : Node
         };
         countLabel.AddThemeFontSizeOverride("font_size", 52);
         countLabel.SetAnchorsPreset(Control.LayoutPreset.CenterLeft);
-        countLabel.Position = new Vector2(83.31f, -3.1f - 30.0f); // 原作 (83.31,-3.1) 左中锚
+        // 原作 (83.31,-3.1) 左中锚,+y 向上 → 数字中心在图标中心下方 3.1px
+        countLabel.Position = new Vector2(83.31f, 3.1f - 30.0f);
         countLabel.Size = new Vector2(120.0f, 60.0f);
         root.AddChild(countLabel);
         return root;
@@ -238,7 +243,7 @@ public partial class PlayerState : Node
 
     private Control MakeHeadHud(string name, bool isRight, out TextureProgressBar slider)
     {
-        // HdBg 128×128 右上角(右)/左上角(左)+ Head 100×100 + HP 438×16
+        // HdBg 128×128 右上角(右)/左上角(左)+ Head 100×100 + HP 438×16(隐藏,见下)
         var root = new Control { Name = name, MouseFilter = Control.MouseFilterEnum.Ignore };
         root.SetAnchorsPreset(isRight ? Control.LayoutPreset.TopRight : Control.LayoutPreset.TopLeft);
         root.OffsetLeft = isRight ? -128.0f : 0.0f;
@@ -270,6 +275,8 @@ public partial class PlayerState : Node
         root.AddChild(head);
         if (!isRight)
             _headLeftIcon = head;
+        // 真值截图满血/残血均无可见 HP 条(l1u_gun_25s/l1u_battle_45s)→ 隐藏;
+        // 保留节点与 RefreshBattleHud 的 Value 刷新(HP 值内部追踪与 API 不变)
         slider = new TextureProgressBar
         {
             Name = "HPSlider",
@@ -278,6 +285,7 @@ public partial class PlayerState : Node
             MinValue = 0.0,
             MaxValue = 100.0,
             Value = 100.0,
+            Visible = false,
         };
         slider.SetAnchorsPreset(Control.LayoutPreset.CenterBottom);
         slider.Size = new Vector2(438.0f, 16.0f);
@@ -288,11 +296,13 @@ public partial class PlayerState : Node
 
     private TextureRect MakeHurtOverlay(string name, string texPath)
     {
+        // prefab 色 (1,0,0,0.392);初始隐藏(原作 HurtEffect 默认 SetActive(false),受击才激活)
         var tr = new TextureRect
         {
             Name = name,
             Texture = GD.Load<Texture2D>(texPath),
-            Modulate = new Color(1.0f, 0.0f, 0.0f, 0.0f),
+            Modulate = new Color(1.0f, 0.0f, 0.0f, 0.392f),
+            Visible = false,
             StretchMode = TextureRect.StretchModeEnum.Scale,
             ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize,
             MouseFilter = Control.MouseFilterEnum.Ignore,
@@ -308,31 +318,121 @@ public partial class PlayerState : Node
             return;
         var pr = PlayerRight;
         var pl = PlayerLeft;
-        _bulletRightText.Text = pr.Bullet.ToString();
-        _bulletLeftText.Text = pl.Bullet.ToString();
+        // 加子弹动画进行中的侧由动画逐帧写文本,此处不覆盖
+        if (!_bulletAniRight)
+        {
+            _bulletRightText.Text = pr.Bullet.ToString();
+            _bulletShownRight = pr.Bullet;
+        }
+        if (!_bulletAniLeft)
+        {
+            _bulletLeftText.Text = pl.Bullet.ToString();
+            _bulletShownLeft = pl.Bullet;
+        }
         _hpRight.Value = Mathf.Clamp(pr.Hp, 0.0f, Player.MaxHp);
         _hpLeft.Value = Mathf.Clamp(pl.Hp, 0.0f, Player.MaxHp);
     }
 
-    /// <summary>受击全屏闪(原作 HurtEffect):Phy 黄 / Ice 青 / Poison 绿,alpha 0.392 渐隐 ~2s</summary>
+    /// <summary>受击全屏闪(原作 UpdateHurtEffect,PlayerSystem.cs:262-300):
+    /// Phy 黄 (1,1,0)/Ice 青 (0,1,1)/Poison 绿 (0,1,0),起始 alpha=1,每 0.1s 减 0.05(≈2s 淡完),
+    /// 结束复位 alpha=1 后隐藏;效果进行中再受击 → 颜色保持,仅 alpha 复位 1 重新淡出</summary>
     private void OnHurtFlash(int side, int attackType)
     {
         if (_battleRoot == null)
             return;
-        var overlay = side == (int)Side.Right ? _hurtRight : _hurtLeft;
-        var tween = side == (int)Side.Right ? _hurtRightTween : _hurtLeftTween;
-        Color c = (Game.AttackType)attackType switch
+        bool right = side == (int)Side.Right;
+        var overlay = right ? _hurtRight : _hurtLeft;
+        var tween = right ? _hurtRightTween : _hurtLeftTween;
+        Color c = overlay.Modulate;
+        if (!overlay.Visible)
         {
-            Game.AttackType.Ice => new Color(0.3f, 0.9f, 1.0f, 0.392f),
-            Game.AttackType.Poison => new Color(0.4f, 1.0f, 0.3f, 0.392f),
-            _ => new Color(1.0f, 0.85f, 0.2f, 0.392f),
-        };
+            c = (Game.AttackType)attackType switch
+            {
+                Game.AttackType.Ice => new Color(0.0f, 1.0f, 1.0f),
+                Game.AttackType.Poison => new Color(0.0f, 1.0f, 0.0f),
+                _ => new Color(1.0f, 1.0f, 0.0f),
+            };
+        }
+        c.A = 1.0f;
         overlay.Modulate = c;
+        overlay.Visible = true;
         tween?.Kill();
         tween = CreateTween();
-        tween.TweenInterval(0.2f);
-        tween.TweenProperty(overlay, "modulate:a", 0.0f, 1.6f);
-        if (side == (int)Side.Right) _hurtRightTween = tween; else _hurtLeftTween = tween;
+        tween.TweenProperty(overlay, "modulate:a", 0.0f, 2.0f);
+        tween.TweenCallback(Callable.From(() =>
+        {
+            var m = overlay.Modulate;
+            m.A = 1.0f;
+            overlay.Modulate = m;
+            overlay.Visible = false;
+        }));
+        if (right) _hurtRightTween = tween; else _hurtLeftTween = tween;
+    }
+
+    // ------------------------------------------------ 加子弹放大动画(原作 AddBulletAni,PlayerSystem.cs:475-516)
+
+    private bool _bulletAniRight, _bulletAniLeft;
+    private int _bulletAniSeqRight, _bulletAniSeqLeft;
+    private int _bulletShownRight = -1, _bulletShownLeft = -1;
+
+    /// <summary>Player.Bullet 外部增加(宝箱掉落)时由 setter 回调:图标 ×1.5,文本每帧 +1 逐发涨到终值</summary>
+    internal void OnBulletAdded(Player p, int from, int to)
+    {
+        bool right = ReferenceEquals(p, PlayerRight);
+        var root = right ? _bulletRight : _bulletLeft;
+        if (_battleRoot == null || !_battleRoot.Visible || !root.Visible)
+            return; // 非战斗或该侧未显形:RefreshBattleHud 直接落终值
+        int shown = right ? _bulletShownRight : _bulletShownLeft;
+        if (shown < from || shown > to)
+            shown = from;
+        AddBulletAni(right, shown, to);
+    }
+
+    private async void AddBulletAni(bool right, int from, int to)
+    {
+        var root = right ? _bulletRight : _bulletLeft;
+        var text = right ? _bulletRightText : _bulletLeftText;
+        if (right) { _bulletAniRight = true; _bulletAniSeqRight += 1; }
+        else { _bulletAniLeft = true; _bulletAniSeqLeft += 1; }
+        int seq = right ? _bulletAniSeqRight : _bulletAniSeqLeft;
+        root.Scale = new Vector2(1.5f, 1.5f);
+        int v = from;
+        while (v < to)
+        {
+            if (seq != (right ? _bulletAniSeqRight : _bulletAniSeqLeft))
+                return; // 被新一次加子弹/场景切换接管
+            v += 1;
+            text.Text = v.ToString();
+            if (right) _bulletShownRight = v; else _bulletShownLeft = v;
+            await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+        }
+        if (seq != (right ? _bulletAniSeqRight : _bulletAniSeqLeft))
+            return;
+        root.Scale = Vector2.One;
+        if (right) _bulletAniRight = false; else _bulletAniLeft = false;
+    }
+
+    /// <summary>取消进行中的加子弹动画并复位图标(切场景/显隐切换时,原作协程随 SetActive(false) 中断)</summary>
+    private void CancelBulletAni()
+    {
+        _bulletAniSeqRight += 1;
+        _bulletAniSeqLeft += 1;
+        _bulletAniRight = _bulletAniLeft = false;
+        if (_bulletRight != null)
+            _bulletRight.Scale = Vector2.One;
+        if (_bulletLeft != null)
+            _bulletLeft.Scale = Vector2.One;
+    }
+
+    /// <summary>隐藏受击闪(原作 UpdateUIMode 各分支均 HurtEffect.SetActive(false))</summary>
+    private void HideHurtOverlays()
+    {
+        _hurtRightTween?.Kill();
+        _hurtLeftTween?.Kill();
+        if (_hurtRight != null)
+            _hurtRight.Visible = false;
+        if (_hurtLeft != null)
+            _hurtLeft.Visible = false;
     }
 
     public void RefreshHud()
@@ -346,6 +446,9 @@ public partial class PlayerState : Node
     {
         if (sceneName == "StartUp")
             return;
+        // 原作 UpdateUIMode 任意分支入口:受击闪强制隐藏;进行中的加子弹动画随显隐切换中断
+        HideHurtOverlays();
+        CancelBulletAni();
         if (sceneName is "Menu" or "LevelChoose")
         {
             _coinObj.Visible = true;

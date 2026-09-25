@@ -1,4 +1,4 @@
-[gd_scene load_steps=8 format=3]
+[gd_scene load_steps=7 format=3]
 
 [ext_resource type="Script" path="res://src/Effects/EffectBase.cs" id="1"]
 [ext_resource type="Texture2D" path="res://assets/effects/textures/dust1.png" id="2"]
@@ -24,15 +24,6 @@ billboard_mode = 1
 material = SubResource("mat_puff")
 size = Vector2(0.16, 0.16)
 
-[sub_resource type="StandardMaterial3D" id="mat_hole"]
-transparency = 1
-shading_mode = 0
-albedo_texture = ExtResource("3")
-
-[sub_resource type="QuadMesh" id="q_hole"]
-material = SubResource("mat_hole")
-size = Vector2(0.08, 0.08)
-
 [node name="ImpactDust" type="Node3D"]
 script = ExtResource("1")
 Lifetime = 0.5
@@ -45,7 +36,7 @@ randomness = 0.4
 process_material = SubResource("ppm_puff")
 draw_pass_1 = SubResource("q_puff")
 
-[node name="Hole" type="MeshInstance3D" parent="."]
+[node name="Hole" type="Sprite3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.002)
-mesh = SubResource("q_hole")
-cast_shadow = 0
+pixel_size = 0.0025
+texture = ExtResource("3")
