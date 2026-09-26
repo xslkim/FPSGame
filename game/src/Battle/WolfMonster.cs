@@ -19,9 +19,6 @@ public partial class WolfMonster : Monster
     public const float PointArrive = 0.5f;       // 原作 MoveToTarget errorValue
     public const float AttackFacing = 15.0f;     // 原作 IsFaceToCamera 15°
 
-    /// <summary>M7 颜色变体材质(blue/green .tres),wolf 本族不配置</summary>
-    [Export] public Material? BodyMaterial;
-
     private readonly System.Collections.Generic.List<Vector3> _path = new();
     private int _pathIdx;
     private double _pointStartTime;
@@ -30,12 +27,6 @@ public partial class WolfMonster : Monster
     {
         base._Ready();
         AnimTrackUtil.StripMethodTracks(Anim); // clip 自带 event_attack 方法轨与基类 Tween 重复
-        if (BodyMaterial != null)
-        {
-            foreach (var n in BodyNode.FindChildren("*", "MeshInstance3D", true, false))
-                if (n is MeshInstance3D mi)
-                    mi.SetSurfaceOverrideMaterial(0, BodyMaterial);
-        }
     }
 
     protected override void OnBorn()

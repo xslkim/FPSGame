@@ -28,6 +28,8 @@ public partial class Monster : CharacterBody3D
 
     [Export] public string MetaKey = "";
     [Export] public bool IsBoss;
+    /// <summary>本体材质(.tscn 注入;导出包里 FBX 实例子节点的 surface_material_override 不生效,须代码接线)</summary>
+    [Export] public Material? BodyMaterial;
 
     public int Level;
     public float WaittingTime;                 // 由关卡按难度设置:Easy rand(3,8)/Hard rand(0,2)/Hell 0
@@ -65,6 +67,12 @@ public partial class Monster : CharacterBody3D
         _col = GetNode<CollisionShape3D>("CollisionShape3D");
         // clip 自带的 event_attack/baotou_skill 方法轨与基类 0.3s 事件 Tween 重复,剥离(同 WolfMonster 先例)
         AnimTrackUtil.StripMethodTracks(Anim);
+        if (BodyMaterial != null)
+        {
+            foreach (var n in BodyNode.FindChildren("*", "MeshInstance3D", true, false))
+                if (n is MeshInstance3D mi)
+                    mi.SetSurfaceOverrideMaterial(0, BodyMaterial);
+        }
         Deactivate();
     }
 

@@ -24,6 +24,11 @@ public partial class Level1 : LevelBase
     protected override void EnterLevel()
     {
         var args = OS.GetCmdlineUserArgs();
+        if (System.Array.IndexOf(args, "--monster-size-audit") >= 0)
+        {
+            MonsterSizeAudit.Run();
+            return;
+        }
         if (System.Array.IndexOf(args, "--level1-selftest") >= 0)
         {
             SelfTest();
@@ -134,8 +139,40 @@ public partial class Level1 : LevelBase
                 continue;
             Vector3 p = mm.GlobalPosition;
             Vector2 sp = cam.UnprojectPosition(p + new Vector3(0, 1.0f, 0.0f));
+            // 渲染可见性诊断:visible_in_tree + 模型网格世界包围盒
+            string vis = $"vis={mm.Visible}/{mm.IsVisibleInTree()}";
+            var body = mm.GetNodeOrNull<Node3D>("Model");
+            string box = "nomodel";
+            if (body != null)
+            {
+                var min = new Vector3(float.MaxValue, float.MaxValue, float.MaxValue);
+                var max = new Vector3(float.MinValue, float.MinValue, float.MinValue);
+                foreach (var node in body.FindChildren("*", "MeshInstance3D", true, false))
+                {
+                    if (node is not MeshInstance3D mi || mi.Mesh == null)
+                        continue;
+                    var aabb = mi.GetAabb();
+                    var gt = mi.GlobalTransform;
+                    for (int i = 0; i < 8; i++)
+                    {
+                        var c = aabb.Position + new Vector3(
+                            (i & 1) == 0 ? 0 : aabb.Size.X, (i & 2) == 0 ? 0 : aabb.Size.Y, (i & 4) == 0 ? 0 : aabb.Size.Z);
+                        var w = gt * c;
+                        min = new Vector3(Mathf.Min(min.X, w.X), Mathf.Min(min.Y, w.Y), Mathf.Min(min.Z, w.Z));
+                        max = new Vector3(Mathf.Max(max.X, w.X), Mathf.Max(max.Y, w.Y), Mathf.Max(max.Z, w.Z));
+                    }
+                }
+                box = $"meshWorld=({min.X:0.0},{min.Y:0.0},{min.Z:0.0})~({max.X:0.0},{max.Y:0.0},{max.Z:0.0})";
+            }
             GD.Print($"[PROBE] {mm.MetaKey} lv={mm.Level} hp={mm.Hp} pos=({p.X:0.00},{p.Y:0.00},{p.Z:0.00}) " +
-                $"dist={p.DistanceTo(cam.GlobalPosition):0.00} scr=({sp.X:0},{sp.Y:0}) behind={cam.IsPositionBehind(p)}");
+                $"dist={p.DistanceTo(cam.GlobalPosition):0.00} scr=({sp.X:0},{sp.Y:0}) behind={cam.IsPositionBehind(p)} {vis} {box}");
+            var hpAnchor = mm.GetNodeOrNull<Node3D>("HpAnchor");
+            if (hpAnchor != null)
+            {
+                var hp2 = hpAnchor.GlobalPosition;
+                var sp2 = cam.IsPositionBehind(hp2) ? new Vector2(-1, -1) : cam.UnprojectPosition(hp2);
+                GD.Print($"[PROBE]   hpAnchor world=({hp2.X:0.00},{hp2.Y:0.00},{hp2.Z:0.00}) scr=({sp2.X:0},{sp2.Y:0}) vis={hpAnchor.IsVisibleInTree()}");
+            }
         }
         // 视口射线:识别指定归一化屏幕点上的物体(异常网格排查)
         var space = GetWorld3D().DirectSpaceState;

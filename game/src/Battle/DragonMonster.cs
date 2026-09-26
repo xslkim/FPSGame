@@ -46,8 +46,6 @@ public partial class DragonMonster : Monster
     private static readonly AudioStream SndBreathIce =
         GD.Load<AudioStream>("res://assets/audio/effects/breath_ice.wav");
 
-    [Export] public Material BodyMaterial = null!; // M7 颜色变体材质(red/blue/green .tscn 配置)
-
     // 自检钩子:born 时四点快照与瞬移落点(Level4 断言四点公式/出生瞬移)
     public Vector3 StatTeleportPos { get; private set; }
     private readonly Vector3[] _points = new Vector3[4];
@@ -64,15 +62,7 @@ public partial class DragonMonster : Monster
 
     public override void _Ready()
     {
-        base._Ready();
-        if (BodyMaterial != null)
-        {
-            foreach (var mi in FindChildren("*", "MeshInstance3D", true, false))
-            {
-                if (mi is MeshInstance3D m)
-                    m.SetSurfaceOverrideMaterial(0, BodyMaterial);
-            }
-        }
+        base._Ready(); // BodyMaterial 接线由基类统一处理
     }
 
     /// <summary>born:四点初始化后直接瞬移到 FarWay,首个目标 InCamera(Unity born() 语义)</summary>

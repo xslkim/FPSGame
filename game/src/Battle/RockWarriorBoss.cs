@@ -17,9 +17,6 @@ public partial class RockWarriorBoss : Monster
     public const float FireballScale = 10.0f; // 原作 RockAttack localScale×10
     public const float FireballHeight = 1.5f;
 
-    /// <summary>M7 材质(RockWarrior.png),在 .tscn 配置</summary>
-    [Export] public Material? BodyMaterial;
-
     /// <summary>自检/调试:最后一发火球</summary>
     public Fireball? LastFireball { get; private set; }
 
@@ -29,12 +26,6 @@ public partial class RockWarriorBoss : Monster
     {
         base._Ready();
         AnimTrackUtil.StripMethodTracks(Anim); // clip 自带 rock_attack 方法轨与 TriggerAttackEvent Tween 重复
-        if (BodyMaterial != null)
-        {
-            foreach (var n in BodyNode.FindChildren("*", "MeshInstance3D", true, false))
-                if (n is MeshInstance3D mi)
-                    mi.SetSurfaceOverrideMaterial(0, BodyMaterial);
-        }
     }
 
     protected override void UpdateActive(float delta)

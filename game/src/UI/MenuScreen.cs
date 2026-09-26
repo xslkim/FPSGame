@@ -459,9 +459,9 @@ public partial class MenuScreen : Node
             logical = RotationAimLogicalPoint();
             _aimHover = null;
         }
-        // 2D 激光(照原作):光束 = 枪原点 → 枪前向 200m 的锥形投影(近粗远细);
+        // 2D 激光(照原作):光束 = 枪口(MuzzleFlash 标记) → 枪前向 200m 的锥形投影(近粗远细);
         // 光点 = 射线命中怪兽时贴命中点(原作 Flash),否则贴瞄准点;悬停按钮放大+光晕
-        var muzzle = _gun.GlobalPosition;
+        var muzzle = _muzzle.GlobalPosition;
         var fwd = _gun.GlobalBasis * Vector3.Forward;
         _guide.SetAim(_camera, muzzle, fwd, RaycastMonster(muzzle, fwd), logical,
             ButtonAtLogicalPoint(logical, skipBoxButtons: true) != null);

@@ -29,8 +29,6 @@ public partial class MagmaDemon : Monster
 
     public enum Phase { FlyIn, Combat }
 
-    [Export] public Material BodyMaterial = null!; // M7 颜色变体材质(blue .tscn 配置)
-
     /// <summary>出生方向(自检用):0 右 / 1 左 / 2 上 / 3 下</summary>
     public int BornAxis { get; private set; } = -1;
 
@@ -39,15 +37,7 @@ public partial class MagmaDemon : Monster
 
     public override void _Ready()
     {
-        base._Ready();
-        if (BodyMaterial != null)
-        {
-            foreach (var mi in FindChildren("*", "MeshInstance3D", true, false))
-            {
-                if (mi is MeshInstance3D m)
-                    m.SetSurfaceOverrideMaterial(0, BodyMaterial);
-            }
-        }
+        base._Ready(); // BodyMaterial 接线由基类统一处理
     }
 
     /// <summary>出生自定义:相机前 10m + 四向随机一边(偏移 2+6=8),正交轴 rand(±2) 抖动</summary>

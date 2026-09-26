@@ -44,3 +44,25 @@
 
 验证:`--level1-fire` 挂接实测(按住左键跟踪瞄准):子弹 120→98、换枪 2→0、怪 HP 30→0 死亡回收全通;`--level1-probe` 落位探针;`--level1-shot-victory` 胜利面板。全回归 8/8 绿 + loading 两分支 + e2e-mouse-flow 绿。
 新挂接:`--level1-probe:<sec>`(怪物落位+视线网格扫描)、`--level1-probe-intro:<sec>`、`--level1-fire:<png>:<sec>`(含换枪验证)、`--level1-shot-victory:<png>`。
+
+## 第四轮修复(2026-09-26,玩家实机反馈)
+
+| # | 偏差/缺陷 | 根因 | 修复 |
+|---|---|---|---|
+| 25 | 红点悬浮错位且巨大(开火/瞄准时红点浮在半空,~200px) | ① 鼠标模式命中射线从相机出、激光从枪口出,两者平行错位不重合;② 机位 x 未随环境镜像(项目既定"位置沿用原值"约定),距楼梯间墙仅 1.27m(真值 2.74m)→ 命中点在 1.5m 近墙,flashScale 公式压不下视尺寸 | `FireSystem.UpdateSide` 改回原作语义:射线=枪原点+枪 forward(与激光共线,终点即红点);鼠标模式先取相机光标目标点、枪指向它再出射线;机位见 #27 |
+| 26 | 手枪/M4 渲染反向(枪口朝后朝镜头) | FBX 实测枪口/准星朝 +Z(AK 沿 -X);装配注释误称"m4/handgun 已沿 -Z" | `FireSystem.BindSide`:type1/2 补 rotY180°;`--gun-view` 前后两视角截图取证 |
+| 27 | 怪出生贴脸/钻相机、玩家看不到怪却被打死 | Battle0 机位 x 未镜像:G0 出生锥 1.27m 打近墙 → 出生 ~0.77m,相机嵌进怪体内(背面剔除=怪隐形),怪贴身攻击;真值同锥 2.74m→2.24m+ | `level1_battle.tscn` cam_pos_0~4 原点 x 取负(+0.735/+0.085,镜像约定);G0 出生恢复 3.2m 楼梯间中景。裁决文档 battle0_mirror_verdict.md §六.3 的"全镜像"选项经用户实机反馈后落地(仅战斗机位) |
+| 28 | 牛魔王行走/待机整体前俯 ~90°(低头冲锋姿态,真值为直立行走) | bull 是全场唯一 humanoid(animationType=2)怪;旧 bull_anims.tres 为原始曲线直转,缺少 Unity humanoid 肌肉归一化 | K-POP 同款烘焙管线:Unity 2022.3 临时工程(G:\tmp\kpopbake)PlayableGraph 逐帧求值 → .kdance.bin(idle/walk/attack×3/damage/die 七剪辑全长度)→ `BinToTres` 离线转写 bull_anims.tres(骨骼局部=镜像 Unity 局部,30fps);meta 新增 bull idle_anim="idle"(原作 Locomotion 混合树 Speed=0=idle 语义)。axe 双刃 BoneAttachment3D 挂头/左手骨为 FBX 原生挂点,非缺陷 |
+
+验证:`--monster-view`(idle/walk 直立姿态对照 Unity 烘焙参考图 bull_*_unity_t1s.png 一致)、`--level1-shot` 21/24/28s(牛魔王直立正面逼近,对位 l1u_intro_21s/26s 构图)、`--level1-fire`(耗弹 120→89、击杀回收、右键换 AK 链路全通)、regress.sh 8 项全绿、dist 导出冒烟(menu 正常)。
+新工具:`src/Tools/MonsterView.cs`(怪物/枪检视 + --dump-tree/--fbx-view/--bone-diff)、`src/Tools/MonsterSizeAudit.cs`、`src/Tools/BinToTres.cs`;烘焙产物存 `tools/bull_bake/`(不入包)。
+
+### 第四轮补丁(导出包实机复测追加)
+
+| # | 偏差/缺陷 | 根因 | 修复 |
+|---|---|---|---|
+| 29 | **导出包里全部 humanoid/generic 怪白模**(编辑器正常) | 怪物 tscn 用 FBX 实例子节点的 `surface_material_override` 接线——导出后实例化子场景覆盖不生效,回退到 FBX 自带无贴图 wire 材质 | 材质接线改代码:`Monster` 基类新增 `[Export] Material BodyMaterial`,_Ready 时对 BodyNode 子树 `SetSurfaceOverrideMaterial(0)`(与 L3 Dragon/Magma/Wolf/RockWarrior 既有模式统一,派生类重复实现已删);5 个 L1 怪 tscn 根节点注入 `BodyMaterial = ExtResource("5")`。成品内 `--mat-audit` 验证 override=y/tex 正确 |
+| 30 | 菜单激光不从枪口出(悬浮在枪身上方) | UiAimGuide 光束起点用枪节点原点(握把),枪口在前方 0.2m | MenuScreen/LevelChooseScreen/DeviceConnectionScreen 三处 SetAim 起点改 MuzzleFlash 标记节点(枪口尖);战斗 3D LaserSight 本就起自 Muzzle,不变 |
+| 31 | 战斗红色命中光斑与激光视觉错位("歪") | 同 #25:枪口/相机双射线平行错位 | 已于 #25 修复(共线),本轮复核 dist_fire 命中/击杀/换枪链路在导出包正常 |
+
+验证:dist 成品 `--quick:` 直跳 + `--mat-audit`/`--level1-shot-battle`/`--level1-fire`/`--story-shot` 全链路;牛魔王贴脸攻击与 l1u_intro_26s 构图一致(有贴图、直立、面向相机)。

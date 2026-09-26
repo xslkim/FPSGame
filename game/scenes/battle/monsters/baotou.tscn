@@ -15,6 +15,7 @@ collision_layer = 16
 collision_mask = 1
 script = ExtResource("1")
 MetaKey = "baotou"
+BodyMaterial = ExtResource("5")
 IsBoss = true
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="."]

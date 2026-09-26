@@ -25,7 +25,19 @@ public partial class Game : Node
     /// <summary>Loading 场景目标(LevelChoose 选定关卡后写入)</summary>
     public string NextScenePath = "";
 
-    public override void _Ready() => Instance = this;
+    public override void _Ready()
+    {
+        Instance = this;
+        // --quick:<场景路径>:跳过菜单流直进场景(成品冒烟/调试用,编辑器与导出包同效)
+        foreach (var a in OS.GetCmdlineUserArgs())
+        {
+            if (a.StartsWith("--quick:"))
+            {
+                string path = a["--quick:".Length..];
+                GetTree().CreateTimer(0.1).Timeout += () => ChangeScene(path);
+            }
+        }
+    }
 
     public void ChangeScene(string path) => GetTree().ChangeSceneToFile(path);
 

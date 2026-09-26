@@ -50,6 +50,22 @@ public partial class FireSystem : Node3D
     /// <summary>当前战斗的 FireSystem 实例(怪物血花/飘字按此访问)</summary>
     public static FireSystem? Current { get; private set; }
 
+    /// <summary>--fire-debug:每帧打印右路射线命中(诊断激光/红点落点)</summary>
+    public static bool DebugFire
+    {
+        get
+        {
+            if (!_debugSearched)
+            {
+                _debugSearched = true;
+                _debugFire = System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--fire-debug") >= 0;
+            }
+            return _debugFire;
+        }
+    }
+    private static bool _debugSearched;
+    private static bool _debugFire;
+
     /// <summary>自检:所有已绑枪的 Player 引用非空(GunBase.Fire 依赖;缺失=开火 NRE)</summary>
     public bool AllGunsBound
     {
@@ -202,12 +218,14 @@ public partial class FireSystem : Node3D
             gun.Setup(type, side == PlayerState.Side.Left);
             gun.Player = player; // Fire() 耗弹/激活判定依赖(缺失会在开火时 NRE)
             // 真实枪模型(FBX 导入场景根):ak47 枪管沿 -X(rotY-90→-Z,scale 0.4);
-            // m4/handgun 枪管已沿 -Z。统一 ×GunModelScale(0.725) 对真值截图枪占屏比。
+            // m4/handgun 枪管沿 +Z(实测:枪口/准星朝 +Z)→ rotY 180° 转向 -Z。
+            // 统一 ×GunModelScale(0.725) 对真值截图枪占屏比。
             // 贴图手动接线(FBX 未内嵌)
             var model = GD.Load<PackedScene>(GunModelPaths[type]).Instantiate<Node3D>();
             model.Name = "Model";
-            if (type == 0)
-                model.Rotation = new Vector3(0, -Mathf.Pi / 2.0f, 0);
+            model.Rotation = type == 0
+                ? new Vector3(0, -Mathf.Pi / 2.0f, 0)
+                : new Vector3(0, Mathf.Pi, 0);
             model.Scale = Vector3.One * (type == 0 ? 0.4f : 1.0f) * GunModelScale;
             WireGunMaterial(model, type);
             gun.AddChild(model);
@@ -284,26 +302,34 @@ public partial class FireSystem : Node3D
             _lazer[side].HideBeam();
             return;
         }
-        // 2. 枪口旋转 + 射线(鼠标模式 = 相机过屏幕点的射线)
+        // 2. 枪口旋转 + 射线(原作 Ray(Gun.position, Gun.forward):射线与激光共线,激光终点=命中点。
+        // 鼠标模式:先取相机过屏幕点的射线定"光标目标点",枪(世界 -Z)转向它,射线从枪原点出——
+        // 不再直接用相机射线当命中(枪口偏移会导致激光打不到红点,红点悬浮错位)
         AimState aim = side == PlayerState.Side.Right
             ? InputRouter.Instance.GetRightAim()
             : InputRouter.Instance.GetLeftAim();
         Vector3 from, dir;
+        var space = GetWorld3D().DirectSpaceState;
         if (aim.IsScreenPoint && _camera != null)
         {
-            from = _camera.ProjectRayOrigin(aim.ScreenPos);
-            dir = _camera.ProjectRayNormal(aim.ScreenPos);
-            gun.Quaternion = (_camera.GlobalTransform.Basis.Inverse() * Basis.LookingAt(dir, Vector3.Up)).GetRotationQuaternion();
+            var rayOrigin = _camera.ProjectRayOrigin(aim.ScreenPos);
+            var rayDir = _camera.ProjectRayNormal(aim.ScreenPos);
+            var chit = space.IntersectRay(PhysicsRayQueryParameters3D.Create(rayOrigin, rayOrigin + rayDir * RayLength, RayMask));
+            Vector3 target = chit.Count > 0 ? (Vector3)chit["position"] : rayOrigin + rayDir * 200.0f;
+            dir = (target - gun.GlobalPosition).Normalized();
+            var up2 = Mathf.Abs(dir.Dot(Vector3.Up)) > 0.99f ? Vector3.Right : Vector3.Up;
+            gun.Quaternion = (_camera.GlobalTransform.Basis.Inverse() * Basis.LookingAt(dir, up2)).GetRotationQuaternion();
+            from = gun.GlobalPosition; // 原作:射线起点 = 枪节点原点
         }
         else
         {
             gun.Quaternion = aim.Rotation;
-            from = gun.Muzzle.GlobalPosition;
-            dir = -gun.Muzzle.GlobalBasis.Z;
+            from = gun.GlobalPosition;
+            dir = -gun.GlobalBasis.Z;
         }
-        var space = GetWorld3D().DirectSpaceState;
         var hit = space.IntersectRay(PhysicsRayQueryParameters3D.Create(from, from + dir * RayLength, RayMask));
-        // 激光:枪口起恒伸 200m(原作 LineRenderer (0,0,0)→(0,0,200):打怪穿透,被墙遮挡段由深度剔除)
+        // 激光:枪口起恒伸 200m(原作 LineRenderer (0,0,0)→(0,0,200):打怪穿透,被墙遮挡段由深度剔除);
+        // 枪口在枪 -Z 轴上,与射线共线 → 光束正对命中红点
         var muzzlePos = gun.Muzzle.GlobalPosition;
         _lazer[side].SetBeam(muzzlePos, muzzlePos + dir * 200.0f);
         if (hit.Count == 0)
@@ -314,6 +340,11 @@ public partial class FireSystem : Node3D
         var point = (Vector3)hit["position"];
         var normal = (Vector3)hit["normal"];
         var collider = (GodotObject)hit["collider"];
+        if (DebugFire && side == PlayerState.Side.Right)
+        {
+            string cpath = collider is Node cn ? cn.GetPath().ToString() : "?";
+            GD.Print($"[FIREDBG] from={from} dir={dir} hit={cpath} point={point} dist={from.DistanceTo(point):0.00}");
+        }
         // 3. 命中 → Flash 光标(距离衰减公式照原作)
         float dist = _camera != null ? _camera.GlobalPosition.DistanceTo(point) : from.DistanceTo(point);
         float flashScale = 1.0f - Mathf.Clamp(3.0f / Mathf.Max(dist, 0.001f), 0.0f, 1.0f) * 0.8f;

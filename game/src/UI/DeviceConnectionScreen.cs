@@ -303,7 +303,7 @@ public partial class DeviceConnectionScreen : Node
                 logical = RotationAimLogicalPoint(left: false);
                 _aimHover = null;
             }
-            _guideAk.SetAim(_camera, _gunAk.GlobalPosition, _gunAk.GlobalBasis * Vector3.Forward, null,
+            _guideAk.SetAim(_camera, _muzzleAk.GlobalPosition, _gunAk.GlobalBasis * Vector3.Forward, null,
                 logical, ButtonAtLogicalPoint(logical, skipBoxButtons: true) != null);
         }
         else
@@ -319,7 +319,7 @@ public partial class DeviceConnectionScreen : Node
         {
             _gunM4.Quaternion = GunMath.PhoneToGunRotation(router.RawLegRotation);
             var logical = RotationAimLogicalPoint(left: true);
-            _guideM4.SetAim(_camera, _gunM4.GlobalPosition, _gunM4.GlobalBasis * Vector3.Forward, null,
+            _guideM4.SetAim(_camera, _muzzleM4.GlobalPosition, _gunM4.GlobalBasis * Vector3.Forward, null,
                 logical, ButtonAtLogicalPoint(logical, skipBoxButtons: true) != null);
         }
         else

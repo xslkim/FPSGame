@@ -97,6 +97,15 @@ $G --path . scenes/levels/level1_battle.tscn -- "--level1-shot-boss:<out.png>"  
 $G --path . scenes/levels/level1_battle.tscn -- "--level1-fire:<out.png>:<sec>"         # 按住左键实战开火验证(耗弹/伤害/击杀/右键换枪)
 $G --path . scenes/levels/level1_battle.tscn -- "--level1-probe:<sec>"                  # 怪物落位+视线网格扫描探针
 $G --path . scenes/levels/level1_battle.tscn -- "--level1-shot-victory:<out.png>"       # 胜利面板
+$G --path . scenes/levels/level1_battle.tscn -- "--level1-probe:x:<sec>"                # 同上探针(带秒数需两段冒号)
+$G --path . scenes/levels/level1_battle.tscn -- --fire-debug ...                        # 附加:每帧打印右路射线命中点/距离
+$G --path . scenes/test/monster_view.tscn -- "--monster-view:<key>:<dist>[:<anim>]"     # 怪物渲染检视(灰场+相机+光)
+$G --path . scenes/test/monster_view.tscn -- "--gun-view:<type>:<dist>" [--back]        # 枪模型朝向检视(±Z 两侧)
+$G --path . scenes/test/monster_view.tscn -- "--bin2tres:<monsterKey>"                  # Unity 烘焙 bin→怪物动画库 tres(离线)
+$G --path . scenes/levels/level1_battle.tscn -- "--monster-size-audit"                  # 怪物网格/骨骼尺寸审计
+# 成品冒烟(导出包同样吃这些参数):
+dist/FPSGame.exe -- "--quick:res://scenes/levels/level1_battle.tscn" "--level1-shot-battle:<out.png>:<sec>"  # 直跳战斗
+dist/FPSGame.exe -- "--quick:res://scenes/test/monster_view.tscn" "--monster-view:<key>:<dist>" --mat-audit # 材质接线审计
 # L2/L3/L4 支持一次多 shot(逗号分隔)+防死亡守护;跳波/Boss 挂接:
 $G --path . scenes/levels/level2.tscn -- "--level2-shot:<out.png>:<sec>"
 $G --path . scenes/levels/level2.tscn -- "--level2-shot-group:<out.png>:<g>"  # 直跳第 g 波 2.5s 后截
@@ -152,6 +161,8 @@ dotnet publish 的运行时包来自 nuget.org(NuGet.config 已配)。
 ### 战斗/剧情移植保真注记(有意的偏差)
 
 > **2026-09-26 终验轮修复**(详见 tools/research/level1_deviation_log.md 第三轮):修复了战斗中鼠标左键无法开火/右键无法换枪(输入电平未接入)、开枪 NullReferenceException(GunBase.Player 未赋值)、命中分发大小写不匹配("hit"→"Hit"/"OnShot")、开场剑女孩 FBX 厘米单位巨人化(百米网格挡镜头)、命中光斑实心红球(径向衰减软化)、走廊窗口光晕片改加色混合。此后 `--level1-fire` 实测:耗弹/伤害/飘字/击杀回收/右键换枪全通。
+
+> **2026-09-26 第四轮(玩家实机反馈三修)**(详见 level1_deviation_log.md 第四轮):① 激光/命中红点与射线改回原作共线语义——射线从枪原点出(原 `Ray(Gun.position, Gun.forward)`),鼠标模式先取相机光标目标点再转枪指向;② M4/手枪 FBX 枪口实际朝 +Z,装配时补 rotY180°(AK 原有 rotY-90 不变);③ **L1 战斗机位 x 按环境镜像约定取负**(cam_pos_0~4 x → 正值)——出生锥距离恢复真值(楼梯间墙 1.27m→3.2m),怪不再贴脸/钻进相机;④ 牛魔王是全场唯一 humanoid(animationType=2)怪,原 tres 动画为原始曲线直转,行走/待机整体前俯 ~90°——已用 K-POP 同款烘焙管线(Unity 2022 PlayableGraph 逐帧求值 humanoid 姿态)烘 idle/walk/attack_01~03/damage/die 七剪辑,`BinToTres` 离线转写 `bull_anims.tres`(骨骼局部=镜像局部,逐帧 30fps),等待期按原作混合树 Speed=0 语义播 idle(meta idle_anim 新增)。
 
 - 被抱女生/报人/换人抱(开场背负):原作是 UMotion 导出的 **humanoid 肌肉曲线** .anim——已用 K-POP 同款烘焙管线还原(BakeKpopDance.cs 任务模式,`KPOP_JOBS`,rootMotion=0):`dance/baotou_carry.kdance.bin`(1s 循环)/`soldier_carry.kdance.bin`(1.167s)/`f05_carried.kdance.bin`(7s),IntroBadGroup 以 KDancePlayer 循环回放(挂骨 local TRS 保持原作序列化值,f05 Animator applyRootMotion=0 语义)。
 - K-POP 舞蹈:**已完整还原**——原作 `K-POP Dance 1.anim` 是 humanoid 肌肉曲线(无 FBX 源),无法直接转骨骼;改为在 Unity(2022.3 临时工程,2019.4 许可证失效)用 PlayableGraph 逐帧烘焙两舞者全骨骼局部 TRS 为 `.kdance.bin`(`assets/models/actors/dance/`,f05 36MB/casual 9MB,200.8s@30fps),运行时 `KDancePlayer` 按"局部链→Unity 全局→镜像 X→父全局⁻¹→Godot 局部"回放(f05 t=5s 六骨骼世界坐标与 Unity 逐位一致,见 tools/dance_bake/);剧情时钟驱动(2.9667s 起、相位错落照原作 0/0.0667s)。烘焙器在 `G:\test\FPSGame\Assets\Editor\AITools\BakeKpopDance.cs`。
