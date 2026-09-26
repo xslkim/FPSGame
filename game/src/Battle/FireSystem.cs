@@ -50,6 +50,19 @@ public partial class FireSystem : Node3D
     /// <summary>当前战斗的 FireSystem 实例(怪物血花/飘字按此访问)</summary>
     public static FireSystem? Current { get; private set; }
 
+    /// <summary>自检:所有已绑枪的 Player 引用非空(GunBase.Fire 依赖;缺失=开火 NRE)</summary>
+    public bool AllGunsBound
+    {
+        get
+        {
+            foreach (var side in _guns.Values)
+            foreach (var g in side.Values)
+                if (g.Player == null)
+                    return false;
+            return true;
+        }
+    }
+
     private Camera3D _camera = null!;
     private readonly System.Collections.Generic.Dictionary<PlayerState.Side, Node3D> _anchors = new();
     private readonly System.Collections.Generic.Dictionary<PlayerState.Side, System.Collections.Generic.Dictionary<int, GunBase>> _guns = new();
@@ -187,6 +200,7 @@ public partial class FireSystem : Node3D
             muzzle.Position = new Vector3(0, 0, -muzzleZ);
             gun.AddChild(muzzle);
             gun.Setup(type, side == PlayerState.Side.Left);
+            gun.Player = player; // Fire() 耗弹/激活判定依赖(缺失会在开火时 NRE)
             // 真实枪模型(FBX 导入场景根):ak47 枪管沿 -X(rotY-90→-Z,scale 0.4);
             // m4/handgun 枪管已沿 -Z。统一 ×GunModelScale(0.725) 对真值截图枪占屏比。
             // 贴图手动接线(FBX 未内嵌)
@@ -315,8 +329,8 @@ public partial class FireSystem : Node3D
         // 4. 命中 Button(layer 3)→ 触发回调,不耗弹不开火(暂停期唯一放行路径)
         if (collider is CollisionObject3D co && (co.CollisionLayer & 0b100) != 0)
         {
-            if (collider.HasMethod("on_shot"))
-                collider.Call("on_shot");
+            if (collider.HasMethod("OnShot")) // UiButton3D.OnShot(C# 方法注册为原名,大小写敏感)
+                collider.Call("OnShot");
             _uiShotPlayer?.Play();
             return;
         }
@@ -340,9 +354,9 @@ public partial class FireSystem : Node3D
         string tag = "Dust";
         if (isEnemy)
         {
-            if (collider.HasMethod("hit"))
+            if (collider.HasMethod("Hit")) // Monster.Hit / BossHeart.Hit(原名大写)
             {
-                var ret = collider.Call("hit", gun.Attack, point, (int)Game.HitType.Body, (int)side);
+                var ret = collider.Call("Hit", gun.Attack, point, (int)Game.HitType.Body, (int)side);
                 if (ret.VariantType == Variant.Type.String && EffectScenes.ContainsKey(ret.AsString()))
                     tag = ret.AsString();
             }
@@ -507,11 +521,16 @@ public partial class FireSystem : Node3D
             if (img.IsCompressed())
                 img.Decompress();
             img.Convert(Image.Format.Rgba8);
-            for (int y = 0; y < img.GetHeight(); y++)
-            for (int x = 0; x < img.GetWidth(); x++)
+            int w = img.GetWidth(), h = img.GetHeight();
+            for (int y = 0; y < h; y++)
+            for (int x = 0; x < w; x++)
             {
                 var c = img.GetPixel(x, y);
-                img.SetPixel(x, y, new Color(1.0f, 1.0f, 1.0f, c.R));
+                // 原作 Blend_CenterGlow 是软光斑:贴图转换丢了 alpha,仅凭 R 亮度会留大面积实心核,
+                // 叠乘径向平方衰减还原"亮点+光晕"观感
+                float d = new Vector2(x - (w - 1) * 0.5f, y - (h - 1) * 0.5f).Length() / (w * 0.5f);
+                float falloff = Mathf.Clamp(1.0f - d, 0.0f, 1.0f);
+                img.SetPixel(x, y, new Color(1.0f, 1.0f, 1.0f, c.R * falloff * falloff));
             }
         }
         else

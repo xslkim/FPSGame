@@ -1,0 +1,6 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://src/Tools/DanceSpike.cs" id="1"]
+
+[node name="DanceSpike" type="Node3D"]
+script = ExtResource("1")

@@ -12,8 +12,8 @@ namespace FPSGame;
 /// 根运动 z=-4+clip(t)(clip:≤2.95s Hold -5 → 10.05s 10.194186 → 21s 33.693916,pre/post Hold);
 /// 0.09s 尖叫4、11.7s 救救我;相机=vcam1:机位固定 (1.35,1.86,22.44) FOV30,每帧硬盯 f05 Neck
 /// (近似点=组根+(0.1475,1.3899,14.0886),Composer 无 damping)。19s(Level1)调 Stop() 收场。
-/// humanoid 肌肉曲线(报人/换人抱/黄头发被抱)无法直转:僵尸 anim_idle、士兵/石头人 locomotion、
-/// f05 dance 挣扎近似(README 已记偏差)。
+/// humanoid 肌肉剪辑(报人/换人抱/黄头发被抱)由 BakeKpopDance 逐帧烘焙成 .kdance.bin,
+/// KDancePlayer 循环回放(见 README 保真注记)。
 /// </summary>
 public partial class IntroBadGroup : Node3D
 {
@@ -65,6 +65,7 @@ public partial class IntroBadGroup : Node3D
     private AudioStreamPlayer _screamPlayer = null!;
     private AudioStreamPlayer _helpPlayer = null!;
     private readonly System.Collections.Generic.List<(AnimationPlayer Player, string Clip)> _animPlayers = new();
+    private readonly System.Collections.Generic.List<KDancePlayer> _kdPlayers = new(); // 烘焙背负动画(报人/换人抱/被抱)
 
     public override void _Ready()
     {
@@ -104,6 +105,8 @@ public partial class IntroBadGroup : Node3D
         Visible = false;
         foreach (var (ap, _) in _animPlayers)
             ap.Stop();
+        foreach (var kd in _kdPlayers)
+            kd.Stop();
     }
 
     public override void _Process(double delta)
@@ -138,6 +141,8 @@ public partial class IntroBadGroup : Node3D
             Visible = true;
             foreach (var (ap, clip) in _animPlayers)
                 ap.Play(clip, 0.2);
+            foreach (var kd in _kdPlayers)
+                kd.Play();
         }
         ApplyCamera();
     }
@@ -171,12 +176,13 @@ public partial class IntroBadGroup : Node3D
             "res://assets/models/monsters/rock_warrior/rock_warrior_mat.tres",
             new Vector3(0.5f, 0.0f, 15.957f), "locomotion");
 
-        // 包头僵尸(-0.252,0,14.238) scale 1;报人(弯腰抱人)humanoid 无法直转 → anim_idle 近似
+        // 包头僵尸(-0.252,0,14.238) scale 1;报人(弯腰抱人)= Unity humanoid 剪辑烘焙回放
         var bao = BuildWalker("BaotouNPC",
             "res://assets/models/monsters/baotou/baotou_anims.tres",
             "res://assets/models/monsters/baotou/Chr_Zcharacter_01.FBX",
             "res://assets/models/monsters/baotou/baotou_mat.tres",
-            new Vector3(-0.252f, 0.0f, 14.238f), "anim_idle");
+            new Vector3(-0.252f, 0.0f, 14.238f), "anim_idle",
+            "res://assets/models/actors/dance/baotou_carry.kdance.bin");
         // f05 校服女挂 Bone_ R UpperArm(真值 local TRS,school_day.unity:122170-178)
         var f05 = AttachToBone(bao, "Bone_ R UpperArm",
             "res://assets/models/actors/f05_schoolwear/f05_schoolwear_200_m.fbx",
@@ -187,17 +193,18 @@ public partial class IntroBadGroup : Node3D
 
         // 士兵坏人(-0.674,0,18.752) scale 0.7(:113016)
         var soldier = BuildSoldier(new Vector3(-0.674f, 0.0f, 18.752f));
-        // 剑女孩挂 Bip001 L UpperArm(真值 local TRS;scale 1.4286=1/0.7 抵消父缩放)
+        // 剑女孩挂 Bip001 L UpperArm(真值 local TRS;scale 1.4286=1/0.7 抵消父缩放;
+        // blade_girl.FBX 网格以厘米为单位(AABB z≈154m),需再 ×0.01 才还原真人尺寸)
         var blade = AttachToBone(soldier, "Bip001 L UpperArm",
             "res://assets/models/actors/blade_girl/blade_girl.FBX",
             new Vector3(-0.273f, 0.635f, -0.953f),
-            new Quaternion(-0.8526303f, -0.1896241f, -0.2744347f, -0.4021813f), 1.4286f);
+            new Quaternion(-0.8526303f, -0.1896241f, -0.2744347f, -0.4021813f), 1.4286f * 0.01f);
         if (blade != null)
             SetupBladeGirl(blade);
     }
 
     private Node3D BuildWalker(string name, string animsPath, string modelPath,
-        string matPath, Vector3 pos, string animName)
+        string matPath, Vector3 pos, string animName, string bakeBin = "")
     {
         var root = new Node3D { Name = name, Position = pos };
         AddChild(root);
@@ -205,6 +212,17 @@ public partial class IntroBadGroup : Node3D
         model.Name = "Model";
         root.AddChild(model); // FBX 原生朝向(面朝 +Z),不旋转(真值局部 rot=identity)
         OverrideMaterial(model, matPath);
+        // 优先烘焙背负动画(Unity humanoid 剪辑逐帧烘焙;Loop 循环,根运动在骨骼内)
+        var kd = bakeBin.Length > 0
+            ? KDancePlayer.TryCreate(model, bakeBin, model.Transform)
+            : null;
+        if (kd != null)
+        {
+            kd.Loop = true;
+            kd.ApplyRootMotion = false;
+            _kdPlayers.Add(kd); // 2.7286s 激活时 Play()
+            return root;
+        }
         var ap = new AnimationPlayer { Name = "AnimationPlayer" };
         root.AddChild(ap);
         ap.AddAnimationLibrary("", GD.Load<AnimationLibrary>(animsPath));
@@ -253,6 +271,16 @@ public partial class IntroBadGroup : Node3D
             container.AddChild(weapon);
             OverrideMaterial(weapon, "res://assets/models/monsters/toon/toon_weapon_mat.tres");
         }
+        // 换人抱(士兵抱剑女孩)= 烘焙回放;缺失回退 locomotion
+        var kd = KDancePlayer.TryCreate(model,
+            "res://assets/models/actors/dance/soldier_carry.kdance.bin", model.Transform);
+        if (kd != null)
+        {
+            kd.Loop = true;
+            kd.ApplyRootMotion = false;
+            _kdPlayers.Add(kd);
+            return root;
+        }
         var ap = new AnimationPlayer { Name = "AnimationPlayer" };
         root.AddChild(ap);
         ap.AddAnimationLibrary("", GD.Load<AnimationLibrary>(
@@ -300,6 +328,17 @@ public partial class IntroBadGroup : Node3D
             }
         }
         var ap = f05.FindChild("AnimationPlayer", true, false) as AnimationPlayer;
+        // 黄头发被抱(7s 循环)= 烘焙回放(f05 Animator applyRootMotion=0,姿态全在骨骼内);
+        // 缺失回退 dance 近似挣扎
+        var kd = KDancePlayer.TryCreate(f05,
+            "res://assets/models/actors/dance/f05_carried.kdance.bin", f05.Transform);
+        if (kd != null)
+        {
+            kd.Loop = true;
+            kd.ApplyRootMotion = false;
+            _kdPlayers.Add(kd);
+            return;
+        }
         const string animsPath = "res://assets/models/actors/f05_schoolwear/f05_schoolwear_anims.tres";
         if (ap != null && ResourceLoader.Exists(animsPath))
         {

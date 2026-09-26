@@ -14,6 +14,9 @@ public sealed class MouseGunSource
     /// <summary>最新鼠标位置(窗口像素)</summary>
     public Vector2 AimPos;
 
+    /// <summary>左键按住电平(原作 _MouseFireRing:InputManager.cs:272/290,按住=持续开火)</summary>
+    public bool LeftHeld;
+
     public event System.Action? Triggered;
     public event System.Action? SwitchGun;
 
@@ -26,11 +29,13 @@ public sealed class MouseGunSource
             case InputEventMouseMotion m:
                 SimulateMove(m.Position);
                 break;
-            case InputEventMouseButton b when b.Pressed:
-                if (b.ButtonIndex == MouseButton.Left)
+            case InputEventMouseButton b when b.ButtonIndex == MouseButton.Left:
+                LeftHeld = b.Pressed; // 电平:按住持续开火;Pressed 沿另有 Triggered 事件(UI 用)
+                if (b.Pressed)
                     SimulateTrigger();
-                else if (b.ButtonIndex == MouseButton.Right)
-                    SwitchGun?.Invoke();
+                break;
+            case InputEventMouseButton b when b.Pressed && b.ButtonIndex == MouseButton.Right:
+                SwitchGun?.Invoke();
                 break;
         }
     }
@@ -40,6 +45,9 @@ public sealed class MouseGunSource
 
     /// <summary>扣扳机。自动化测试可直接调用以绕过合成事件管线。</summary>
     public void SimulateTrigger() => Triggered?.Invoke();
+
+    /// <summary>右键换枪。自动化测试可直接调用。</summary>
+    public void SimulateSwitch() => SwitchGun?.Invoke();
 
     /// <summary>鼠标是否当前担当右路瞄准源(模式含右玩家或为鼠标模式,且实体枪未连)</summary>
     public bool IsActiveForRight(InputRouter router) =>

@@ -33,7 +33,9 @@ public partial class Level1 : LevelBase
             || System.Array.FindIndex(args, a => a.StartsWith("--level1-shot:")) >= 0;
         // 截图/跳波挂接显式走 debug 直开,与 IsDebug 开关解耦(正常游戏流程应播 19s 开场)
         bool wantDebugJump = System.Array.FindIndex(args, a => a.StartsWith("--level1-shot-battle:")
-            || a.StartsWith("--level1-shot-boss:") || a.StartsWith("--level1-shot-group:")) >= 0;
+            || a.StartsWith("--level1-shot-boss:") || a.StartsWith("--level1-shot-group:")
+            || a.StartsWith("--level1-probe:") || a.StartsWith("--level1-fire:")
+            || a.StartsWith("--level1-shot-victory:")) >= 0;
         if ((Game.Instance.IsDebug || wantDebugJump) && !wantIntro)
         {
             GD.Print("[L1] debug: 跳过 19s 开场直接开战");
@@ -64,6 +66,23 @@ public partial class Level1 : LevelBase
                     var (path, g) = SplitShotArg(a["--level1-shot-group:".Length..], 0);
                     CallDeferred(nameof(DebugJumpGroup), path, (int)g);
                 }
+                else if (a.StartsWith("--level1-probe:"))
+                {
+                    // 探针:战斗开始后 sec 秒打印相机/怪物/光标位置与屏幕投影(不写文件)
+                    var (_, sec) = SplitShotArg(a["--level1-probe:".Length..], 7.0f);
+                    ProbeDelayed(sec);
+                }
+                else if (a.StartsWith("--level1-shot-victory:"))
+                {
+                    // 胜利面板截图:跳 G4 → 击杀 Boss → 2s 后胜利面板(原作 Victory 流程)
+                    CallDeferred(nameof(DebugVictoryShot), a["--level1-shot-victory:".Length..]);
+                }
+                else if (a.StartsWith("--level1-fire:"))
+                {
+                    // 开火验证:按住鼠标左键,每帧瞄准第一只活怪胸口,sec 秒后截图(伤害/飘字/击杀链路)
+                    var (path, sec) = SplitShotArg(a["--level1-fire:".Length..], 6.0f);
+                    FireTest(path, sec);
+                }
             }
             return;
         }
@@ -74,6 +93,11 @@ public partial class Level1 : LevelBase
             {
                 var (path, delay) = SplitShotArg(a["--level1-shot:".Length..], 6.0f);
                 TakeShotDelayed(path, delay); // 开场行进中(可指定秒,对位真值时间戳)
+            }
+            else if (a.StartsWith("--level1-probe-intro:"))
+            {
+                var (_, sec) = SplitShotArg(a["--level1-probe-intro:".Length..], 3.0f);
+                ProbeDelayed(sec); // 开场模式:探针打印相机视线上的物体(识别异常网格)
             }
         }
     }
@@ -91,6 +115,159 @@ public partial class Level1 : LevelBase
         img.SavePng(path.Replace('/', '\\'));
         GD.Print($"[L1] shot saved: {path}");
         GetTree().Quit();
+    }
+
+    /// <summary>探针(debug 直开后 sec 秒):打印相机/存活怪物/命中光标的 world+屏幕投影,验证落位真值</summary>
+    private async void ProbeDelayed(float sec)
+    {
+        ApplyShotRes();
+        await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+        await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+        InputRouter.Instance.MouseGun.SimulateMove(GetViewport().GetVisibleRect().Size / 2.0f);
+        await ToSignal(GetTree().CreateTimer(sec, true, true), SceneTreeTimer.SignalName.Timeout);
+        var cam = GetViewport().GetCamera3D();
+        var vp = GetViewport().GetVisibleRect().Size;
+        GD.Print($"[PROBE] cam pos={cam.GlobalPosition} quat={cam.Quaternion} fov={cam.Fov} vp={vp}");
+        foreach (var m in Pool.GetChildren())
+        {
+            if (m is not Monster mm || !mm.IsActiveState)
+                continue;
+            Vector3 p = mm.GlobalPosition;
+            Vector2 sp = cam.UnprojectPosition(p + new Vector3(0, 1.0f, 0.0f));
+            GD.Print($"[PROBE] {mm.MetaKey} lv={mm.Level} hp={mm.Hp} pos=({p.X:0.00},{p.Y:0.00},{p.Z:0.00}) " +
+                $"dist={p.DistanceTo(cam.GlobalPosition):0.00} scr=({sp.X:0},{sp.Y:0}) behind={cam.IsPositionBehind(p)}");
+        }
+        // 视口射线:识别指定归一化屏幕点上的物体(异常网格排查)
+        var space = GetWorld3D().DirectSpaceState;
+        foreach (var uv in new[] { new Vector2(0.50f, 0.50f), new Vector2(0.61f, 0.28f),
+            new Vector2(0.55f, 0.20f), new Vector2(0.66f, 0.25f), new Vector2(0.62f, 0.35f), new Vector2(0.70f, 0.15f) })
+        {
+            var o = cam.ProjectRayOrigin(uv * vp);
+            var n = cam.ProjectRayNormal(uv * vp);
+            var hit = space.IntersectRay(PhysicsRayQueryParameters3D.Create(o, o + n * 100.0f));
+            if (hit.Count > 0)
+            {
+                var col = (GodotObject)hit["collider"];
+                string name = col is Node cn ? cn.GetPath().ToString() : "?";
+                var hp = (Vector3)hit["position"];
+                GD.Print($"[PROBE-RAY] uv=({uv.X:0.00},{uv.Y:0.00}) hit {name} at ({hp.X:0.0},{hp.Y:0.0},{hp.Z:0.0}) dist={hp.DistanceTo(o):0.0}");
+            }
+            else
+                GD.Print($"[PROBE-RAY] uv=({uv.X:0.00},{uv.Y:0.00}) no hit");
+        }
+        // AABB 扫描:列出视线穿过的所有可见网格(含无碰撞体的视觉网格),按距离排序
+        Node scanRoot = this; // 从关卡根扫(含 env/怪物/枪/特效一切 MeshInstance3D)
+        GD.Print($"[PROBE-SCAN] root={scanRoot.GetPath()} (env null={_env == null})");
+        {
+            foreach (var uv in new[] { new Vector2(0.61f, 0.28f), new Vector2(0.58f, 0.22f) })
+            {
+                var o = cam.ProjectRayOrigin(uv * vp);
+                var n = cam.ProjectRayNormal(uv * vp).Normalized();
+                var hits = new System.Collections.Generic.List<(float T, string Desc)>();
+                foreach (var node in scanRoot.FindChildren("*", "MeshInstance3D", true, false))
+                {
+                    if (node is not MeshInstance3D mi || !mi.IsVisibleInTree() || mi.Mesh == null)
+                        continue;
+                    var inv = mi.GlobalTransform.AffineInverse();
+                    Vector3 lo = inv * o;
+                    Vector3 ld = (inv.Basis * n); // 非归一(跟随缩放),t 仅用于排序相对比较
+                    var aabb = mi.GetAabb();
+                    // slab 法
+                    float tmin = 0.0f, tmax = float.MaxValue;
+                    bool miss = false;
+                    for (int ax = 0; ax < 3 && !miss; ax++)
+                    {
+                        float oo = lo[ax], dd = ld[ax];
+                        float mn = aabb.Position[ax], mx = aabb.Position[ax] + aabb.Size[ax];
+                        if (Mathf.Abs(dd) < 1e-8f)
+                        {
+                            if (oo < mn || oo > mx) miss = true;
+                            continue;
+                        }
+                        float t1 = (mn - oo) / dd, t2 = (mx - oo) / dd;
+                        if (t1 > t2) (t1, t2) = (t2, t1);
+                        tmin = Mathf.Max(tmin, t1); tmax = Mathf.Min(tmax, t2);
+                        if (tmin > tmax) miss = true;
+                    }
+                    if (!miss && tmax > 0.0f)
+                    {
+                        string matName = "?";
+                        var m0 = mi.GetActiveMaterial(0);
+                        if (m0 is BaseMaterial3D bm) matName = $"{m0.ResourceName}(blend={(int)bm.BlendMode},transp={(int)bm.Transparency},shading={(int)bm.ShadingMode})";
+                        else if (m0 != null) matName = m0.ResourceName;
+                        hits.Add((Mathf.Max(tmin, 0.0f), $"{mi.GetPath()} aabb={aabb} mat={matName}"));
+                    }
+                }
+                hits.Sort((a, b) => a.T.CompareTo(b.T));
+                GD.Print($"[PROBE-SCAN] uv=({uv.X:0.00},{uv.Y:0.00}) {hits.Count} meshes along ray:");
+                foreach (var h in hits.GetRange(0, Mathf.Min(hits.Count, 8)))
+                    GD.Print($"[PROBE-SCAN]   t={h.T:0.00} {h.Desc}");
+            }
+        }
+        GD.Print("[PROBE] done");
+        var img = GetViewport().GetTexture().GetImage();
+        img.SavePng($"G:/FPSGame/tools/screenshots/check1/probe_{sec:0}s.png".Replace('/', '\\'));
+        GetTree().Quit();
+    }
+    /// <summary>开火验证(debug 直开后):等首怪出生,然后按住左键跟踪瞄准最近活怪,sec 秒后截图退出</summary>
+    private async void FireTest(string path, float sec)
+    {
+        ApplyShotRes();
+        await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+        await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+        // 等冻结期结束首怪出生(2s 冻结 + tick)
+        double t0 = Time.GetTicksMsec() / 1000.0;
+        Monster? target = null;
+        while (Time.GetTicksMsec() / 1000.0 - t0 < 10.0)
+        {
+            target = FirstActiveMonster();
+            if (target != null)
+                break;
+            await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+        }
+        GD.Print($"[FIRE] target={(target != null ? target.MetaKey + " hp=" + target.Hp : "none")}");
+        InputRouter.Instance.MouseGun.LeftHeld = true;
+        double tEnd = Time.GetTicksMsec() / 1000.0 + sec;
+        int frame = 0;
+        while (Time.GetTicksMsec() / 1000.0 < tEnd)
+        {
+            var cam = GetViewport().GetCamera3D();
+            target = FirstActiveMonster();
+            if (target != null && cam != null)
+            {
+                Vector3 chest = target.GlobalPosition + new Vector3(0, target.AimCenterY, 0); // 瞄胶囊中心(原作 CC 高度各异)
+                if (!cam.IsPositionBehind(chest))
+                    InputRouter.Instance.MouseGun.SimulateMove(cam.UnprojectPosition(chest));
+            }
+            if (++frame % 60 == 0)
+                GD.Print($"[FIRE] f={frame} keyRing={InputRouter.Instance.GetCurKeyRing()} " +
+                    $"leftHeld={InputRouter.Instance.MouseGun.LeftHeld} state={Game.Instance.SceneState} " +
+                    $"mode={InputRouter.Instance.Mode} fireEnabled={InputRouter.Instance.FireEnabled}");
+            if (frame == 120) // 中段右键换枪:验证 SwitchGun 信号链(原作右键=换枪)
+            {
+                int before = PlayerState.Instance.PlayerRight.GunType;
+                InputRouter.Instance.MouseGun.SimulateSwitch();
+                int after = PlayerState.Instance.PlayerRight.GunType;
+                GD.Print($"[FIRE] switch gun via mouse right: {before} → {after} (expect change)");
+            }
+            await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+        }
+        InputRouter.Instance.MouseGun.LeftHeld = false;
+        GD.Print($"[FIRE] after: target={(target != null ? target.MetaKey + " hp=" + target.Hp + " dead=" + target.IsDead : "none")} " +
+            $"alive={PlayerState.CurAliveMonster} bullet={PlayerState.Instance.PlayerRight.Bullet}");
+        await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame); // 等飘字/特效呈现一帧
+        var img = GetViewport().GetTexture().GetImage();
+        img.SavePng(path.Replace('/', '\\'));
+        GD.Print($"[FIRE] shot saved: {path}");
+        GetTree().Quit();
+    }
+
+    private Monster? FirstActiveMonster()
+    {
+        foreach (var m in Pool.GetChildren())
+            if (m is Monster mm && mm.IsActiveState && !mm.IsDead)
+                return mm;
+        return null;
     }
 
     public override void _Ready()
@@ -183,6 +360,23 @@ public partial class Level1 : LevelBase
         var img = GetViewport().GetTexture().GetImage();
         img.SavePng(path.Replace('/', '\\'));
         GD.Print($"[L1] boss shot saved: {path}");
+        GetTree().Quit();
+    }
+
+    /// <summary>debug:跳 G4 杀 Boss,等胜利面板弹出后截图(胜利流程可视化验证)</summary>
+    private async void DebugVictoryShot(string path)
+    {
+        ApplyShotRes();
+        await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+        await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+        StartGroup(4);
+        await ToSignal(GetTree().CreateTimer(3.0f, true, true), SceneTreeTimer.SignalName.Timeout);
+        if (Boss != null && Boss.IsActiveState)
+            Boss.Hit(99999.0f, Boss.GlobalPosition, Game.HitType.Body, PlayerState.Side.Right);
+        await ToSignal(GetTree().CreateTimer(4.0f, true, true), SceneTreeTimer.SignalName.Timeout); // 胜利延迟 2s + 面板呈现
+        var img = GetViewport().GetTexture().GetImage();
+        img.SavePng(path.Replace('/', '\\'));
+        GD.Print($"[L1] victory shot saved: {path}");
         GetTree().Quit();
     }
 
@@ -283,6 +477,14 @@ public partial class Level1 : LevelBase
         var continueArgs = new System.Collections.Generic.List<(bool, int)>();
         OpenContinue += (isOpen, side) => continueArgs.Add((isOpen, side));
         StartBattle();
+        // 开火链路契约回归(2026-09-26 修复:GunBase.Player 未赋值→开火 NRE;FireSystem Call("hit") 小写不匹配)
+        Check(FireSys == null || FireSys.AllGunsBound, "fire path: all guns have Player bound (no NRE)");
+        {
+            var anyMonster = System.Linq.Enumerable.FirstOrDefault(
+                System.Linq.Enumerable.OfType<Monster>(Pool.GetChildren()));
+            Check(anyMonster != null && anyMonster.HasMethod("Hit"),
+                "fire path: monster exposes Hit (FireSystem dispatch name, case-sensitive)");
+        }
         // 玩家死亡 → open_continue(false, side)
         while (CurGroup < 1)
             await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);

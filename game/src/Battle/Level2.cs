@@ -46,6 +46,27 @@ public partial class Level2 : LevelBase
 
     // ------------------------------------------------ 进场/元数据
 
+    /// <summary>远景毒气山体压暗(原作烘焙光照下远景=暗剪影;本场景顶点色为 albedo,受环境光/平行光
+    /// 照射过亮,且 VC 模式会盖掉材质乘色,只能整组盖暗色材质)。匹配真值 level2_unity.png 的黄昏观感。</summary>
+    private void DarkenBackdrop()
+    {
+        var env = GetNodeOrNull<Node3D>("Environment");
+        if (env == null)
+            return;
+        var terrain = env.FindChild("Terrain_d_gas", true, false) as MeshInstance3D;
+        if (terrain == null)
+            return;
+        var dark = new StandardMaterial3D
+        {
+            AlbedoColor = new Color(0.20f, 0.24f, 0.22f),
+            Roughness = 1.0f,
+        };
+        terrain.MaterialOverride = dark;
+        foreach (var n in terrain.FindChildren("*", "MeshInstance3D", true, false))
+            if (n is MeshInstance3D mi)
+                mi.MaterialOverride = dark;
+    }
+
     /// <summary>meta 复制后把 boss_group 置 -1:Boss 不走基类"波开始即出场",本类按 boss_delay 延迟处理</summary>
     private void PatchMeta()
     {
@@ -57,6 +78,7 @@ public partial class Level2 : LevelBase
     protected override void EnterLevel()
     {
         PatchMeta();
+        DarkenBackdrop();
         CollectWindows();
         var args = OS.GetCmdlineUserArgs();
         if (System.Array.IndexOf(args, "--level2-selftest") >= 0)
@@ -72,6 +94,17 @@ public partial class Level2 : LevelBase
                 // 格式 --level2-shot:<path>[:delaySec](从右往左拆,兼容盘符),可多次传入
                 var (path, delay) = SplitShotArg(a["--level2-shot:".Length..], 8.0f);
                 _shots.Add((path, delay));
+            }
+            else if (a.StartsWith("--level2-shot-group:"))
+            {
+                // 直跳第 g 波截图(同 L1 --level1-shot-group)
+                var (path, g) = SplitShotArg(a["--level2-shot-group:".Length..], 0);
+                CallDeferred(nameof(DebugJumpGroup), path, (int)g);
+            }
+            else if (a.StartsWith("--level2-shot-boss:"))
+            {
+                // 直跳 G2 Boss 波:Boss 立即出场,5s 后截图
+                CallDeferred(nameof(DebugJumpBoss), a["--level2-shot-boss:".Length..]);
             }
         }
         if (_shots.Count > 0)
@@ -123,6 +156,42 @@ public partial class Level2 : LevelBase
     {
         foreach (var tw in GetTree().GetProcessedTweens())
             tw.Kill();
+    }
+
+    /// <summary>debug:强制切到第 g 波并截图(同 L1 --level1-shot-group:强制 StartGroup(g) 后 2.5s 截)</summary>
+    private async void DebugJumpGroup(string path, int g)
+    {
+        ApplyShotRes();
+        await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+        await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+        InputRouter.Instance.MouseGun.SimulateMove(GetViewport().GetVisibleRect().Size / 2.0f);
+        foreach (var m in Pool.GetChildren())
+            if (m is Monster mm && mm.IsActiveState)
+                mm.Hit(99999.0f, mm.GlobalPosition, Game.HitType.Body, PlayerState.Side.Right);
+        StartGroup(g);
+        GD.Print($"[L2] jump group {g}: cam pos={Camera?.GlobalPosition} quat={Camera?.Quaternion} fov={Camera?.Fov}");
+        await ToSignal(GetTree().CreateTimer(2.5f, true, true), SceneTreeTimer.SignalName.Timeout);
+        var img = GetViewport().GetTexture().GetImage();
+        img.SavePng(path.Replace('/', '\\'));
+        GD.Print($"[L2] group{g} shot saved: {path}");
+        GetTree().Quit();
+    }
+
+    /// <summary>debug:直跳 G2 Boss 波,Boss 立即出场,5s 后截图(盔甲武士 ×3/等级/动画倍率验证)</summary>
+    private async void DebugJumpBoss(string path)
+    {
+        ApplyShotRes();
+        await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+        await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+        InputRouter.Instance.MouseGun.SimulateMove(GetViewport().GetVisibleRect().Size / 2.0f);
+        StartGroup(2);
+        await ToSignal(GetTree().CreateTimer(0.5f, true, true), SceneTreeTimer.SignalName.Timeout);
+        _bossDelayLeft = 0.01f; // 立即触发 SpawnBossDelayed(原作 15s 延迟不用于截图)
+        await ToSignal(GetTree().CreateTimer(5.0f, true, true), SceneTreeTimer.SignalName.Timeout);
+        var img = GetViewport().GetTexture().GetImage();
+        img.SavePng(path.Replace('/', '\\'));
+        GD.Print($"[L2] boss shot saved: {path}");
+        GetTree().Quit();
     }
 
     private void CollectWindows()

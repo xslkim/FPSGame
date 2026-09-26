@@ -235,6 +235,14 @@ public partial class LevelBase : Node3D
         tw.TweenProperty(Camera, "global_transform", CamPositions[i].GlobalTransform,
             CamBlendTime * Mathf.Max(TimeScaleTest, 0.05f))
             .SetTrans(Tween.TransitionType.Cubic).SetEase(Tween.EaseType.InOut); // 原作 EaseInOut
+        // 原作 vcam 逐波 far(L2:50/80/100;meta cam_far 有值才改,近裁剪面不动)
+        if (i < Groups.Count)
+        {
+            var g = Groups[i].AsGodotDictionary();
+            float far = SaveService.Get(g, "cam_far", 0.0).AsSingle();
+            if (far > 0.0f)
+                Camera.Far = far;
+        }
     }
 
     protected void SpawnBoss()

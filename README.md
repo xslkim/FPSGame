@@ -94,8 +94,13 @@ $G --path . scenes/levels/level1_battle.tscn -- "--level1-shot:<out.png>:<sec>" 
 $G --path . scenes/levels/level1_battle.tscn -- "--level1-shot-battle:<out.png>:<sec>"   # debug 直开战,sec 自战斗开始
 $G --path . scenes/levels/level1_battle.tscn -- "--level1-shot-group:<out.png>:<g>"      # 直跳第 g 波,2.5s 后截,日志打印机位 pos/quat/fov
 $G --path . scenes/levels/level1_battle.tscn -- "--level1-shot-boss:<out.png>"           # 直跳 Boss 波
-# L2/L3/L4 支持一次多 shot(逗号分隔)+防死亡守护,格式见各 Level*.cs
-$G --path . scenes/levels/level2.tscn -- "--level2-shot:<out.png>:<sec>"  # 同理 L3/L4
+$G --path . scenes/levels/level1_battle.tscn -- "--level1-fire:<out.png>:<sec>"         # 按住左键实战开火验证(耗弹/伤害/击杀/右键换枪)
+$G --path . scenes/levels/level1_battle.tscn -- "--level1-probe:<sec>"                  # 怪物落位+视线网格扫描探针
+$G --path . scenes/levels/level1_battle.tscn -- "--level1-shot-victory:<out.png>"       # 胜利面板
+# L2/L3/L4 支持一次多 shot(逗号分隔)+防死亡守护;跳波/Boss 挂接:
+$G --path . scenes/levels/level2.tscn -- "--level2-shot:<out.png>:<sec>"
+$G --path . scenes/levels/level2.tscn -- "--level2-shot-group:<out.png>:<g>"  # 直跳第 g 波 2.5s 后截
+$G --path . scenes/levels/level2.tscn -- "--level2-shot-boss:<out.png>"       # 直跳 G2 Boss 立即出场 5s 后截
 ```
 
 Unity 侧真值:`G:\test\FPSGame\Assets\Editor\MenuScreenshot.cs`(GUI 模式 `-executeMethod MenuScreenshot.Capture` / `.CaptureStill`),几何测量 `MenuMeasure.cs -executeMethod MenuMeasure.Dump`,枪口火光 `FlashScreenshot.cs -executeMethod FlashScreenshot.Capture`(FLASH_ISO=nosmoke/noflame 可隔离子效果),选关/连接页 `LevelShot.cs -executeMethod LevelShot.Capture`(LEVEL_SHOT_SCENE=Assets/UI/LevelChoose.unity 或 DeviceConnection.unity,LEVEL_SHOT_ACTION=page2/difficult),双枪包围盒 `GunMeasure.cs -executeMethod GunMeasure.Dump`,Level1 战斗 `Level1Shot.cs -executeMethod Level1Shot.Capture`(L1_SHOT_TIMES/L1_SHOT_DEBUG/L1_SHOT_GROUPS 环境变量)。
@@ -115,7 +120,7 @@ dotnet publish 的运行时包来自 nuget.org(NuGet.config 已配)。
 1. 发布前把 `game/assets/fonts/cjk_fallback.ttf`(本机 SimHei 副本)换成可分发字体(UiTheme 引用)。
 2. `assets/models/` 部分环境贴图目录大小写与引用不一致(Windows 无碍,跨平台需修)。
 3. 体感枪真机方向校准(quat_mirror)、枪口火光/激光真机效果未经实机验证(无设备)。
-4. L2 烘焙 lightmap 不可得,实时等效光照观感偏白日(已声明);L2 战斗无真值截图,仅数值对照(可补拍,见 l234.md X-4)。
+4. L2 观感已按真值黄昏毒气镇重做实时光照(详见保真注记);Unity 侧 L2 战斗仅 1 张存量真值截图(2019 batchmode 许可证失效后无法补拍,可恢复后补拍更多节拍)。
 
 ## 移植保真注记(有意的偏差)
 
@@ -146,14 +151,16 @@ dotnet publish 的运行时包来自 nuget.org(NuGet.config 已配)。
 
 ### 战斗/剧情移植保真注记(有意的偏差)
 
-- 被抱女生(开场背负的学生)动画:原作是 UMotion 导出的 **humanoid 肌肉曲线** .anim(RootQ/RightFootQ 等,390 条 muscle 通道),无法映射 Godot 骨骼;以挂骨真值 TRS+绑定姿态近似(垂挂方向与真值差约 45°,挂骨坐标为原作原值)。
-- K-POP 舞蹈:原作 200.83s 完整版(K-POP Dance 1.anim)资产不可得;演员 `_anims.tres` 内置 4s dance 循环(legacy 占位),剧情 54.8s 用循环替代,3 学生错开 0.07s 相位照原作。
+> **2026-09-26 终验轮修复**(详见 tools/research/level1_deviation_log.md 第三轮):修复了战斗中鼠标左键无法开火/右键无法换枪(输入电平未接入)、开枪 NullReferenceException(GunBase.Player 未赋值)、命中分发大小写不匹配("hit"→"Hit"/"OnShot")、开场剑女孩 FBX 厘米单位巨人化(百米网格挡镜头)、命中光斑实心红球(径向衰减软化)、走廊窗口光晕片改加色混合。此后 `--level1-fire` 实测:耗弹/伤害/飘字/击杀回收/右键换枪全通。
+
+- 被抱女生/报人/换人抱(开场背负):原作是 UMotion 导出的 **humanoid 肌肉曲线** .anim——已用 K-POP 同款烘焙管线还原(BakeKpopDance.cs 任务模式,`KPOP_JOBS`,rootMotion=0):`dance/baotou_carry.kdance.bin`(1s 循环)/`soldier_carry.kdance.bin`(1.167s)/`f05_carried.kdance.bin`(7s),IntroBadGroup 以 KDancePlayer 循环回放(挂骨 local TRS 保持原作序列化值,f05 Animator applyRootMotion=0 语义)。
+- K-POP 舞蹈:**已完整还原**——原作 `K-POP Dance 1.anim` 是 humanoid 肌肉曲线(无 FBX 源),无法直接转骨骼;改为在 Unity(2022.3 临时工程,2019.4 许可证失效)用 PlayableGraph 逐帧烘焙两舞者全骨骼局部 TRS 为 `.kdance.bin`(`assets/models/actors/dance/`,f05 36MB/casual 9MB,200.8s@30fps),运行时 `KDancePlayer` 按"局部链→Unity 全局→镜像 X→父全局⁻¹→Godot 局部"回放(f05 t=5s 六骨骼世界坐标与 Unity 逐位一致,见 tools/dance_bake/);剧情时钟驱动(2.9667s 起、相位错落照原作 0/0.0667s)。烘焙器在 `G:\test\FPSGame\Assets\Editor\AITools\BakeKpopDance.cs`。
 - blade_girl:原作场景中 inactive 且 Animator 被清空(不参与演出),剧情不创建该角色。
 - 相机切换:Level1 用原作自定义 Blend 资产 Level1.asset 的 1s(Cubic EaseInOut 近似);vcam1 注视 Neck 以每帧 LookAt 近似。
 - 难度数量截断:Unity float 数学改 double 精确(10×1.8 恒 18,不再掉 17);**例外:L2 G0 Hard 按原作 `(int)DiffRateHard` 强转 bug bug-for-bug 保留为 30**(level_meta num_override,L234 审计 L2-1)。
 - 胜利结算:原作只弹 VectoryPanel 无星数(全工程无星级写入点,选关星数恒默认值)——1:1 照此,无本地结算。
 - Level2/3/4 原工程 `Invoke("FinishLevel")` bug(方法不存在永不触发)在 LevelBase 统一修复。
-- Level2:烘焙 lightmap 不可得,实时等效光照观感偏白日;Boss 已按 Unity 真值 ×3 缩放(根节点,命中体/血条随动)。
+- Level2:光照按真值(level2_unity.png 黄昏毒气镇)重做实时光照——env 全部材质点亮化(去 unshaded)、远景 Terrain_d_gas 整组压暗(暗剪影,VC 材质不可乘色只能盖材质)、环境改暗冷 ambient(0.30/0.34/0.44×0.22)、方向光 0.55 带阴影、9 窗口补 Unity 同款暖点光(intensity 2/range 10/(1,0.893,0.707),Level2.unity type2 灯)、相机逐波 far 50/80/100(meta cam_far,基类 SwitchCamera 应用);Boss 已按 Unity 真值 ×3 缩放(根节点,命中体/血条随动)。
 - Level3:烘焙导出的坐标约定为 mirror-X(SceneExporter.cs 注释),机位照此换算并经落位验证;雾=深度雾 20→90 真值色 (0.356,0.476,0.575);Boss 出生点照真值 (-83.83,-0.02,-101.3) 并已 ×5 缩放;部分机位视野内城市观感偏空。
 - Level4:env 同 mirror-X 约定;雾按真值 ExpSquared 近似值;fire_breath 特效 emit 默认值 bug-for-bug 保留;方向光按真值恢复常开 0.57;龙四点巡回(FarWay75/80→InCamera150/15±10/20±20→Attack 贴脸 20m→CamOffset±20)+出生瞬移 FarWay 已按 Unity 重写;Magma 四色变体(蓝/绿/橙/紫)已补齐。
 - Level1 战斗场景环境(env_school_hallway)整体为原作 X 镜像(FBX 导入差异)——机位/平行光全部按"镜像四元数 (z,w,x,y) 分量置换"换算并经运行时逐位验证(裁决记录 tools/research/battle_audit/battle0_mirror_verdict.md);雾按真值线性 5→12m 用深度雾原值落地(本引擎深度雾实测生效,旧"无效"注记作废);出生后修正 x 微调随镜像翻转(x>0→−0.3)。

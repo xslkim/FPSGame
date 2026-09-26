@@ -51,7 +51,6 @@ shadow_mesh = SubResource("ArrayMesh_60ppu")
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_bu6ts"]
 resource_name = "WoodenHouse"
-shading_mode = 0
 albedo_texture = ExtResource("1_22u4s")
 
 [sub_resource type="ConcavePolygonShape3D" id="ConcavePolygonShape3D_msu6q"]
@@ -211,12 +210,10 @@ shadow_mesh = SubResource("ArrayMesh_w1h88")
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_ga8ml"]
 resource_name = "Tavern"
-shading_mode = 0
 albedo_texture = ExtResource("2_w6d0a")
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_kuqvi"]
 resource_name = "Tavern_interior"
-shading_mode = 0
 albedo_texture = ExtResource("3_souy0")
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_401vd"]
@@ -261,7 +258,6 @@ shadow_mesh = SubResource("ArrayMesh_4rfkc")
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_4cgp1"]
 resource_name = "WoodenWall"
-shading_mode = 0
 albedo_texture = ExtResource("4_eklqc")
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_7fqry"]
@@ -975,7 +971,6 @@ shadow_mesh = SubResource("ArrayMesh_mvmfn")
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_i3bvu"]
 resource_name = "House1"
-shading_mode = 0
 albedo_texture = ExtResource("5_57vqc")
 
 [sub_resource type="ConcavePolygonShape3D" id="ConcavePolygonShape3D_o0f6i"]
@@ -1036,7 +1031,7 @@ size = Vector3(1.3922844, 2.1082928, 0.1)
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_kw3hw"]
 resource_name = "color_swatch"
 vertex_color_use_as_albedo = true
-albedo_color = Color(0.79073066, 0.79073066, 0.79073066, 1)
+albedo_color = Color(0.33, 0.35, 0.35, 1)
 
 [sub_resource type="ArrayMesh" id="ArrayMesh_gpsrs"]
 _surfaces = [{
@@ -1074,7 +1069,6 @@ shadow_mesh = SubResource("ArrayMesh_gpsrs")
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_7jv87"]
 resource_name = "Bark 1"
-shading_mode = 0
 albedo_texture = ExtResource("6_g0csx")
 uv1_scale = Vector3(100, 100, 1)
 
@@ -1084,7 +1078,7 @@ data = PackedVector3Array(-45, -50, 0, -50, -50, 0, -50, -45, 0, -50, -45, 0, -4
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_gq2jc"]
 resource_name = "color_swatch"
 vertex_color_use_as_albedo = true
-albedo_color = Color(0.79073066, 0.79073066, 0.79073066, 1)
+albedo_color = Color(0.33, 0.35, 0.35, 1)
 
 [sub_resource type="ArrayMesh" id="ArrayMesh_wu70s"]
 _surfaces = [{
@@ -1122,7 +1116,6 @@ shadow_mesh = SubResource("ArrayMesh_wu70s")
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_fpayu"]
 resource_name = "color_swatch"
-shading_mode = 0
 albedo_texture = ExtResource("7_xfxos")
 
 [sub_resource type="ConcavePolygonShape3D" id="ConcavePolygonShape3D_pbmep"]
@@ -1131,7 +1124,7 @@ data = PackedVector3Array(-0.2741, 0.8653, 0.9403, -0.6088, 0.7355, 0.9413, -0.7
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_hc7yk"]
 resource_name = "color_swatch"
 vertex_color_use_as_albedo = true
-albedo_color = Color(0.79073066, 0.79073066, 0.79073066, 1)
+albedo_color = Color(0.33, 0.35, 0.35, 1)
 
 [sub_resource type="ArrayMesh" id="ArrayMesh_13so6"]
 _surfaces = [{
@@ -1182,7 +1175,7 @@ data = PackedVector3Array(-0.3673, -1.5783, -0.3888, 0.2139, -0.122899994, 1.553
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_mqjja"]
 resource_name = "color_swatch"
 vertex_color_use_as_albedo = true
-albedo_color = Color(0.79073066, 0.79073066, 0.79073066, 1)
+albedo_color = Color(0.33, 0.35, 0.35, 1)
 
 [sub_resource type="ArrayMesh" id="ArrayMesh_pep77"]
 _surfaces = [{
@@ -1222,7 +1215,7 @@ data = PackedVector3Array(0.6969, -2.2505999, -0.5846, 0.551, -0.986, 1.5473, 1.
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_dva0j"]
 resource_name = "color_swatch"
 vertex_color_use_as_albedo = true
-albedo_color = Color(0.79073066, 0.79073066, 0.79073066, 1)
+albedo_color = Color(0.33, 0.35, 0.35, 1)
 
 [sub_resource type="ArrayMesh" id="ArrayMesh_ny3po"]
 _surfaces = [{
@@ -1282,7 +1275,7 @@ data = PackedVector3Array(-0.2104, -0.1583, -0.4263, -0.32889998, 0.211, 0.92819
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_3fn71"]
 resource_name = "color_swatch"
 vertex_color_use_as_albedo = true
-albedo_color = Color(0.79073066, 0.79073066, 0.79073066, 1)
+albedo_color = Color(0.33, 0.35, 0.35, 1)
 
 [sub_resource type="ArrayMesh" id="ArrayMesh_stnux"]
 _surfaces = [{
@@ -1444,7 +1437,7 @@ data = PackedVector3Array(-0.2741, 0.8653, 0.9403, -0.6088, 0.7355, 0.9413, -0.7
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_v00ow"]
 resource_name = "color_swatch"
 vertex_color_use_as_albedo = true
-albedo_color = Color(0.79073066, 0.79073066, 0.79073066, 1)
+albedo_color = Color(0.33, 0.35, 0.35, 1)
 
 [sub_resource type="ArrayMesh" id="ArrayMesh_po8pk"]
 _surfaces = [{
@@ -1487,7 +1480,7 @@ data = PackedVector3Array(-6.6036997, 3.0707, 18.4735, -5.6496997, 4.858, 16.995
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_85v50"]
 resource_name = "color_swatch"
 vertex_color_use_as_albedo = true
-albedo_color = Color(0.79073066, 0.79073066, 0.79073066, 1)
+albedo_color = Color(0.33, 0.35, 0.35, 1)
 
 [sub_resource type="ArrayMesh" id="ArrayMesh_plk8q"]
 _surfaces = [{
@@ -1536,7 +1529,7 @@ data = PackedVector3Array(-6.6036997, 3.0707, 18.4735, -5.6496997, 4.858, 16.995
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_xxwfv"]
 resource_name = "color_swatch"
 vertex_color_use_as_albedo = true
-albedo_color = Color(0.79073066, 0.79073066, 0.79073066, 1)
+albedo_color = Color(0.33, 0.35, 0.35, 1)
 
 [sub_resource type="ArrayMesh" id="ArrayMesh_05201"]
 _surfaces = [{
@@ -1594,7 +1587,7 @@ data = PackedVector3Array(-6.6036997, 3.0707, 18.4735, -5.6496997, 4.858, 16.995
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_i5p3f"]
 resource_name = "color_swatch"
 vertex_color_use_as_albedo = true
-albedo_color = Color(0.79073066, 0.79073066, 0.79073066, 1)
+albedo_color = Color(0.33, 0.35, 0.35, 1)
 
 [sub_resource type="ArrayMesh" id="ArrayMesh_bdbqh"]
 _surfaces = [{
@@ -1634,7 +1627,7 @@ data = PackedVector3Array(5.2813, 12.574699, 8.064, 7.0873, 14.3539, -0.66539997
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_0kson"]
 resource_name = "color_swatch"
 vertex_color_use_as_albedo = true
-albedo_color = Color(0.79073066, 0.79073066, 0.79073066, 1)
+albedo_color = Color(0.33, 0.35, 0.35, 1)
 
 [sub_resource type="ArrayMesh" id="ArrayMesh_awfdc"]
 _surfaces = [{
@@ -1685,7 +1678,7 @@ data = PackedVector3Array(-6.6036997, 3.0707, 18.4735, -5.6496997, 4.858, 16.995
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_j5n6n"]
 resource_name = "color_swatch"
 vertex_color_use_as_albedo = true
-albedo_color = Color(0.79073066, 0.79073066, 0.79073066, 1)
+albedo_color = Color(0.33, 0.35, 0.35, 1)
 
 [sub_resource type="ArrayMesh" id="ArrayMesh_bxlh5"]
 _surfaces = [{
@@ -1731,7 +1724,7 @@ data = PackedVector3Array(-2.8702, 1.9092, 8.1322, -1.3076999, 2.3834999, 7.7555
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_5wgct"]
 resource_name = "color_swatch"
 vertex_color_use_as_albedo = true
-albedo_color = Color(0.79073066, 0.79073066, 0.79073066, 1)
+albedo_color = Color(0.33, 0.35, 0.35, 1)
 
 [sub_resource type="ArrayMesh" id="ArrayMesh_o3fd2"]
 _surfaces = [{
@@ -1783,7 +1776,7 @@ data = PackedVector3Array(-1.9815999, 0.94339997, 2.3423, -1.3551999, 1.1955999,
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_ooa6q"]
 resource_name = "color_swatch"
 vertex_color_use_as_albedo = true
-albedo_color = Color(0.79073066, 0.79073066, 0.79073066, 1)
+albedo_color = Color(0.33, 0.35, 0.35, 1)
 
 [sub_resource type="ArrayMesh" id="ArrayMesh_v2q0t"]
 _surfaces = [{
@@ -1858,7 +1851,7 @@ data = PackedVector3Array(-0.73569995, 0.57159996, 0.89769995, -0.0618, 0.802599
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_plo11"]
 resource_name = "color_swatch"
 vertex_color_use_as_albedo = true
-albedo_color = Color(0.79073066, 0.79073066, 0.79073066, 1)
+albedo_color = Color(0.33, 0.35, 0.35, 1)
 
 [sub_resource type="ArrayMesh" id="ArrayMesh_x7w6c"]
 _surfaces = [{
@@ -1904,7 +1897,7 @@ data = PackedVector3Array(1.3256999, 0.0033, -0.039699998, 1.8664, 0.2548, 1.463
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_pwkaq"]
 resource_name = "color_swatch"
 vertex_color_use_as_albedo = true
-albedo_color = Color(0.79073066, 0.79073066, 0.79073066, 1)
+albedo_color = Color(0.33, 0.35, 0.35, 1)
 
 [sub_resource type="ArrayMesh" id="ArrayMesh_6i1wl"]
 _surfaces = [{

@@ -7,7 +7,8 @@ namespace FPSGame;
 /// 学校走廊傍晚,3 学生跳 K-POP(3~54.8s,实际仅 casual/f05 可见,blade_girl 原作即 inactive),
 /// 10 机位按切镜表 blend 切换,0~2.967s 字幕 + dance.mp3(3.1s),50.5s RockWarrior 冲出(run),
 /// 54.35s(时长-0.5)或"跳过"按钮 → level1_battle.tscn。
-/// 舞蹈动画:_anims.tres 内 4s dance 循环(Unity 用 200.8s 完整版,资产不可得,README 记偏差)。
+/// 舞蹈动画:Unity BakeKpopDance 把 humanoid 肌肉剪辑逐帧烘成全骨骼局部 TRS(.kdance.bin),
+/// KDancePlayer 全局链镜像 X 回放(数值与 Unity 逐位一致),剧情时钟驱动;相位错落照原作。
 /// 启动参数:--story-selftest(加速断言,抑制切场景)/ --story-shot:&lt;path&gt;[:delay]
 /// </summary>
 public partial class StoryStart : Node3D
@@ -37,6 +38,7 @@ public partial class StoryStart : Node3D
     private Tween? _camTween;
     private Node3D? _lookTarget;
     private bool _testFailed;
+    private readonly System.Collections.Generic.List<KDancePlayer> _dancePlayers = new();
 
     public override void _Ready()
     {
@@ -81,7 +83,7 @@ public partial class StoryStart : Node3D
             new Vector3(0.271f, 0.033f, 21.799f), 0.0);
         _f05 = BuildDancer(students, "f05_schoolwear",
             "res://assets/models/actors/f05_schoolwear/f05_schoolwear_200_m.fbx",
-            new Vector3(1.142f, 0.012f, 20.519f), 0.13);
+            new Vector3(1.142f, 0.012f, 20.519f), 0.0667); // 原作相位错落 3.0333-2.9667
         // blade_girl:原作 inactive(Animator 被清空),不参与演出,不创建
         // RockWarrior:50.5s 激活,倾倒出场姿态 → run
         _rock = new Node3D { Name = "RockWarrior", Position = new Vector3(-0.2686f, 0.0102f, -0.1627f) };
@@ -140,6 +142,17 @@ public partial class StoryStart : Node3D
             }
         }
         var ap = new AnimationPlayer { Name = "AnimationPlayer" };
+        // 优先:K-POP 完整舞蹈烘焙(Unity BakeKpopDance 落盘的 200.8s 全骨架 TRS,KDancePlayer 回放);
+        // 缺失时回退 4s dance 循环(legacy 占位)
+        string danceBin = $"res://assets/models/actors/dance/{fbx.GetFile().GetBaseName()}.kdance.bin";
+        var kd = KDancePlayer.TryCreate(model, danceBin,
+            new Transform3D(new Basis(new Quaternion(Vector3.Up, Mathf.Pi)), Vector3.Zero));
+        if (kd != null)
+        {
+            kd.Phase = delay;
+            _dancePlayers.Add(kd);
+            return root;
+        }
         model.AddChild(ap);
         // 演员动画库轨道路径为 "Skeleton3D:<骨>"(无 Model 前缀)→ AnimationPlayer 必须挂在
         // Model 实例根(与 Skeleton3D 同级);怪物库是 "Model/Skeleton3D:..." 挂外层
@@ -233,6 +246,9 @@ public partial class StoryStart : Node3D
             _camera.LookAt(_lookTarget.GlobalPosition + new Vector3(0, 1.0f, 0), Vector3.Up);
         // 字幕
         _subtitle.Visible = _clock < SubtitleEnd;
+        // 完整舞蹈回放(烘焙数据存在时;剧情时钟驱动,与音乐/切镜同步)
+        foreach (var kd in _dancePlayers)
+            kd.SetStoryTime(_clock);
         // RockWarrior 出场
         if (_clock >= RockShowTime && !_rock.Visible)
         {
@@ -296,6 +312,7 @@ public partial class StoryStart : Node3D
     {
         Check(_cuts.Length == 9, $"cut table = 9 (got {_cuts.Length})");
         Check(_casual != null && _f05 != null, "dancers exist");
+        Check(_dancePlayers.Count == 2, $"full K-POP dance baked players = 2 (got {_dancePlayers.Count})");
         Check(_rock != null && !_rock.Visible, "rock hidden before 50.5s");
         const double accel = 20.0; // 20 倍速跑完 54.85s ≈ 2.7s
         bool ended = false;

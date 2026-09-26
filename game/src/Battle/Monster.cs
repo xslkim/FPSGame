@@ -35,6 +35,8 @@ public partial class Monster : CharacterBody3D
 
     public MonsterInfo Info = null!;
     public float Hp;
+    /// <summary>碰撞胶囊中心高度(瞄准点/测试用)</summary>
+    public float AimCenterY => _col != null ? _col.Position.Y : 0.5f;
     public float AttackRadius => Info.AttackRadius;
     public Node3D BodyNode => HasNode("Model") ? GetNode<Node3D>("Model") : GetNode<Node3D>("Body");
 

@@ -11,8 +11,8 @@
 background_mode = 1
 background_color = Color(0.00189903, 0.0019263, 0.00253246, 1)
 ambient_light_source = 2
-ambient_light_color = Color(1, 1, 1, 1)
-ambient_light_energy = 1.0
+ambient_light_color = Color(0.30, 0.34, 0.44, 1)
+ambient_light_energy = 0.22
 
 [node name="Level2" type="Node3D"]
 script = ExtResource("1")
@@ -32,7 +32,8 @@ environment = SubResource("Env")
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
 transform = Transform3D(-0.866025, -0.271514, -0.419857, -5.82092e-09, -0.839715, 0.543028, -0.5, 0.470276, 0.727214, -1.4494493, 10.636511, 5.5348034)
 light_color = Color(1, 0.8957772, 0.7264151, 1)
-light_energy = 1.0
+light_energy = 0.55
+shadow_enabled = true
 
 [node name="Camera3D" type="Camera3D" parent="."]
 transform = Transform3D(0.904803, 0.00960055, 0.425722, -6.45193e-06, 0.999746, -0.0225318, -0.42583, 0.0203841, 0.904574, -1.6678658, -2.0698464, -16.898914)
@@ -152,6 +153,100 @@ script = ExtResource("6")
 
 [node name="SrcPosition" type="Marker3D" parent="Windows/group2/w2"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -6.54)
+
+
+[node name="WindowLights" type="Node3D" parent="."]
+; 窗口暖光(Unity FireWindow 点光 ×9: intensity 2 / range 10 / 暖 (1,0.893,0.707))
+
+[node name="L0" type="OmniLight3D" parent="WindowLights"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -23.425, -1.29, -35.43)
+light_color = Color(1, 0.8932, 0.7075472, 1)
+light_energy = 2.0
+omni_range = 10.0
+
+[node name="L1" type="OmniLight3D" parent="WindowLights"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -21.51, -6.34, -31.85)
+light_color = Color(1, 0.8932, 0.7075472, 1)
+light_energy = 2.0
+omni_range = 10.0
+
+[node name="L2" type="OmniLight3D" parent="WindowLights"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -18.53, -1.44, -35.8)
+light_color = Color(1, 0.8932, 0.7075472, 1)
+light_energy = 2.0
+omni_range = 10.0
+
+[node name="L3" type="OmniLight3D" parent="WindowLights"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -10.122, -1.4, -35.8)
+light_color = Color(1, 0.8932, 0.7075472, 1)
+light_energy = 2.0
+omni_range = 10.0
+
+[node name="L4" type="OmniLight3D" parent="WindowLights"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8.26, -6.34, -32.79)
+light_color = Color(1, 0.8932, 0.7075472, 1)
+light_energy = 2.0
+omni_range = 10.0
+
+[node name="L5" type="OmniLight3D" parent="WindowLights"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -7.17, -1.44, -35.8)
+light_color = Color(1, 0.8932, 0.7075472, 1)
+light_energy = 2.0
+omni_range = 10.0
+
+[node name="L6" type="OmniLight3D" parent="WindowLights"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.84, -1.29, -34.68)
+light_color = Color(1, 0.8932, 0.7075472, 1)
+light_energy = 2.0
+omni_range = 10.0
+
+[node name="L7" type="OmniLight3D" parent="WindowLights"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8.93, -8.27, 20.1)
+light_color = Color(1, 0.8932, 0.7075472, 1)
+light_energy = 2.0
+omni_range = 10.0
+
+[node name="L8" type="OmniLight3D" parent="WindowLights"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.74, -7.91, -3.99)
+light_color = Color(1, 0.8932, 0.7075472, 1)
+light_energy = 2.0
+omni_range = 10.0
+
+[node name="L9" type="OmniLight3D" parent="WindowLights"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.02, -7.66, 13.64)
+light_color = Color(1, 0.8932, 0.7075472, 1)
+light_energy = 2.0
+omni_range = 10.0
+
+[node name="L10" type="OmniLight3D" parent="WindowLights"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.24, -8.16, -6.56)
+light_color = Color(1, 0.8932, 0.7075472, 1)
+light_energy = 2.0
+omni_range = 10.0
+
+[node name="L11" type="OmniLight3D" parent="WindowLights"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5.15, -8.66, -16.96)
+light_color = Color(1, 0.8932, 0.7075472, 1)
+light_energy = 2.0
+omni_range = 10.0
+
+[node name="L12" type="OmniLight3D" parent="WindowLights"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4.92, -6.5, 10.02)
+light_color = Color(1, 0.8932, 0.7075472, 1)
+light_energy = 2.0
+omni_range = 10.0
+
+[node name="L13" type="OmniLight3D" parent="WindowLights"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 18.52, -7.58, 4.79)
+light_color = Color(1, 0.8932, 0.7075472, 1)
+light_energy = 2.0
+omni_range = 10.0
+
+[node name="L14" type="OmniLight3D" parent="WindowLights"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 18.52, -8.63, -8.89)
+light_color = Color(1, 0.8932, 0.7075472, 1)
+light_energy = 2.0
+omni_range = 10.0
 
 [node name="MonsterPool" type="Node3D" parent="."]
 script = ExtResource("3")

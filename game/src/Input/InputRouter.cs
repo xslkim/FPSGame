@@ -64,6 +64,13 @@ public partial class InputRouter : Node
         _server = new UdpDeviceServer();
         _server.PacketReceived += OnUdpPacket;
         _server.StartBroadcast();
+        // 鼠标右键按下 = 换枪(原作右键 Down → OnKey2_Ring/Leg 事件,InputManager.cs:273-310)
+        MouseGun.SwitchGun += () =>
+        {
+            if (!FireEnabled)
+                return;
+            EmitSignal(Mode == InputMode.OnlyLeft ? SignalName.SwitchGunLeft : SignalName.SwitchGunRight);
+        };
     }
 
     /// <summary>设模式时按模式创建/停用左右玩家(4.4 节)。
@@ -95,6 +102,16 @@ public partial class InputRouter : Node
         {
             UpdateKeyboardAim((float)delta);
             UpdateKeyboardButtons();
+        }
+        // 鼠标左键按住 = 扳机电平(原作 _MouseFireRing,InputManager.cs:567-570:GetCurKeyRing=硬件∥鼠标);
+        // 仅战斗态注入——UI 界面走 MouseGun.Triggered 边沿(GunUiController),避免一击双发
+        if (MouseGun.LeftHeld && Game.Instance.SceneState == Game.GameState.Battle
+            && MouseGun.IsActiveForRight(this))
+        {
+            if (Mode == InputMode.OnlyLeft)
+                _key1LeftLevel = true;   // 原作 OnlyLeft 模式鼠标走左路(_MouseFireLeg)
+            else
+                _key1RightLevel = true;
         }
         EmitEdges();
         _ringHadPacket = false;

@@ -29,3 +29,18 @@
 - 枪与激光在战斗中的可见性真值(Unity 诊断运行中)
 - 命中红点 Flash 尺寸曲线校验
 - 胜利面板/暂停面板像素级对比
+
+## 第三轮修复(2026-09-26,终验轮)
+
+| # | 偏差/缺陷 | 根因 | 修复 |
+|---|---|---|---|
+| 18 | **战斗中鼠标左键完全无法开火**(原作按住连发) | 移植版鼠标左键只有 `Triggered` 边沿事件(UI 用),从未写入扳机电平 `_key1RightLevel`;原作 `GetCurKeyRing = _LastKey1_Ring==1 \|\| _MouseFireRing`(InputManager.cs:567) | MouseGunSource 增加 `LeftHeld` 电平;InputRouter._Process 在 Battle 态注入右路扳机电平(OnlyLeft 走左路);UI 态不注入避免与 GunUiController 边沿双发 |
+| 19 | 战斗中鼠标右键无法换枪 | MouseGun.SwitchGun 事件在战斗场景无订阅者(FireSystem 只听 InputRouter.SwitchGunRight 信号) | InputRouter._Ready 转发:MouseGun.SwitchGun → SwitchGunRight/Left 信号(OnlyLeft 走左) |
+| 20 | **所有开枪全部 NullReferenceException**(GunBase.Fire 每帧抛、弹药不扣、怪不掉血) | `GunBase.Player` 字段从未赋值(BindSide 漏接) | FireSystem.BindSide 补 `gun.Player = player`;L1 自检新增开火契约断言(AllGunsBound + HasMethod("Hit")) |
+| 21 | 命中分发永远落空(即使开枪成功也不结算伤害/按钮) | FireSystem 用 `HasMethod("hit")`/`Call("hit")`/`"on_shot"` 小写名;Godot C# 方法按原名注册大小写敏感(`Hit`/`OnShot`) | 改为 `"Hit"`/`"OnShot"` |
+| 22 | 开场 3s 画面右上巨大棕色"帆状"异物 | 剑女孩 FBX 网格是厘米单位(绑定 AABB z≈154m),挂骨后按 1.4286 放大 → 百米巨物横在镜头前 | IntroBadGroup 剑女孩挂骨 scale 改 1.4286×0.01;真值 local TRS 不变 |
+| 23 | 命中光标近距成实心大红球 | flash_point19.png 转换丢 alpha,R 亮度当 alpha 留大面积实心核;原作 Blend_CenterGlow 是软光斑 | LoadFlashCursor 叠乘径向平方衰减(亮点+光晕观感) |
+| 24 | 走廊窗口光晕片成深色半透明板 | env 烘焙时 Add_effect 材质带成 alpha 混合;原作是 Particles/Additive | env_school_hallway.tscn 两处 SHW_Add_effect_01 材质改 blend_mode=Add + unshaded |
+
+验证:`--level1-fire` 挂接实测(按住左键跟踪瞄准):子弹 120→98、换枪 2→0、怪 HP 30→0 死亡回收全通;`--level1-probe` 落位探针;`--level1-shot-victory` 胜利面板。全回归 8/8 绿 + loading 两分支 + e2e-mouse-flow 绿。
+新挂接:`--level1-probe:<sec>`(怪物落位+视线网格扫描)、`--level1-probe-intro:<sec>`、`--level1-fire:<png>:<sec>`(含换枪验证)、`--level1-shot-victory:<png>`。
