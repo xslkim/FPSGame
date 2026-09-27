@@ -67,6 +67,8 @@ public partial class InGamePanel : Node3D
         PlayerState.Instance.UiChanged += RefreshCoin;
         RefreshCoin();
         CheckPanelShotArgs();
+        if (System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--panel-click-test") >= 0)
+            PanelClickTest();
     }
 
     public override void _ExitTree() => Instance = null;
@@ -342,7 +344,36 @@ public partial class InGamePanel : Node3D
             _coinCount.Text = SaveService.Instance.Coin.ToString();
     }
 
-    // ------------------------------------------------ 面板截图挂接(布局/文字验证用)
+    /// <summary>自测:开战→开暂停面板→模拟鼠标点"返回游戏"→断言恢复未暂停(暂停期输入链回归)</summary>
+    private async void PanelClickTest()
+    {
+        while (_level != null && _level.BattleStartTime <= 0.0)
+            await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+        await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+        OpenPause();
+        Check(Game.Instance.IsGamePause && _pausePanel.Visible, "open pause");
+        // 模拟鼠标指向"返回游戏"按钮(canvas (646,315) → 世界坐标 → 屏幕点)并按住
+        var cam = GetViewport().GetCamera3D();
+        var btn = _pausePanel.GetNodeOrNull<Node3D>("BackGameBtn");
+        Vector3 bw = btn != null ? btn.GlobalPosition : cam.GlobalPosition - cam.GlobalBasis.Z;
+        InputRouter.Instance.MouseGun.SimulateMove(cam.UnprojectPosition(bw));
+        InputRouter.Instance.MouseGun.LeftHeld = true;
+        // 暂停期等两帧(SceneTreeTimer 暂停期也走时;直接等帧即可)
+        for (int i = 0; i < 5; i++)
+            await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+        InputRouter.Instance.MouseGun.LeftHeld = false;
+        Check(!Game.Instance.IsGamePause && !_pausePanel.Visible, "click BackGame closes pause");
+        GD.Print("[PANEL-TEST] done");
+        GetTree().Quit(_testFailed ? 1 : 0);
+    }
+
+    private bool _testFailed;
+    private void Check(bool cond, string label)
+    {
+        GD.Print((cond ? "[PANEL-TEST] PASS: " : "[PANEL-TEST] FAIL: ") + label);
+        if (!cond)
+            _testFailed = true;
+    }
 
     private void CheckPanelShotArgs()
     {

@@ -143,6 +143,19 @@ public partial class MonsterView : Node3D
             GetTree().Quit();
             return;
         }
+        // --fx-view:<effect场景名>:<dist>:特效检视(激活后 ~0.2s 截图)
+        int fxIdx = System.Array.FindIndex(args, a => a.StartsWith("--fx-view:"));
+        if (fxIdx >= 0)
+        {
+            var parts = args[fxIdx]["--fx-view:".Length..].Split(':');
+            var fx = GD.Load<PackedScene>($"res://assets/effects/{parts[0]}.tscn").Instantiate<EffectBase>();
+            AddChild(fx);
+            fx.Activate();
+            cam.Position = new Vector3(0.4f, 0.6f, parts.Length > 1 && float.TryParse(parts[1], out var d2) ? d2 : 1.5f);
+            cam.LookAt(Vector3.Zero, Vector3.Up);
+            ShotAsync("fx_" + parts[0]);
+            return;
+        }
         var scene = GD.Load<PackedScene>($"res://scenes/battle/monsters/{key}.tscn");
         var m = scene.Instantiate<Node3D>();
         AddChild(m);        m.Visible = true; // Monster._Ready 会 Deactivate 自隐,检视强制可见

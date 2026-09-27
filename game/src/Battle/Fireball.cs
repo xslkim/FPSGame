@@ -38,6 +38,7 @@ public partial class Fireball : Node3D
         var mat = new StandardMaterial3D
         {
             ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded,
+            BlendMode = BaseMaterial3D.BlendModeEnum.Add, // 原作 Particles/Additive(黑底贴图,黑=透明)
             Transparency = BaseMaterial3D.TransparencyEnum.Alpha,
             BillboardMode = BaseMaterial3D.BillboardModeEnum.Enabled,
             BillboardKeepScale = true, // billboard 默认丢弃世界缩放;Boss 火球 ×10(原作 localScale×10)须生效

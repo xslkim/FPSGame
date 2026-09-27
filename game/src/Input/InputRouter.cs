@@ -61,6 +61,9 @@ public partial class InputRouter : Node
     public override void _Ready()
     {
         Instance = this;
+        // 暂停(timeScale 0)期输入必须继续走:暂停/续币面板的 3D 按钮靠扳机电平点击
+        // (原作 Unity Update 不受 timeScale 影响;否则会停在暂停面板无任何响应)
+        ProcessMode = ProcessModeEnum.Always;
         _server = new UdpDeviceServer();
         _server.PacketReceived += OnUdpPacket;
         _server.StartBroadcast();

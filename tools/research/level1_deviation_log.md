@@ -66,3 +66,11 @@
 | 31 | 战斗红色命中光斑与激光视觉错位("歪") | 同 #25:枪口/相机双射线平行错位 | 已于 #25 修复(共线),本轮复核 dist_fire 命中/击杀/换枪链路在导出包正常 |
 
 验证:dist 成品 `--quick:` 直跳 + `--mat-audit`/`--level1-shot-battle`/`--level1-fire`/`--story-shot` 全链路;牛魔王贴脸攻击与 l1u_intro_26s 构图一致(有贴图、直立、面向相机)。
+
+### 第四轮补丁 2(粒子透明度 + 菜单卡死)
+
+| # | 偏差/缺陷 | 根因 | 修复 |
+|---|---|---|---|
+| 32 | 粒子特效成片不透明(metal 火花/拾取爱心/Boss 火球等) | 这些贴图**源头就是黑底无 alpha**(FPS Pack/KriptoFX 原作),原作靠 Particles/Additive 黑=透明;移植材质误用 alpha 混合 → 全彩方块 | 材质改 Add 混合(黑=透明):impact_metal mat_sparks、pickup_drop mat_heart、Fireball core;核查其余:lightning_pillar/teleport_flash/BossHeart/MuzzleFlash/glow(mat_flash)本就用 Add,impact 碎石/木屑是实体碎片(原作同样不透明,正确),hole_*/blood/dust 贴图自带真 alpha 不变 |
+| 33 | **暂停/续币面板打开后卡死,点不了任何按钮** | InputRouter(autoload)默认 ProcessMode 可暂停:timeScale=0 后 _Process/_Input 停走,扳机电平(MouseGun.LeftHeld 注入)与瞄准停在旧值;FireSystem 虽 Always 运行但 GetCurKeyRing 恒假 → 3D 按钮永不触发 | InputRouter._Ready 设 `ProcessModeEnum.Always`(照原作 Unity Update 不受 timeScale 影响);新增 `--panel-click-test` 自测:开暂停→模拟鼠标点"返回游戏"→断言关闭(编辑器/成品均 PASS) |
+
