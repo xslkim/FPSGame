@@ -19,6 +19,7 @@ public sealed class MouseGunSource
 
     public event System.Action? Triggered;
     public event System.Action? SwitchGun;
+    public event System.Action<Vector2>? Moved;
 
     public void HandleInput(InputEvent e)
     {
@@ -30,6 +31,7 @@ public sealed class MouseGunSource
                 SimulateMove(m.Position);
                 break;
             case InputEventMouseButton b when b.ButtonIndex == MouseButton.Left:
+                SimulateMove(b.Position);
                 LeftHeld = b.Pressed; // 电平:按住持续开火;Pressed 沿另有 Triggered 事件(UI 用)
                 if (b.Pressed)
                     SimulateTrigger();
@@ -41,7 +43,11 @@ public sealed class MouseGunSource
     }
 
     /// <summary>移动瞄准点(视口坐标)。自动化测试可直接调用以绕过合成事件管线。</summary>
-    public void SimulateMove(Vector2 viewportPos) => AimPos = viewportPos;
+    public void SimulateMove(Vector2 viewportPos)
+    {
+        AimPos = viewportPos;
+        Moved?.Invoke(viewportPos);
+    }
 
     /// <summary>扣扳机。自动化测试可直接调用以绕过合成事件管线。</summary>
     public void SimulateTrigger() => Triggered?.Invoke();

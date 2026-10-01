@@ -19,7 +19,7 @@ BgmPlayerPath = NodePath("BGM")
 ; MEP 浮岛月夜村庄(WorldEnvironment/PanoramaSky/方向光预算/雾均在 env 内,照 Unity 测绘)
 
 [node name="Camera3D" type="Camera3D" parent="."]
-transform = Transform3D(0.072604, -0.124139, 0.989605, -0.000061, 0.992223, 0.124472, -0.997361, -0.009097, 0.072032, 54.11621, 7.951027, -9.726318)
+transform = Transform3D(-0.398841, -0.006597, -0.916996, 0.000022, 0.999974, -0.007203, 0.91702, -0.002893, -0.398831, -36.376953, 16.273102, -1.603027)
 current = true
 fov = 52.0
 near = 0.01

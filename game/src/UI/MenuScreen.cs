@@ -38,9 +38,13 @@ public partial class MenuScreen : Node
 
     private Vector2I _shotRes = Vector2I.Zero;
     private TextureButton? _aimHover; // 鼠标瞄准下的焦点按钮(避免重复 GrabFocus)
+    private bool _previousAccumulatedInput;
 
     public override void _Ready()
     {
+        // Godot 默认把同一渲染帧内的鼠标事件合并；30 FPS 时光枪会额外迟一帧。
+        _previousAccumulatedInput = Input.UseAccumulatedInput;
+        Input.UseAccumulatedInput = false;
         Game.Instance.SceneState = Game.GameState.UI;
         AudioService.Instance.PlayMenuMusic();
         InputRouter.Instance.SetInputMode(InputRouter.InputMode.Menu);
@@ -53,7 +57,8 @@ public partial class MenuScreen : Node
         _monster = GetNode<Node3D>(VpPrefix + "RockWarrior");
         // 2D 激光指引(原作 Lazer.mat 红)画在 UI 最上层(UiAimGuide):枪原点 → 前方 200m
         //   锥形光束(近粗远细);射线命中怪兽时光点贴命中点(原作 Flash),悬停按钮发亮
-        _guide = UiAimGuide.Create(this, LaserSight.RightRed);
+        _guide = UiAimGuide.Create(this, LaserSight.RightRed, dotSize: 34.0f, unityFlash: true);
+        _guide.BeamOriginCorrection = new Vector2(-18.0f, 15.0f);
 
         SyncViewportSize();
         GetViewport().SizeChanged += SyncViewportSize;
@@ -87,6 +92,7 @@ public partial class MenuScreen : Node
         ConfigService.FetchRemoteConfig(this);
         InputRouter.Instance.TriggerRight += OnGunTrigger;
         InputRouter.Instance.MouseGun.Triggered += OnMouseTrigger;
+        InputRouter.Instance.MouseGun.Moved += OnMouseMoved;
 
         var args = OS.GetCmdlineUserArgs();
         foreach (var a in args)
@@ -117,8 +123,15 @@ public partial class MenuScreen : Node
             else if (a.StartsWith("--shot-aim-at:"))
             {
                 // --shot-aim-at:<path>:<x>:<y> 瞄准任意逻辑点(如怪兽身上)后截屏
-                var parts = a["--shot-aim-at:".Length..].Split(':');
-                Callable.From(() => TakeShotAim(parts[0], new Vector2(float.Parse(parts[1]), float.Parse(parts[2])))).CallDeferred();
+                var value = a["--shot-aim-at:".Length..];
+                int ySep = value.LastIndexOf(':');
+                int xSep = value.LastIndexOf(':', ySep - 1);
+                if (xSep > 0 && ySep > xSep &&
+                    float.TryParse(value[(xSep + 1)..ySep], System.Globalization.NumberStyles.Float,
+                        System.Globalization.CultureInfo.InvariantCulture, out float x) &&
+                    float.TryParse(value[(ySep + 1)..], System.Globalization.NumberStyles.Float,
+                        System.Globalization.CultureInfo.InvariantCulture, out float y))
+                    Callable.From(() => TakeShotAim(value[..xSep], new Vector2(x, y))).CallDeferred();
             }
             else if (a.StartsWith("--shot-flash:"))
                 Callable.From(() => TakeShotFlash(a["--shot-flash:".Length..])).CallDeferred();
@@ -127,12 +140,14 @@ public partial class MenuScreen : Node
 
     public override void _ExitTree()
     {
+        Input.UseAccumulatedInput = _previousAccumulatedInput;
         // C# 事件(非 Godot 信号)不会在节点释放时自动退订:残留已释放对象的处理器
         // 会在事件触发时抛 ObjectDisposedException 并打断后续调用链(选关卡点击失效的根因)
         if (InputRouter.Instance == null)
             return;
         InputRouter.Instance.TriggerRight -= OnGunTrigger;
         InputRouter.Instance.MouseGun.Triggered -= OnMouseTrigger;
+        InputRouter.Instance.MouseGun.Moved -= OnMouseMoved;
     }
 
     /// <summary>截图验证:--shot-flash:&lt;path&gt;,开火后第 3 帧截屏(火光翻页/灯光峰值期)。</summary>
@@ -146,10 +161,14 @@ public partial class MenuScreen : Node
         var args = OS.GetCmdlineUserArgs();
         _muzzle.DebugNoSmoke = System.Array.IndexOf(args, "--flash-nosmoke") >= 0;
         _muzzle.DebugNoFlame = System.Array.IndexOf(args, "--flash-noflame") >= 0;
+        int shotFrame = 3;
+        foreach (var arg in args)
+            if (arg.StartsWith("--flash-frame:") && int.TryParse(arg["--flash-frame:".Length..], out int frame))
+                shotFrame = Mathf.Clamp(frame, 1, 90);
         for (int i = 0; i < 10; i++)
             await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
         _muzzle.Fire();
-        for (int i = 0; i < 3; i++)
+        for (int i = 0; i < shotFrame; i++)
             await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
         await ToSignal(Engine.GetSingleton("RenderingServer"), "frame_post_draw");
         var img = GetViewport().GetTexture().GetImage();
@@ -166,9 +185,13 @@ public partial class MenuScreen : Node
         if (_shotRes != Vector2I.Zero)
             DisplayServer.WindowSetSize(_shotRes);
         await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
-        InputRouter.Instance.MouseGun.SimulateMove(target ?? _btnOne.GetGlobalRect().GetCenter());
+        var visibleButton = _btnOne.GetGlobalRect().Intersection(GetViewport().GetVisibleRect());
+        var aimPoint = target ?? visibleButton.GetCenter();
         for (int i = 0; i < 30; i++)
+        {
+            InputRouter.Instance.MouseGun.SimulateMove(aimPoint);
             await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+        }
         await ToSignal(Engine.GetSingleton("RenderingServer"), "frame_post_draw");
         var img = GetViewport().GetTexture().GetImage();
         img.SavePng(path);
@@ -415,6 +438,10 @@ public partial class MenuScreen : Node
 
     private void SyncViewportSize()
     {
+        // SubViewportContainer(stretch=true) owns its child size; writing it produces a
+        // warning and can race the camera projection while the window is resizing.
+        if (_subvp.GetParent() is SubViewportContainer { Stretch: true })
+            return;
         var size = (Vector2I)GetViewport().GetVisibleRect().Size;
         if (size.X <= 0 || size.Y <= 0)
             return; // headless 启动首帧可视区为 0,跳过(保持场景默认 1280×720)
@@ -423,6 +450,16 @@ public partial class MenuScreen : Node
 
     private bool GunActive() =>
         RingConnected() || InputRouter.Instance.MouseGun.IsActiveForRight(InputRouter.Instance);
+
+    private void OnMouseMoved(Vector2 position)
+    {
+        if (!InputRouter.Instance.MouseGun.IsActiveForRight(InputRouter.Instance))
+            return;
+        // 输入事件到达即改枪姿态，渲染时无需等菜单下一次 _Process。
+        var dir = _camera.ProjectRayNormal(position);
+        var localDir = (_camera.GlobalTransform.Basis.Inverse() * dir).Normalized();
+        _gun.Quaternion = new Quaternion(Vector3.Forward, localDir);
+    }
 
     public override void _Process(double delta)
     {
@@ -472,7 +509,8 @@ public partial class MenuScreen : Node
     private const uint MonsterRayMask = 0b1000; // 怪兽碰撞体在 layer 4
     private bool _monsterColliderBuilt;
 
-    /// <summary>按怪兽模型全局 AABB 自适应建 StaticBody3D 盒(须在 SubViewport 世界里)</summary>
+    /// <summary>菜单怪物的 FBX 是蒙皮网格，静态 GetAabb() 是绑定姿态，
+    /// 与 Idle02 的可见轮廓偏移很大。碰撞体按菜单相机中的实际轮廓标定。</summary>
     private void BuildMonsterCollider()
     {
         var aabb = new Aabb();
@@ -491,9 +529,14 @@ public partial class MenuScreen : Node
             Name = "MonsterBody",
             CollisionLayer = MonsterRayMask,
             CollisionMask = 0,
-            Position = aabb.GetCenter(),
+            // 模型可见区域约 x=470..790, y=245..550 (1280×720)。
+            // 放在模型 z≈450 处，避免原绑定姿态 AABB 的近侧面把热区放大两倍。
+            Position = new Vector3(aabb.GetCenter().X, -35.0f, 445.0f),
         };
-        body.AddChild(new CollisionShape3D { Shape = new BoxShape3D { Size = aabb.Size } });
+        body.AddChild(new CollisionShape3D
+        {
+            Shape = new BoxShape3D { Size = new Vector3(aabb.Size.X * 0.82f, 240.0f, 60.0f) },
+        });
         _subvp.AddChild(body);
         _monsterColliderBuilt = true;
     }
@@ -513,11 +556,10 @@ public partial class MenuScreen : Node
     {
         if (!RingConnected())
             return;
+        _muzzle.Fire();
         var b = ButtonAtLogicalPoint(RotationAimLogicalPoint(), skipBoxButtons: false);
         if (b != null)
         {
-            // 原作 UIController:枪口火光(_ImpactEffect1)只在命中按钮时重播
-            _muzzle.Fire();
             b.EmitSignal(BaseButton.SignalName.Pressed);
         }
     }
@@ -528,11 +570,11 @@ public partial class MenuScreen : Node
         var router = InputRouter.Instance;
         if (!router.MouseGun.IsActiveForRight(router))
             return;
+        _muzzle.Fire();
         var b = ButtonAtLogicalPoint(
             UiKit.WindowToLogical(GetViewport(), router.MouseGun.AimPos), skipBoxButtons: true);
         if (b != null)
         {
-            _muzzle.Fire();
             b.EmitSignal(BaseButton.SignalName.Pressed);
         }
     }
@@ -601,6 +643,14 @@ public partial class MenuScreen : Node
         await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
         Check(!Mathf.IsEqualApprox(ring1.Rotation, r0), "圆环在旋转");
         Check(_monster.GetNode<AnimationPlayer>("AnimationPlayer").IsPlaying(), "怪物 idle 播放中");
+        // 蒙皮网格的绑定姿态 AABB 不能代表菜单动画的可见怪物，验证实际射线热区。
+        var monsterCenter = _subvp.GetNode<StaticBody3D>("MonsterBody").GlobalPosition;
+        Check(RaycastMonster(_muzzle.GlobalPosition,
+            (monsterCenter - _muzzle.GlobalPosition).Normalized()).HasValue,
+            "激光命中怪物显示命中光斑");
+        Check(!RaycastMonster(_muzzle.GlobalPosition,
+            (monsterCenter + Vector3.Right * 400.0f - _muzzle.GlobalPosition).Normalized()).HasValue,
+            "激光瞄准空处不产生怪物命中");
         // 焦点导航链
         foreach (var (action, expect) in new[]
         {
@@ -615,30 +665,15 @@ public partial class MenuScreen : Node
             Check(owner != null && owner.Name == expect, $"导航 {action} → {expect}");
         }
         // 鼠标模拟光枪:移动到"双人合作"上 → 悬停=焦点;左键=扳机 → 弹框。
-        // 坐标链:按钮中心(画布)→ canvasTransform → finalTransform → 窗口像素。
-        // headless 窗口尺寸为 0,finalTransform 退化,改用 MouseGun 模拟钩子。
+        // MouseGun.AimPos 使用视口逻辑坐标；用模拟钩子可在窗口与 headless 下
+        // 验证同一条菜单输入路径，避免将按钮中心重复乘上视口变换。
         var btnTwoCanvas = _btnTwo.GetGlobalRect().GetCenter();
         var mg = InputRouter.Instance.MouseGun;
-        if (DisplayServer.WindowGetSize().X > 0)
-        {
-            var winPos = GetViewport().GetFinalTransform() *
-                (GetViewport().GetCanvasTransform() * btnTwoCanvas);
-            Input.ParseInputEvent(new InputEventMouseMotion { Position = winPos });
-        }
-        else
-            mg.SimulateMove(btnTwoCanvas);
+        mg.SimulateMove(btnTwoCanvas);
         await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
         await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
         Check(GetViewport().GuiGetFocusOwner() == _btnTwo, "鼠标瞄准悬停=焦点双人合作");
-        if (DisplayServer.WindowGetSize().X > 0)
-        {
-            var winPos = GetViewport().GetFinalTransform() *
-                (GetViewport().GetCanvasTransform() * btnTwoCanvas);
-            Input.ParseInputEvent(new InputEventMouseButton
-                { ButtonIndex = MouseButton.Left, Pressed = true, Position = winPos });
-        }
-        else
-            mg.SimulateTrigger();
+        mg.SimulateTrigger();
         await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
         await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
         Check(MessageBox.IsOpen(), "鼠标扳机命中双人→弹框");

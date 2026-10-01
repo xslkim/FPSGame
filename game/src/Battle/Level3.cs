@@ -47,7 +47,6 @@ public partial class Level3 : LevelBase
             SelfTest();
             return;
         }
-        StartBattle();
         foreach (var a in args)
         {
             if (a.StartsWith("--level3-shot:"))
@@ -101,7 +100,9 @@ public partial class Level3 : LevelBase
                 }
             }
         }
-        if (_shots.Count > 0 || _camShots.Count > 0 || _freeShots.Count > 0)
+        ShotModeSnap = _shots.Count > 0 || _camShots.Count > 0 || _freeShots.Count > 0;
+        StartBattle();
+        if (ShotModeSnap)
         {
             ShotGuardLoop(); // 截图模式:防玩家死亡→续币面板暂停打断序列
             ShotsSequence();
@@ -185,6 +186,8 @@ public partial class Level3 : LevelBase
     /// <summary>杀掉所有活动 Tween(截图模式防 G0 blend 覆写摆好的机位)</summary>
     private void KillCameraTweens()
     {
+        if (System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--cam-debug") >= 0)
+            GD.Print($"[CAMDBG] KillCameraTweens count={GetTree().GetProcessedTweens().Count} t={Time.GetTicksMsec() / 1000.0:0.00}");
         foreach (var tw in GetTree().GetProcessedTweens())
             tw.Kill();
     }

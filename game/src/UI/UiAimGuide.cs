@@ -27,19 +27,26 @@ public partial class UiAimGuide : CanvasLayer
     public const float GlowAlpha = 0.55f;
     public const float GlowPulse = 0.30f;
     public const float HitBackOffset = 10.0f;  // 原作:命中敌人时光点自命中点回退 10m
+    // 部分界面的 FBX 枪身和 MuzzleFlash 锚点投影不完全重合；按 1280×720
+    // 画布给各场景单独校准，射线和火光仍使用原 3D 锚点。
+    public Vector2 BeamOriginCorrection { get; set; } = Vector2.Zero;
 
     private readonly TextureRect[] _beamSegs = new TextureRect[BeamSegments];
     private TextureRect _dot = null!;
+    private TextureRect? _core;
     private TextureRect _glow = null!;
+    private bool _unityFlash;
     private float _dotSize;
     private bool _hover;
     private double _t;
 
     /// <summary>创建并挂到界面根:tint=颜色(右红/左绿),dotSize=红点逻辑像素直径</summary>
-    public static UiAimGuide Create(Node parent, Color tint, float dotSize = 28.0f)
+    public static UiAimGuide Create(Node parent, Color tint, float dotSize = 28.0f,
+        bool unityFlash = false)
     {
         var g = new UiAimGuide { Name = "AimGuide", Layer = GuideLayer };
         g._dotSize = dotSize;
+        g._unityFlash = unityFlash;
         var add = new CanvasItemMaterial { BlendMode = CanvasItemMaterial.BlendModeEnum.Add };
         var beamTex = GD.Load<Texture2D>(LaserSight.BeamTexturePath);
         // 光束 K 段:旋转 TextureRect,lazer.png 亮纹纵向压扁后亮核落在段中线
@@ -74,20 +81,41 @@ public partial class UiAimGuide : CanvasLayer
             Visible = false,
         };
         g.AddChild(g._glow);
-        // 核心红点
+        // 菜单原作 Flash.prefab:Point19 红色外层 + Point5 白色核心，均加色混合。
         g._dot = new TextureRect
         {
             Name = "Dot",
-            Texture = LaserSight.GlowTexture,
+            Texture = unityFlash
+                ? GD.Load<Texture2D>(UiKit.TexFxDir + "flash_point19.png")
+                : LaserSight.GlowTexture,
             Modulate = new Color(tint.R, tint.G, tint.B, 1.0f),
             Size = new Vector2(dotSize, dotSize),
             PivotOffset = new Vector2(dotSize * 0.5f, dotSize * 0.5f),
             StretchMode = TextureRect.StretchModeEnum.Scale,
             ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize,
             MouseFilter = Control.MouseFilterEnum.Ignore,
+            Material = unityFlash ? add : null,
             Visible = false,
         };
         g.AddChild(g._dot);
+        if (unityFlash)
+        {
+            float coreSize = dotSize * 0.65f;
+            g._core = new TextureRect
+            {
+                Name = "FlashCore",
+                Texture = GD.Load<Texture2D>(UiKit.TexFxDir + "flash_point5.png"),
+                Modulate = new Color(1.0f, 0.96f, 0.96f, 0.95f),
+                Size = Vector2.One * coreSize,
+                PivotOffset = Vector2.One * (coreSize * 0.5f),
+                StretchMode = TextureRect.StretchModeEnum.Scale,
+                ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize,
+                MouseFilter = Control.MouseFilterEnum.Ignore,
+                Material = add,
+                Visible = false,
+            };
+            g.AddChild(g._core);
+        }
         parent.AddChild(g);
         return g;
     }
@@ -103,7 +131,8 @@ public partial class UiAimGuide : CanvasLayer
         bool beamOk = !cam.IsPositionBehind(muzzleWorld) && !cam.IsPositionBehind(farWorld);
         if (beamOk)
         {
-            Vector2 p0 = cam.UnprojectPosition(muzzleWorld);
+            Vector2 viewportScale = cam.GetViewport().GetVisibleRect().Size / new Vector2(1280, 720);
+            Vector2 p0 = cam.UnprojectPosition(muzzleWorld) + BeamOriginCorrection * viewportScale;
             Vector2 p1 = cam.UnprojectPosition(farWorld);
             var d = p1 - p0;
             float len = d.Length();
@@ -138,11 +167,25 @@ public partial class UiAimGuide : CanvasLayer
         Vector2 dotPos = uiTarget;
         if (hitWorld is Vector3 hit && !cam.IsPositionBehind(hit - forward * HitBackOffset))
             dotPos = cam.UnprojectPosition(hit - forward * HitBackOffset);
-        _glow.Visible = true;
+        bool hasImpact = hitWorld.HasValue || hoverButton;
+        _glow.Visible = hasImpact;
+        if (_unityFlash)
+            _glow.Size = Vector2.One * (_dotSize * 3.0f);
         _glow.Position = dotPos - Vector2.One * (_dotSize * 1.5f);
-        _dot.Visible = true;
+        // Godot 首次挂载 TextureRect 时会把 Size 重置为贴图原尺寸
+        // (Point19=128, Point5=256)，每帧按画布像素恢复粒子尺寸。
+        if (_unityFlash)
+            _dot.Size = Vector2.One * _dotSize;
+        _dot.Visible = hasImpact;
         _dot.Position = dotPos - Vector2.One * (_dotSize * 0.5f);
         _dot.Scale = Vector2.One * (hoverButton ? HoverScale : 1.0f);
+        if (_core != null)
+        {
+            _core.Size = Vector2.One * (_dotSize * 0.65f);
+            _core.Visible = hasImpact;
+            _core.Position = dotPos - _core.Size * 0.5f;
+            _core.Scale = _dot.Scale;
+        }
     }
 
     /// <summary>世界宽度在该深度上的屏幕像素宽(沿相机右方向取两点投影之差)</summary>
@@ -158,6 +201,8 @@ public partial class UiAimGuide : CanvasLayer
         foreach (var seg in _beamSegs)
             seg.Visible = false;
         _dot.Visible = false;
+        if (_core != null)
+            _core.Visible = false;
         _glow.Visible = false;
     }
 

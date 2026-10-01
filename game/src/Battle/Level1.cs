@@ -319,6 +319,11 @@ public partial class Level1 : LevelBase
     /// 尖叫/求救/相机注视)→ 3s 开环境 → 19s 收队 → blend 到 Battle0 开战</summary>
     private void PlayIntro()
     {
+        // Unity 走廊以烘焙光为主；导入场景的 1.0 点光在 Godot 中与环境光叠加会烧白墙面。
+        if (_env != null)
+            foreach (var node in _env.FindChildren("*", "Light3D", true, false))
+                if (node is Light3D light && light.LightEnergy > 0.5f)
+                    light.LightEnergy = 0.2f;
         _introPlaying = true;
         InputRouter.Instance.FireEnabled = false;
         if (FireSys != null)

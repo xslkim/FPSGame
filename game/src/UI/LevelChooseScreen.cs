@@ -108,7 +108,8 @@ public partial class LevelChooseScreen : Node
 
         // 枪身材质(FBX 导入丢贴图,代码覆盖;只盖 Model 子树,勿波及 MuzzleFlash quad)
         OverrideGunMat(_gunM4, "res://assets/models/guns/m4/m4_tex.png", new Color(0.783019f, 0.783019f, 0.783019f));
-        OverrideGunMat(_gunAk, "res://assets/models/guns/ak47/ak47_tex.png", new Color(0.8584906f, 0.8584906f, 0.8584906f));
+        OverrideGunMat(_gunAk, "res://assets/models/guns/automatic_rifle/automatic_rifle.tga",
+            new Color(0.8584906f, 0.8584906f, 0.8584906f), unshaded: true);
 
         var router = InputRouter.Instance;
         router.TriggerRight += OnRightTrigger;
@@ -153,13 +154,14 @@ public partial class LevelChooseScreen : Node
         InputRouter.Instance.MouseGun.Triggered -= OnMouseTrigger;
     }
 
-    private static void OverrideGunMat(Node3D gun, string texPath, Color tint)
+    private static void OverrideGunMat(Node3D gun, string texPath, Color tint, bool unshaded = false)
     {
         var mat = new StandardMaterial3D
         {
             AlbedoColor = tint,
             AlbedoTexture = GD.Load<Texture2D>(texPath),
             Roughness = 0.85f,
+            ShadingMode = unshaded ? BaseMaterial3D.ShadingModeEnum.Unshaded : BaseMaterial3D.ShadingModeEnum.PerPixel,
         };
         foreach (var mi in gun.GetNode("Model").FindChildren("*", "MeshInstance3D", true, false))
             ((MeshInstance3D)mi).MaterialOverride = mat;

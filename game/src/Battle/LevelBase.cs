@@ -12,9 +12,13 @@ public partial class LevelBase : Node3D
     [Signal] public delegate void LevelVictoryEventHandler();
     [Signal] public delegate void OpenContinueEventHandler(bool isOpen, int side);
 
-    public const float CamBlendTime = 1.0f;    // 机位切换 Tween(原作自定义 Blend 资产 Level1.asset:1s)
-    public const float SpawnFreezeTime = 2.0f; // 切机位后冻结刷怪 2 秒
+    public const float CamBlendTime = 2.0f;    // 机位切换 Tween(原作 CinemachineBrain m_DefaultBlend m_Time:2,Level1-4.unity 一致)
+    public const float SpawnFreezeTime = 2.0f; // 切机位后冻结刷怪 2 秒(=blend 时长,换位期间不刷)
     public const float VictoryDelay = 2.0f;    // 胜利延迟(原作 Invoke 2s,单次触发)
+
+    /// <summary>--cam-debug:机位 blend 打点(排查运镜)</summary>
+    protected static bool DebugCam =>
+        System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--cam-debug") >= 0;
 
     [Export] public string LevelKey = "level1";
     [Export] public NodePath[] CamPositionPaths = System.Array.Empty<NodePath>();
@@ -47,6 +51,8 @@ public partial class LevelBase : Node3D
     protected bool BattleActive;
     protected int VictoryState; // 0 未触发 / 1 倒计时中 / 2 已发信号
     protected Monster? Boss;
+    /// <summary>截图模式:SwitchCamera 直接到位不 blend(各关解析到截图参数时置位)</summary>
+    protected bool ShotModeSnap;
 
     // 自检统计
     public int StatCamSwitches;
@@ -231,10 +237,21 @@ public partial class LevelBase : Node3D
         if (Camera == null || i >= CamPositions.Length || CamPositions[i] == null)
             return;
         StatCamSwitches += 1;
+        if (ShotModeSnap)
+        {
+            // 截图模式:不等 blend 直接到位(防 ShotsSequence 杀 Tween 把相机冻在半途)
+            Camera.GlobalTransform = CamPositions[i].GlobalTransform;
+            return;
+        }
         var tw = CreateTween();
         tw.TweenProperty(Camera, "global_transform", CamPositions[i].GlobalTransform,
             CamBlendTime * Mathf.Max(TimeScaleTest, 0.05f))
             .SetTrans(Tween.TransitionType.Cubic).SetEase(Tween.EaseType.InOut); // 原作 EaseInOut
+        if (DebugCam)
+        {
+            GD.Print($"[CAMDBG] blend→cam{i} dur={CamBlendTime * Mathf.Max(TimeScaleTest, 0.05f):0.00} t={Time.GetTicksMsec() / 1000.0:0.00}");
+            tw.Finished += () => GD.Print($"[CAMDBG] blend cam{i} finished t={Time.GetTicksMsec() / 1000.0:0.00}");
+        }
         // 原作 vcam 逐波 far(L2:50/80/100;meta cam_far 有值才改,近裁剪面不动)
         if (i < Groups.Count)
         {

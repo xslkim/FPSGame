@@ -19,6 +19,7 @@ sky_material = SubResource("Pano")
 [sub_resource type="Environment" id="Env"]
 background_mode = 2
 sky = SubResource("Sky")
+sky_rotation = Vector3(0.86, 0, 0)
 ambient_light_source = 2
 ambient_light_color = Color(0.7075472, 0.7075472, 0.7075472, 1)
 ambient_light_energy = 1.0
@@ -48,8 +49,10 @@ transform = Transform3D(0.866026, 0.383021, 0.321397, 3.264e-06, 0.642785, -0.76
 light_color = Color(1, 1, 1, 1)
 light_energy = 1.0
 
+; 开场机位 = Unity 主相机场景预摆(与 vcam6 同位)的 mirror-X:开战即 2s blend 扫到 cam_pos_0,
+; 还原原作开局运镜(Cinemachine 首次激活从当前机位 blend 到 vcam0)。
 [node name="Camera3D" type="Camera3D" parent="."]
-transform = Transform3D(-0.632835, 0.134447, -0.762515, -4.7634e-06, 0.984808, 0.173645, 0.774277, 0.109893, -0.623221, 61.1671, 1, -67.7054)
+transform = Transform3D(-0.642791, -0.133016, 0.754408, 6.4922e-06, 0.984808, 0.173645, -0.766045, 0.111622, -0.633025, -112.22, 1, -67.7054)
 current = true
 fov = 52.0
 near = 0.1

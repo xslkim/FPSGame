@@ -41,30 +41,53 @@ public partial class Level2 : LevelBase
     public double StatBossDeadTime = -1.0;
     public int StatToonBorn;             // L2-2:Toon 出生数(wait 恒 0 断言用)
     public double StatLastToonWait = -1.0;
+    public Vector3 StatBossBornPos;      // L2-5:Boss 出生点定格(移动前)
 
     private readonly System.Collections.Generic.List<(string Path, float Delay)> _shots = new();
 
     // ------------------------------------------------ 进场/元数据
 
-    /// <summary>远景毒气山体压暗(原作烘焙光照下远景=暗剪影;本场景顶点色为 albedo,受环境光/平行光
-    /// 照射过亮,且 VC 模式会盖掉材质乘色,只能整组盖暗色材质)。匹配真值 level2_unity.png 的黄昏观感。</summary>
-    private void DarkenBackdrop()
+    private void ToneBackdrop()
     {
-        var env = GetNodeOrNull<Node3D>("Environment");
-        if (env == null)
-            return;
-        var terrain = env.FindChild("Terrain_d_gas", true, false) as MeshInstance3D;
+        var terrain = GetNode("Environment").FindChild("Terrain_d_gas", true, false) as MeshInstance3D;
         if (terrain == null)
             return;
-        var dark = new StandardMaterial3D
-        {
-            AlbedoColor = new Color(0.20f, 0.24f, 0.22f),
-            Roughness = 1.0f,
-        };
-        terrain.MaterialOverride = dark;
+        // Terrain_d_gas itself is the playable stone ground. Darken only its
+        // child scenery, retaining each material's texture and transparency.
+        var copies = new System.Collections.Generic.Dictionary<ulong, Material>();
         foreach (var n in terrain.FindChildren("*", "MeshInstance3D", true, false))
-            if (n is MeshInstance3D mi)
-                mi.MaterialOverride = dark;
+        {
+            if (n is not MeshInstance3D mi || mi.Mesh == null)
+                continue;
+            for (int s = 0; s < mi.Mesh.GetSurfaceCount(); s++)
+            {
+                var source = mi.GetActiveMaterial(s);
+                if (source is not StandardMaterial3D standard)
+                    continue;
+                ulong id = standard.GetInstanceId();
+                if (!copies.TryGetValue(id, out var copy))
+                {
+                    var toned = (StandardMaterial3D)standard.Duplicate();
+                    var c = toned.AlbedoColor;
+                    toned.AlbedoColor = new Color(c.R * 0.38f, c.G * 0.38f, c.B * 0.42f, c.A);
+                    copy = toned;
+                    copies[id] = copy;
+                }
+                mi.SetSurfaceOverrideMaterial(s, copy);
+            }
+        }
+    }
+
+    private void TuneWindowLights()
+    {
+        // Godot Compatibility 的点光衰减比 Unity 旧管线宽得多。把本关的
+        // 窗口暖光限制在城门附近，避免整片地面被照成亮黄。
+        foreach (var node in GetNode("WindowLights").GetChildren())
+            if (node is OmniLight3D light)
+            {
+                light.LightEnergy *= 0.35f;
+                light.OmniRange = 6.5f;
+            }
     }
 
     /// <summary>meta 复制后把 boss_group 置 -1:Boss 不走基类"波开始即出场",本类按 boss_delay 延迟处理</summary>
@@ -78,7 +101,8 @@ public partial class Level2 : LevelBase
     protected override void EnterLevel()
     {
         PatchMeta();
-        DarkenBackdrop();
+        TuneWindowLights();
+        ToneBackdrop();
         CollectWindows();
         var args = OS.GetCmdlineUserArgs();
         if (System.Array.IndexOf(args, "--level2-selftest") >= 0)
@@ -86,7 +110,6 @@ public partial class Level2 : LevelBase
             SelfTest();
             return;
         }
-        StartBattle();
         foreach (var a in args)
         {
             if (a.StartsWith("--level2-shot:"))
@@ -107,6 +130,9 @@ public partial class Level2 : LevelBase
                 CallDeferred(nameof(DebugJumpBoss), a["--level2-shot-boss:".Length..]);
             }
         }
+        // 截图模式相机直接到位(无 blend,防 ShotsSequence 杀 Tween 冻半途);参数解析须先于 StartBattle
+        ShotModeSnap = System.Array.Exists(args, x => x.StartsWith("--level2-shot"));
+        StartBattle();
         if (_shots.Count > 0)
         {
             ShotGuardLoop(); // X-2:同 L3 多 shot + 防玩家死亡守护
@@ -379,9 +405,17 @@ public partial class Level2 : LevelBase
             w!.FireMonster = tm;
             tm.FireWindow = w;
             // L2-2:Unity ToonSolder/Alien1 prefab WaittingTime=0,出生即到窗即射(不走难度等待)
+            var srcPos = w.GetSrcPosition();
+            // 原作 CC 出生嵌入自动上推:src 上方 ~2.5m 内有檐板(窗标在板下)→ 抬到板面
+            // (如 G0 w4:窗标 y=-6.34 位于 -3.9 走道板下;否则 toon 生在板下不可见)
+            var upHit = GetWorld3D().DirectSpaceState.IntersectRay(PhysicsRayQueryParameters3D.Create(
+                srcPos + new Vector3(0.0f, 2.5f, 0.0f), srcPos + new Vector3(0.0f, -0.4f, 0.0f),
+                Monster.BornRayMask));
+            if (upHit.Count != 0 && ((Vector3)upHit["position"]).Y > srcPos.Y + 0.5f)
+                srcPos.Y = ((Vector3)upHit["position"]).Y;
             StatToonBorn += 1;
             StatLastToonWait = 0.0;
-            tm.Born(w.GetSrcPosition(), lv, 0.0f); // 从 SrcPosition 翻窗爬入
+            tm.Born(srcPos, lv, 0.0f); // 从 SrcPosition 翻窗爬入
         }
         else
         {
@@ -498,10 +532,24 @@ public partial class Level2 : LevelBase
             b.EntranceShake += OnEntranceShake;
         }
         Boss.Died += OnBossDied;
-        float fov = SaveService.Get(Meta, "born_max_fov", 33.0).AsSingle();
-        float len = SaveService.Get(Meta, "born_max_length", 8.0).AsSingle();
-        var prm = Boss.GetBornParams(fov, len);
-        Boss.Born(Boss.GetBornPosition(prm.X, prm.Y), StatBossLevel, 0.0f);
+        // Unity 场景坐标需随已镜像的城镇场景转换 X 轴。
+        // 激活后 Update 移向相机前 12m(Level2Boss 已实现);meta 无 boss_pos 时回退出生锥
+        var bornPosDict = SaveService.Get(Meta, "boss_pos", new Godot.Collections.Dictionary()).AsGodotDictionary();
+        Vector3 bornPos;
+        if (bornPosDict.Count > 0)
+        {
+            bornPos = new Vector3(-(float)bornPosDict["x"].AsDouble(), (float)bornPosDict["y"].AsDouble(),
+                (float)bornPosDict["z"].AsDouble());
+        }
+        else
+        {
+            float fov = SaveService.Get(Meta, "born_max_fov", 33.0).AsSingle();
+            float len = SaveService.Get(Meta, "born_max_length", 8.0).AsSingle();
+            var prm = Boss.GetBornParams(fov, len);
+            bornPos = Boss.GetBornPosition(prm.X, prm.Y);
+        }
+        Boss.Born(bornPos, StatBossLevel, 0.0f);
+        StatBossBornPos = Boss.GlobalPosition; // 出生点定格(born 后即走位,自检用)
         _bossSpawnTime = Time.GetTicksMsec() / 1000.0;
         PlayMusic(SaveService.Get(Meta, "boss_bgm", "").AsString());
         StatBossBgm = true;
@@ -689,6 +737,10 @@ public partial class Level2 : LevelBase
         while (Boss == null && Time.GetTicksMsec() / 1000.0 - tWait < 90.0)
             await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
         Check(Boss != null, "G2: boss (level2_boss) born after 15s");
+        // Level2.unity 原点 (11.12,-8,0.74) 镜像到当前场景坐标。
+        var expectBossPos = new Vector3(-11.12f, -8.0f, 0.74f);
+        Check(StatBossBornPos.DistanceTo(expectBossPos) < 0.01f,
+            $"boss born at scene pose (got {StatBossBornPos}, expect {expectBossPos})");
         double delay = _bossSpawnTime - _bossGroupStartTime;
         Check(Boss != null && delay >= 14.0 && delay <= 20.0,
             $"boss delay ~15s (measured {delay:0.00}s)");

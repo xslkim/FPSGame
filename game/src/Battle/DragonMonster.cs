@@ -131,8 +131,9 @@ public partial class DragonMonster : Monster
         Vector3 rot = Rotation;
         rot.Y = YawTowards(rot.Y, Mathf.Atan2(-dir.X, -dir.Z), Info.TurnSpeed * delta);
         Rotation = rot;
-        // 飞行直接位移(目标点可在地面以下,不用碰撞移动)
-        GlobalPosition += dir * speed * delta;
+        // Unity 用 CharacterController.Move 飞行：地形和建筑仍会阻挡龙。
+        // 直接改 GlobalPosition 会让龙穿过镜头下方的地面，过早飞到玩家背后。
+        MoveAndCollide(dir * speed * delta);
         if (!IsCurrentAnim(LocomotionAnim) && !IsPlayingAny(Info.AttackAnims)
             && Anim.HasAnimation(LocomotionAnim))
             // L4-8:非 Attack 段飞行动画 speed=2(Unity m_ani.speed=2)

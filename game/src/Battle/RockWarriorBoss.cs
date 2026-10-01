@@ -15,7 +15,8 @@ public partial class RockWarriorBoss : Monster
     public const float AttackFacing = 15.0f;  // 原作 IsFaceToCamera 15°
     public const float HardenedDamage = 1.0f; // 硬化皮肤单发伤害
     public const float FireballScale = 10.0f; // 原作 RockAttack localScale×10
-    public const float FireballHeight = 1.5f;
+    // Unity Level3.unity:PoisonFireball 父锚点 local y=3,RockWarrior 根 scale=5。
+    public const float FireballHeight = 15.0f;
 
     /// <summary>自检/调试:最后一发火球</summary>
     public Fireball? LastFireball { get; private set; }

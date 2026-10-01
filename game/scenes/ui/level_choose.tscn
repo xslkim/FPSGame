@@ -2,7 +2,7 @@
 
 [ext_resource type="Script" path="res://src/UI/LevelChooseScreen.cs" id="1"]
 [ext_resource type="PackedScene" path="res://assets/models/guns/m4/m4.fbx" id="2"]
-[ext_resource type="PackedScene" path="res://assets/models/guns/ak47/ak47.fbx" id="3"]
+[ext_resource type="PackedScene" path="res://assets/models/guns/automatic_rifle/automatic_rifle.fbx" id="3"]
 [ext_resource type="Script" path="res://src/Effects/MuzzleFlash.cs" id="4"]
 
 [sub_resource type="Environment" id="Env"]
@@ -44,16 +44,16 @@ fov = 60.0
 near = 0.01
 
 [node name="AK47View" type="Node3D" parent="ViewportLayer/SubViewportContainer/SubViewport/Camera3D"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.25, -0.11, -0.2)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.27, -0.03, -0.2)
 
 [node name="Model" type="Node3D" parent="ViewportLayer/SubViewportContainer/SubViewport/Camera3D/AK47View"]
-transform = Transform3D(-0.000074, 0.000396, -0.099999, 0.042655, 0.195397, 0.000741, 0.195398, -0.042654, -0.000314, -0.006098, -0.039138, -0.084753)
+transform = Transform3D(-0.000044, 0.000238, -0.060000, 0.025593, 0.117238, 0.000445, 0.117239, -0.025592, -0.000188, -0.006, -0.0394, -0.009)
 
-[node name="ak47" parent="ViewportLayer/SubViewportContainer/SubViewport/Camera3D/AK47View/Model" instance=ExtResource("3")]
+[node name="automatic_rifle" parent="ViewportLayer/SubViewportContainer/SubViewport/Camera3D/AK47View/Model" instance=ExtResource("3")]
 
 [node name="MuzzleFlash" type="Node3D" parent="ViewportLayer/SubViewportContainer/SubViewport/Camera3D/AK47View"]
 visible = false
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.2069)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.025, -0.038, -0.162)
 script = ExtResource("4")
 
 [node name="M4View" type="Node3D" parent="ViewportLayer/SubViewportContainer/SubViewport/Camera3D"]

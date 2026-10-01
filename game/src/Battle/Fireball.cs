@@ -16,6 +16,9 @@ public partial class Fireball : Node3D
     public const float DamageDelay = 0.1f;     // 原作 Invoke("HitPlayer", 0.1f)
     public const float ExplosionTime = 0.3f;   // 爆炸闪光时长(视觉)
     public const float MaxFlightTime = 8.0f;   // 兜底(相机静止必撞墙)
+    private const int AtlasColumns = 8;
+    private const int AtlasRows = 4;
+    private const float AtlasFps = 24.0f;
 
     private float _attack;
     private Game.AttackType _type;
@@ -24,6 +27,7 @@ public partial class Fireball : Node3D
     private bool _exploded;
     private MeshInstance3D _quad = null!;
     private OmniLight3D _light = null!;
+    private StandardMaterial3D _flameMat = null!;
 
     public static void Spawn(Node parent, Vector3 pos, float attack, Game.AttackType type)
     {
@@ -44,7 +48,9 @@ public partial class Fireball : Node3D
             BillboardKeepScale = true, // billboard 默认丢弃世界缩放;Boss 火球 ×10(原作 localScale×10)须生效
             AlbedoColor = new Color(1.0f, 0.55f, 0.15f),
             AlbedoTexture = GD.Load<Texture2D>("res://assets/effects/textures/fireball_core.png"),
+            Uv1Scale = new Vector3(1.0f / AtlasColumns, 1.0f / AtlasRows, 1.0f),
         };
+        fb._flameMat = mat;
         fb._quad = new MeshInstance3D
         {
             Mesh = new QuadMesh { Size = new Vector2(0.5f, 0.5f) },
@@ -67,6 +73,14 @@ public partial class Fireball : Node3D
     {
         float d = (float)delta;
         _t += d;
+        // fireball_core.png 是 8×4 序列帧。逐帧移动 UV，避免整张图集变成网格方块。
+        if (!_exploded)
+        {
+            int frame = (int)(_t * AtlasFps) % (AtlasColumns * AtlasRows);
+            _flameMat.Uv1Offset = new Vector3(
+                (frame % AtlasColumns) / (float)AtlasColumns,
+                (frame / AtlasColumns) / (float)AtlasRows, 0.0f);
+        }
         if (_exploded)
         {
             // 爆炸闪光:放大淡出后消失

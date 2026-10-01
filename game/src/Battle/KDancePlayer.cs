@@ -11,13 +11,17 @@ namespace FPSGame;
 /// </summary>
 public partial class KDancePlayer : Node
 {
-    public double StartTime = 2.9667; // 原作 StoryStartTimeline 舞蹈轨起始(2.9667/2.9833/3.0333 错落)
+    public double StartTime = 2.9667; // blade 轨道起点;casual/f05 分别晚 0.0667/0.1333 秒
     public double Phase;              // 舞者相位偏移
     /// <summary>循环播放(开场背负等短循环剪辑);LoopTime<=0 时按数据时长循环</summary>
     public bool Loop;
     public double LoopTime;
-    /// <summary>应用 node[0] 根运动到 motionRoot(剧情舞蹈=true;开场背负=false,姿态全在骨骼里)</summary>
+    /// <summary>应用 node[0] 根运动到 motionRoot(剧情舞蹈和开场背负都关闭)</summary>
     public bool ApplyRootMotion = true;
+    // Some FBX imports retain centimeter-sized skeletons, while Unity's baked
+    // animation stores world positions in meters. Scale local bone translations
+    // back into the imported skeleton's coordinate units before posing it.
+    public float BonePositionScale = 1.0f;
     public double Duration => _data != null ? (_data.Frames - 1) / (double)_data.Fps : 0.0;
 
     private KDanceData _data = null!;
@@ -140,7 +144,7 @@ public partial class KDancePlayer : Node
             if (pi < 0)
                 continue; // 根骨无父:保持 rest(根运动由 motionRoot 承担)
             var local = _gG[pi].AffineInverse() * _gG[i];
-            _sk.SetBonePosePosition(b, local.Origin);
+            _sk.SetBonePosePosition(b, local.Origin * BonePositionScale);
             _sk.SetBonePoseRotation(b, local.Basis.GetRotationQuaternion().Normalized());
             _sk.SetBonePoseScale(b, local.Basis.Scale);
         }

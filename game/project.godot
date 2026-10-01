@@ -26,6 +26,7 @@ SaveService="*res://src/Core/SaveService.cs"
 AudioService="*res://src/Core/AudioService.cs"
 PlayerState="*res://src/Player/PlayerState.cs"
 InputRouter="*res://src/Input/InputRouter.cs"
+FpsOverlay="*res://src/UI/FpsOverlay.cs"
 
 [display]
 
@@ -44,3 +45,8 @@ window/stretch/aspect="expand"
 3d_physics/layer_2="Enemy"
 3d_physics/layer_3="Button"
 3d_physics/layer_4="CameraWall"
+
+[rendering]
+
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"

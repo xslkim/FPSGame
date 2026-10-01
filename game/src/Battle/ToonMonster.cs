@@ -31,8 +31,51 @@ public partial class ToonMonster : Monster
     public override void _Ready()
     {
         base._Ready();
+        EnsureAttachments(); // 导出包里 tscn 挂在 FBX 实例子树内的节点会静默丢失 → 代码补挂(编辑器已存在则跳过)
         ApplyMaterials();
         ChangeAppearance(); // 未 born 前也给完整形态(池陈列)
+    }
+
+    /// <summary>头盔/步枪(alien)与 AK47(militia)的 BoneAttachment 代码补挂</summary>
+    private void EnsureAttachments()
+    {
+        var skel = FindChild("Skeleton3D", true, false) as Skeleton3D;
+        if (skel == null)
+            return;
+        if (MetaKey == "toon_shoot_alien")
+        {
+            if (skel.FindChild("HeadAttach") == null)
+            {
+                var attach = new BoneAttachment3D { Name = "HeadAttach", BoneName = "bn_Head" };
+                skel.AddChild(attach);
+                var helmet = GD.Load<PackedScene>(
+                    "res://assets/models/monsters/toon_alien/helmet_m_alpha.fbx").Instantiate<Node3D>();
+                helmet.Name = "Helmet";
+                attach.AddChild(helmet);
+            }
+            if (skel.FindChild("RifleAttach") == null)
+            {
+                var attach = new BoneAttachment3D { Name = "RifleAttach", BoneName = "PIV_RifleHandle" };
+                skel.AddChild(attach);
+                var rifle = GD.Load<PackedScene>(
+                    "res://assets/models/monsters/toon_alien/rifle_battlerifle.fbx").Instantiate<Node3D>();
+                rifle.Name = "Rifle";
+                attach.AddChild(rifle);
+            }
+        }
+        else if (MetaKey == "toon_shoot")
+        {
+            if (skel.FindChild("WeaponAttach") == null)
+            {
+                var attach = new BoneAttachment3D { Name = "WeaponAttach", BoneName = "WeaponContainer" };
+                skel.AddChild(attach);
+                var ak = GD.Load<PackedScene>(
+                    "res://assets/models/monsters/toon/weapon_ak47.FBX").Instantiate<Node3D>();
+                ak.Name = "AK47";
+                ak.Scale = Vector3.One * 0.4228f; // toon.tscn 序列化值
+                attach.AddChild(ak);
+            }
+        }
     }
 
     protected override void OnBorn()
@@ -114,17 +157,21 @@ public partial class ToonMonster : Monster
 
     protected override void UpdateActive(float delta)
     {
+        // 原作 ToonMonster 任何状态都无重力源(移动仅 UpdateMoveTo 内 dir.y=0 的 CC.Move;
+        // 攻击/受伤动画期不调 Move 站桩)→ 全状态保持出生/窗口高度。
+        // 任何分支带重力都会让 toon 在 reload/受伤期间沉穿廊桥缝隙(实机"怪物掉下去"根因)
         if (IsPlayingAny(Info.AttackAnims) || (IsCurrentAnim(Info.DamageAnim) && Anim.IsPlaying()))
         {
-            Velocity = new Vector3(0.0f, Velocity.Y, 0.0f);
-            ApplyGravity(delta);
+            Velocity = Vector3.Zero;
             MoveAndSlide();
             return;
         }
         if (FireWindow != null && IsInstanceValid(FireWindow)
             && GlobalPosition.DistanceTo(FireWindow.GlobalPosition) > ArriveDist)
         {
-            // 走向窗口(距离>0.1 时速度 3)
+            // 走向窗口(距离>0.1 时速度 3)。原作 UpdateMoveTo:dir.y=0,纯水平移动,
+            // 出生 y 与窗口 y 同值(prefab 序列化对),全程保持高度不下坠——
+            // 带重力会沉穿廊桥缝隙掉到墙底,永远到不了窗(实机"怪物掉下去"根因)
             Vector3 dir = FireWindow.GlobalPosition - GlobalPosition;
             dir.Y = 0.0f;
             if (dir.LengthSquared() > 0.0001f)
@@ -134,16 +181,15 @@ public partial class ToonMonster : Monster
                 rot.Y = YawTowards(rot.Y, Mathf.Atan2(-dir.X, -dir.Z), Info.TurnSpeed * delta);
                 Rotation = rot;
             }
-            Velocity = new Vector3(dir.X * WalkSpeed, Velocity.Y, dir.Z * WalkSpeed);
-            ApplyGravity(delta);
+            Velocity = new Vector3(dir.X * WalkSpeed, 0.0f, dir.Z * WalkSpeed);
             MoveAndSlide();
             if (!IsCurrentAnim("locomotion") && Anim.HasAnimation("locomotion"))
                 Anim.Play("locomotion", 0.2);
             return;
         }
-        // 到位:面向相机,CD 到播 reload
-        Velocity = new Vector3(0.0f, Velocity.Y, 0.0f);
-        ApplyGravity(delta);
+        // 到位:面向相机,CD 到播 reload。原作到点后不再调 m_char.Move → 无重力定身,
+        // 保持窗口高度(廊桥有缝隙也不下坠)
+        Velocity = Vector3.Zero;
         MoveAndSlide();
         FaceCamera();
         if (AttackReady())

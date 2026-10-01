@@ -178,7 +178,12 @@ public partial class FireSystem : Node3D
         InputRouter.Instance.TriggerRight += () => { }; // 扳机用电平查询,事件仅保留接口
         InputRouter.Instance.SwitchGunRight += () => OnSwitchKey(PlayerState.Side.Right);
         InputRouter.Instance.SwitchGunLeft += () => OnSwitchKey(PlayerState.Side.Left);
+        // --autofire:测试挂接,每 0.4s 强制右路开火(截图验证枪口火光/烟雾位置)
+        _autoFire = System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--autofire") >= 0;
     }
+
+    private bool _autoFire;
+    private float _autoFireTimer;
 
     public override void _ExitTree() => Current = null;
 
@@ -275,6 +280,15 @@ public partial class FireSystem : Node3D
         // 暂停期只放行 Button 命中(枪打面板按钮),其余冻结
         UpdateSide(PlayerState.Side.Right);
         UpdateSide(PlayerState.Side.Left);
+        if (_autoFire && !Game.Instance.IsGamePause)
+        {
+            _autoFireTimer -= (float)delta;
+            if (_autoFireTimer <= 0.0f)
+            {
+                _autoFireTimer = 0.4f;
+                _currentGun[PlayerState.Side.Right]?.Fire(); // 火光/烟雾/后座,不走射线命中
+            }
+        }
     }
 
     private void UpdateSide(PlayerState.Side side)

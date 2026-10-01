@@ -15,6 +15,7 @@ public sealed class UdpDeviceServer
     public const double HeartInterval = 1.0;
     public const double BroadcastInterval = 1.0;
     public const double SocketTimeout = 5.0; // 5 秒无任何包 → 重建 socket 并重启广播
+    public const double BindRetryInterval = 5.0; // 端口被另一进程占用时避免每秒刷调用栈
 
     /// <summary>收到 UDP 包(数据, 来源 IP)</summary>
     public event System.Action<byte[], string>? PacketReceived;
@@ -32,6 +33,7 @@ public sealed class UdpDeviceServer
     private bool _everReceived;
     private double _rebindTimer;
     private bool _bound;
+    private bool _bindFailureReported;
 
     public UdpDeviceServer() => OpenSocket();
 
@@ -40,7 +42,7 @@ public sealed class UdpDeviceServer
         if (_recv == null || !_bound)
         {
             _rebindTimer += delta;
-            if (_rebindTimer >= 1.0)
+            if (_rebindTimer >= BindRetryInterval)
             {
                 _rebindTimer = 0.0;
                 OpenSocket();
@@ -118,11 +120,32 @@ public sealed class UdpDeviceServer
 
     private void OpenSocket()
     {
-        _recv?.Close();
+        if (_recv != null)
+        {
+            _recv.Close();
+            _recv.Dispose();
+        }
         _recv = new PacketPeerUdp();
-        _bound = _recv.Bind(ListenPort) == Error.Ok;
+        var bindError = _recv.Bind(ListenPort);
+        _bound = bindError == Error.Ok;
         if (!_bound)
-            GD.PushError($"[UdpDeviceServer] 绑定 {ListenPort}/udp 失败");
+        {
+            _recv.Close();
+            _recv.Dispose();
+            _recv = null;
+            if (!_bindFailureReported)
+            {
+                GD.PushWarning($"[UdpDeviceServer] 无法绑定 {ListenPort}/udp ({bindError})；可能已有游戏实例占用端口。每 {BindRetryInterval:0} 秒重试一次，鼠标和键盘仍可使用。");
+                _bindFailureReported = true;
+            }
+        }
+        else
+        {
+            _rebindTimer = 0.0;
+            if (_bindFailureReported)
+                GD.Print($"[UdpDeviceServer] 已恢复绑定 {ListenPort}/udp");
+            _bindFailureReported = false;
+        }
         if (_send == null)
         {
             _send = new PacketPeerUdp();

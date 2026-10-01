@@ -108,7 +108,7 @@ public partial class InputRouter : Node
         }
         // 鼠标左键按住 = 扳机电平(原作 _MouseFireRing,InputManager.cs:567-570:GetCurKeyRing=硬件∥鼠标);
         // 仅战斗态注入——UI 界面走 MouseGun.Triggered 边沿(GunUiController),避免一击双发
-        if (MouseGun.LeftHeld && Game.Instance.SceneState == Game.GameState.Battle
+        if (!NoMouse && MouseGun.LeftHeld && Game.Instance.SceneState == Game.GameState.Battle
             && MouseGun.IsActiveForRight(this))
         {
             if (Mode == InputMode.OnlyLeft)
@@ -275,9 +275,15 @@ public partial class InputRouter : Node
 
     /// <summary>统一右路瞄准:鼠标模拟优先(无实体枪时),否则体感枪/键盘旋转</summary>
     public AimState GetRightAim() =>
-        MouseGun.IsActiveForRight(this)
+        !NoMouse && MouseGun.IsActiveForRight(this)
             ? AimState.Screen(MouseGun.AimPos)
             : AimState.Rot(GunMath.PhoneToGunRotation(RawRingRotation));
+
+    /// <summary>--no-mouse:测试挂接。窗口截图/录证时屏蔽物理鼠标:
+    /// 瞄准不走屏幕点(回落体感/键盘旋转,无设备=正前),扳机不由鼠标注入;
+    /// 防真机光标悬停/点击污染(误中暂停按钮会把游戏锁死在暂停-关闭循环)。</summary>
+    public static bool NoMouse { get; } =
+        System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--no-mouse") >= 0;
 
     /// <summary>左手瞄准(仅体感枪四元数)</summary>
     public AimState GetLeftAim() => AimState.Rot(GunMath.PhoneToGunRotation(RawLegRotation));

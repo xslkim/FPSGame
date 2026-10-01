@@ -441,7 +441,7 @@ public partial class PlayerState : Node
     }
 
     /// <summary>对应原作 PlayerSystem.UpdateUIMode():按场景切 HUD 元素与 SceneState。
-    /// Menu/LevelChoose=只显示金币;DeviceConnection/LoadingScene=全隐藏;其余=战斗。</summary>
+    /// Menu/LevelChoose=只显示金币;DeviceConnection/LoadingScene/Level1Story=全隐藏;其余=战斗。</summary>
     public void UpdateUiMode(string sceneName)
     {
         if (sceneName == "StartUp")
@@ -456,7 +456,7 @@ public partial class PlayerState : Node
                 _battleRoot.Visible = false;
             Game.Instance.SceneState = Game.GameState.UI;
         }
-        else if (sceneName is "DeviceConnection" or "LoadingScene")
+        else if (sceneName is "DeviceConnection" or "LoadingScene" or "Level1Story")
         {
             _coinObj.Visible = false;
             if (_battleRoot != null)
@@ -470,7 +470,9 @@ public partial class PlayerState : Node
             if (_battleRoot != null)
             {
                 _battleRoot.Visible = true;
-                // 原作战斗 HUD:左侧红环头像常显(即使左手玩家未激活);
+                // 原作战斗 HUD:左侧红环头像常显(即使左手玩家未激活,脸图标才按活跃藏)——
+                // 代码 HeadLeftIcon.SetActive(LeftPlayer.Active) 与我们自采 L1/L2 真值(l1u_*/level2_unity)
+                // 左上均有环无脸一致;level3/l4 存量截图为不同来源,不作准。
                 // 子弹 HUD 开战后由 ShowBattleBullets 显形(左弹仅左手活跃时)
                 _bulletLeft.Visible = false;
                 _headLeft.Visible = true;

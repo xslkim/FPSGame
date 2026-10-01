@@ -8,12 +8,14 @@ namespace FPSGame;
 /// </summary>
 public partial class MonsterHpBar : Node3D
 {
+    [Export] public float WidthScale = 1.0f;
     private MeshInstance3D _fill = null!;
-    private float _maxWidth = 0.6f; // 60px × 0.01
+    private float _maxWidth; // 60px × 0.01; L3 Boss prefab 横向缩放另有 ×3 override
     private float _height = 0.1f;   // 10px × 0.01
 
     public override void _Ready()
     {
+        _maxWidth = 0.6f * WidthScale;
         var bgTex = GD.Load<Texture2D>("res://assets/textures/ui/Hp_Green_bg.png");
         var fillTex = GD.Load<Texture2D>("res://assets/textures/ui/Hp_Yellow.png");
         var bgMat = new StandardMaterial3D

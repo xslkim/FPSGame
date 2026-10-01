@@ -6,7 +6,7 @@ namespace FPSGame;
 /// 枪口火光:1:1 移植 Unity FPS Pack 的 MuzzleFlash1.prefab(Assets/UI/Impark/)。
 /// Fire() 一次 = 原作 SetActive(false)→(true) 重触发:
 ///   Flame — Flame1.png 2×4 翻页(8 帧 / 0.15s),Particles/Additive,染色 (1,0.803,0.706);
-///   Smoke — Smoke.png 8×8 翻页(64 帧,frameOverTime 曲线前快后慢),染色 (0.596,0.596,0.596,0.161),
+///   Smoke — Smoke.png 8×8 翻页(64 帧,frameOverTime 曲线前快后慢),灰色染色并增强可见度,
 ///           生长曲线(0.43→0.89→1),寿命取中值 1.5s(原作 2 次 burst 合并为一层);
 ///   Light — FPSLightCurves:0→0.979(0.005s)→0(0.15s),色 (1,0.393,0),范围 6,
 ///           位置照 prefab 在枪身上方偏后。
@@ -37,16 +37,21 @@ public partial class MuzzleFlash : Node3D
         Visible = false;
         // prefab 子节点 Flame @(0,0,-0.092) 绕 Z 转 180°(原作欧拉 (-180,180,0),火焰指向枪口前方);
         // Smoke @(0,0,-0.021) / Point light @(0,0.44,-0.87)
+        // 注意:原作 Flame 是 stretched billboard,视觉从枪口前伸;照抄 prefab 偏移(面片中心落在
+        // 枪身中段)在平板 quad 上观感=火从枪身中部冒出(实机反馈)。面片中心前移到枪口前方
+        // (muzzle-local -0.03 ≈ 枪口尖再前 3cm),对齐原作真值截图 m7b_muzzle_fire_f1 的观感。
         // Flame 不用 billboard:面片固定在枪口平面(法线朝相机),随枪口旋转而沿枪管拉长,
         // 近似原作 stretched billboard;烟雾球状用 billboard 即可。
-        _flame = MakeQuad("Flame", new Vector3(0, 0, 0.092f), 0.18f, 0.09f,
+        _flame = MakeQuad("Flame", new Vector3(0, 0, -0.03f), 0.18f, 0.09f,
             UiKit.TexFxDir + "fps_flame1.png", 2, 4,
             BaseMaterial3D.BlendModeEnum.Add, new Color(1, 0.8032454f, 0.7058823f),
             false, out _flameMat);
         _flame.Rotation = new Vector3(0, 0, Mathf.Pi);
-        _smoke = MakeQuad("Smoke", new Vector3(0, 0, 0.021f), 0.125f, 0.125f,
+        // 原烟雾贴在枪身内部，且单层 alpha 0.16 在暗背景上几乎不可见。
+        // 把它放到枪口前方并扩大翻页面片，保留原贴图的扩散帧序。
+        _smoke = MakeQuad("Smoke", new Vector3(0, 0, -0.15f), 0.30f, 0.30f,
             UiKit.TexFxDir + "fps_smoke.png", 8, 8,
-            BaseMaterial3D.BlendModeEnum.Mix, new Color(0.5955882f, 0.5955882f, 0.5955882f, 0.16078432f),
+            BaseMaterial3D.BlendModeEnum.Mix, new Color(0.5955882f, 0.5955882f, 0.5955882f, 0.60f),
             true, out _smokeMat);
         _light = new OmniLight3D
         {
@@ -66,6 +71,7 @@ public partial class MuzzleFlash : Node3D
         Visible = true;
         _flame.Visible = !DebugNoFlame;
         _smoke.Visible = !DebugNoSmoke;
+        _smoke.Position = new Vector3(0, 0, -0.15f);
         float s = SizeCurve(0.0f);
         _smoke.Scale = new Vector3(s, s, s);
         ApplyFrame(_flameMat, 2, 4, 0);
@@ -96,6 +102,7 @@ public partial class MuzzleFlash : Node3D
             return;
         }
         ApplyFrame(_smokeMat, 8, 8, (int)(FrameCurve(f) * 64.0f * 0.9999f));
+        _smoke.Position = new Vector3(0, 0.07f * f, -0.15f - 0.12f * f);
         float s = SizeCurve(f);
         _smoke.Scale = new Vector3(s, s, s);
     }

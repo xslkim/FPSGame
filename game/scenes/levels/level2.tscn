@@ -35,8 +35,10 @@ light_color = Color(1, 0.8957772, 0.7264151, 1)
 light_energy = 0.55
 shadow_enabled = true
 
+; 开场机位 = Unity 主相机场景预摆(=cam_pos_1 位姿,已逐元素核对一致):开战即 2s blend 扫到 cam_pos_0,
+; 还原原作开局运镜(Cinemachine 首次激活从当前机位 blend 到 vcam0,m_DefaultBlend m_Time:2)。
 [node name="Camera3D" type="Camera3D" parent="."]
-transform = Transform3D(0.904803, 0.00960055, 0.425722, -6.45193e-06, 0.999746, -0.0225318, -0.42583, 0.0203841, 0.904574, -1.6678658, -2.0698464, -16.898914)
+transform = Transform3D(-0.91063142, 0.01585535, 0.41291529, -0.00000085, 0.99926352, -0.03837215, -0.41321959, -0.03494324, -0.90996074, 6.050745, -5.638068, -30.660297)
 current = true
 fov = 45.0
 near = 0.01
@@ -51,18 +53,19 @@ script = ExtResource("4")
 [node name="CamPositions" type="Node3D" parent="."]
 
 [node name="cam_pos_0" type="Marker3D" parent="CamPositions"]
-transform = Transform3D(0.904803, 0.00960055, 0.425722, -6.45193e-06, 0.999746, -0.0225318, -0.42583, 0.0203841, 0.904574, -1.6678658, -2.0698464, -16.898914)
+transform = Transform3D(0.90480316, -0.00960055, -0.42572182, 0.00000645, 0.99974613, -0.02253180, 0.42583006, 0.02038410, 0.90457352, 1.6678658, -2.0698464, -16.898914)
 ; G0:Battle0 vcam(Unity 位姿 1:1,FOV45 far50)
 
 [node name="cam_pos_1" type="Marker3D" parent="CamPositions"]
-transform = Transform3D(-0.910631, -0.0158554, -0.412915, 8.50319e-07, 0.999264, -0.0383722, 0.41322, -0.0349432, -0.909961, -6.050745, -5.638068, -30.660297)
+transform = Transform3D(-0.91063142, 0.01585535, 0.41291529, -0.00000085, 0.99926352, -0.03837215, -0.41321959, -0.03494324, -0.90996074, 6.050745, -5.638068, -30.660297)
 ; G1:Battle1 vcam(=主相机位姿,FOV45 far80)
 
 [node name="cam_pos_2" type="Marker3D" parent="CamPositions"]
-transform = Transform3D(0.395114, -0.106668, -0.912418, -6.07222e-06, 0.993235, -0.116119, 0.918632, 0.0458857, 0.392441, -5.4715586, -5.2770715, 8.984203)
+transform = Transform3D(0.39511435, 0.10666789, 0.91241800, 0.00000607, 0.99323535, -0.11611862, -0.91863194, 0.04588568, 0.39244090, 5.4715586, -5.2770715, 8.984203)
 ; G2:Battle2 vcam(boss 波,FOV45 far100)
 
 [node name="Windows" type="Node3D" parent="."]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)
 
 [node name="group0" type="Node3D" parent="Windows"]
 ; G0 ×7(Unity FireWindow 世界位姿;SrcPosition 为 null → 窗口位置出生)
@@ -156,6 +159,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -6.54)
 
 
 [node name="WindowLights" type="Node3D" parent="."]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)
 ; 窗口暖光(Unity FireWindow 点光 ×9: intensity 2 / range 10 / 暖 (1,0.893,0.707))
 
 [node name="L0" type="OmniLight3D" parent="WindowLights"]

@@ -109,6 +109,11 @@
    "boss": "level2_boss",
    "boss_group": 2,
    "boss_delay": 15.0,
+   "boss_pos": {
+    "x": 11.12,
+    "y": -8.0,
+    "z": 0.74
+   },
    "boss_level": {
     "easy": 0,
     "hard": 3,

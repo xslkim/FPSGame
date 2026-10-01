@@ -60,6 +60,8 @@ public partial class IntroBadGroup : Node3D
     private bool _activated;
     private bool _screamPlayed;
     private bool _helpPlayed;
+    private Skeleton3D? _carriedSkeleton;
+    private int _neckBone = -1;
     private Camera3D? _camera;
     private Node3D _lookTarget = null!;
     private AudioStreamPlayer _screamPlayer = null!;
@@ -103,6 +105,8 @@ public partial class IntroBadGroup : Node3D
     {
         _playing = false;
         Visible = false;
+        if (_camera != null)
+            _camera.Scale = Vector3.One;
         foreach (var (ap, _) in _animPlayers)
             ap.Stop();
         foreach (var kd in _kdPlayers)
@@ -159,10 +163,19 @@ public partial class IntroBadGroup : Node3D
         _camera.GlobalPosition = shot.Pos;
         if (!Mathf.IsEqualApprox(_camera.Fov, shot.Fov))
             _camera.Fov = shot.Fov;
+        Vector3 target = _lookTarget.GlobalPosition;
         if (shot.TrackNeck)
-            _camera.LookAt(_lookTarget.GlobalPosition, Vector3.Up);
+        {
+            target = _neckBone >= 0 && _carriedSkeleton != null
+                ? (_carriedSkeleton.GlobalTransform * _carriedSkeleton.GetBoneGlobalPose(_neckBone)).Origin
+                : _lookTarget.GlobalPosition;
+            _camera.LookAt(target, Vector3.Up);
+        }
         else
             _camera.Quaternion = shot.Quat; // 相机挂在关卡根下(identity),局部=全局
+        // Unity 与 Godot 走廊 FBX 的水平手性相反；反转视图 X 后演员与门窗均回到原作左右构图。
+        // Stop() 在交接战斗镜头前还原，避免影响射击坐标。
+        _camera.Scale = target.Z < shot.Pos.Z ? new Vector3(-1, 1, 1) : Vector3.One;
     }
 
     // ------------------------------------------------ NPC 组装
@@ -189,7 +202,11 @@ public partial class IntroBadGroup : Node3D
             new Vector3(0.235f, -0.051f, 1.099f),
             new Quaternion(-0.0737453f, -0.6580442f, 0.6833673f, 0.3074877f), 1.0f);
         if (f05 != null)
+        {
             SetupF05(f05);
+            _carriedSkeleton = f05.FindChild("Skeleton3D", true, false) as Skeleton3D;
+            _neckBone = _carriedSkeleton?.FindBone("Neck") ?? -1;
+        }
 
         // 士兵坏人(-0.674,0,18.752) scale 0.7(:113016)
         var soldier = BuildSoldier(new Vector3(-0.674f, 0.0f, 18.752f));
@@ -211,6 +228,8 @@ public partial class IntroBadGroup : Node3D
         var model = GD.Load<PackedScene>(modelPath).Instantiate<Node3D>();
         model.Name = "Model";
         root.AddChild(model); // FBX 原生朝向(面朝 +Z),不旋转(真值局部 rot=identity)
+        if (name == "BaotouNPC")
+            model.Scale = new Vector3(-1, 1, 1); // 烘焙肌肉曲线的左右轴与导入 FBX 相反
         OverrideMaterial(model, matPath);
         // 优先烘焙背负动画(Unity humanoid 剪辑逐帧烘焙;Loop 循环,根运动在骨骼内)
         var kd = bakeBin.Length > 0
@@ -304,8 +323,8 @@ public partial class IntroBadGroup : Node3D
         var carried = GD.Load<PackedScene>(scene).Instantiate<Node3D>();
         carried.Name = "Carried";
         attach.AddChild(carried);
-        carried.Position = localPos;
-        carried.Quaternion = localRot;
+        carried.Position = new Vector3(-localPos.X, localPos.Y, localPos.Z);
+        carried.Quaternion = new Quaternion(localRot.X, -localRot.Y, -localRot.Z, localRot.W);
         carried.Scale = Vector3.One * scale;
         return carried;
     }
