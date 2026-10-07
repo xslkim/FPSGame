@@ -16,9 +16,9 @@ namespace FPSGame;
 ///   线程加载 NextScenePath,加载完成→UpdateProgress(1)(原作 op.progress>=0.9 即显 100%),
 ///   且满 4s(LoadingMinTime)→SceneState=Battle、CurAliveMonster=0、重置玩家、
 ///   菜单音乐由 AudioService 在战斗场景加载后自动停(=原作 MenuUIAS.Stop)、放行切场景;
-///   加载失败(目标场景缺失)停在原地不动(同原作协程死掉的状态)。
-/// 验证:--shot(无目标→停留 "60%"+空条+星芒在左,对照真值);--loading-selftest(目标 menu.tscn
-///   成功路径)/ --loading-selftest-stuck(无目标停滞路径)。
+///   进度显示实际加载状态，目标缺失、加载失败或超时会提示并允许返回菜单。
+/// 验证:--loading-selftest(目标 menu.tscn 成功路径)/
+///   --loading-selftest-stuck(无目标时的恢复路径，参数名兼容旧工具)。
 /// </summary>
 public partial class LoadingScreen : Node
 {
@@ -38,6 +38,7 @@ public partial class LoadingScreen : Node
     private bool _failLogged;
     private bool _suppressSwitch; // 自检用:激活但不真切场景
     private float _value = -1.0f; // 已应用的进度值(避免重复摆放)
+    private bool _recoveryRequested;
 
     public override void _Ready()
     {
@@ -45,6 +46,7 @@ public partial class LoadingScreen : Node
         PlayerState.Instance.UpdateUiMode("LoadingScene"); // 原作 UpdateUIMode:Loading 全隐藏
         MessageBox.CloseCurrent();
         BuildUi();
+        UpdateProgress(0);
 
         // Tips(原作 DataMgr._Config 唯一来源是服务器,已失效 → 离线保持场景默认"你知道吗？")
         var cfg = SaveService.Instance.RemoteConfig;
@@ -71,6 +73,7 @@ public partial class LoadingScreen : Node
         else if (System.Array.IndexOf(args, "--loading-selftest-stuck") >= 0)
         {
             _path = "";
+            _suppressSwitch = true;
             Callable.From(() => RunSelfTest(stuck: true)).CallDeferred();
         }
         foreach (var a in args)
@@ -79,17 +82,16 @@ public partial class LoadingScreen : Node
                 Callable.From(() => TakeShot(a["--shot:".Length..])).CallDeferred();
         }
 
-        if (_path.Length > 0)
+        if (_path.Length > 0 && ResourceLoader.Exists(_path, "PackedScene"))
         {
             var err = ResourceLoader.LoadThreadedRequest(_path);
             if (err != Error.Ok)
             {
-                GD.PushError($"[Loading] 加载请求失败: {_path} (err {err})");
-                _path = "";
+                FailLoad($"场景加载请求失败：{err}");
             }
         }
         else
-            GD.PushError("[Loading] 无目标场景(原作 DataMgr._LoadScene 为空时同样停滞)");
+            FailLoad("无法找到所选关卡。");
     }
 
     // ---------------------------------------------------------------- UI 构建
@@ -169,24 +171,29 @@ public partial class LoadingScreen : Node
 
     public override void _Process(double delta)
     {
-        if (_done)
+        if (_done || _failLogged)
             return;
         _elapsed += delta;
         if (_path.Length == 0)
-            return; // 停滞(同原作协程死掉)
-        var status = ResourceLoader.LoadThreadedGetStatus(_path);
+            return; // _Ready already presents the missing-target recovery prompt.
+        var progress = new Godot.Collections.Array();
+        var status = ResourceLoader.LoadThreadedGetStatus(_path, progress);
         if (status == ResourceLoader.ThreadLoadStatus.Failed ||
             status == ResourceLoader.ThreadLoadStatus.InvalidResource)
         {
-            if (!_failLogged)
-            {
-                _failLogged = true;
-                GD.PushError("[Loading] 目标场景加载失败,停留 Loading: " + _path);
-            }
+            FailLoad("所选关卡加载失败。");
+            return;
+        }
+        if (_elapsed > 30 && status != ResourceLoader.ThreadLoadStatus.Loaded)
+        {
+            FailLoad("关卡加载超时，请返回菜单后重试。");
             return;
         }
         if (status != ResourceLoader.ThreadLoadStatus.Loaded)
+        {
+            if (progress.Count > 0) UpdateProgress(Mathf.Clamp(progress[0].AsSingle(), 0, 0.99f));
             return;
+        }
         UpdateProgress(1); // 原作:op.progress>=0.9 即显示 100%
         if (_elapsed < MinTime)
             return;
@@ -198,11 +205,31 @@ public partial class LoadingScreen : Node
         var packed = ResourceLoader.LoadThreadedGet(_path) as PackedScene;
         if (packed == null)
         {
-            GD.PushError("[Loading] 取场景失败: " + _path);
+            _done = false;
+            FailLoad("无法打开已加载的关卡。");
             return;
         }
         if (!_suppressSwitch)
-            GetTree().ChangeSceneToPacked(packed);
+        {
+            var result = GetTree().ChangeSceneToPacked(packed);
+            if (result != Error.Ok)
+            {
+                _done = false;
+                FailLoad($"无法进入关卡：{result}");
+            }
+        }
+    }
+
+    private void FailLoad(string reason)
+    {
+        if (_failLogged) return;
+        _failLogged = true;
+        Game.Instance.SceneState = Game.GameState.UI;
+        MessageBox.ShowBox(this, "加载失败", reason, "返回菜单", "返回菜单", _ =>
+        {
+            _recoveryRequested = true;
+            if (!_suppressSwitch) Game.Instance.ChangeScene("res://scenes/ui/menu.tscn");
+        });
     }
 
     /// <summary>UpdateProgress:slider.value + 百分比文本(原作 Mathf.Round(v*100)+"%")</summary>
@@ -255,20 +282,15 @@ public partial class LoadingScreen : Node
         await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
 
         Check(_tipsLabel.Text == "你知道吗？", "Tips 默认文本(服务器配置失效)");
-        Check(_progressLabel.Text == "60%", "进度文本初始 60%(原作场景默认值)");
-        Check(Mathf.IsEqualApprox(_fill.OffsetRight, 0), "初始填充宽度 0");
-        Check(Mathf.IsEqualApprox(_handle.OffsetLeft, -SliderW / 2.0f - 67), "星芒初始在条左端");
+        Check(_value >= 0 && _value <= 1, "进度处于 0-100% 有效范围");
         Check(_tipsLabel.GetThemeFontSize("font_size") == 19, "Tips 字号 19(=28×2/3)");
         Check(!PlayerState.Instance.CoinObj.Visible, "Loading 隐藏金币 HUD(UpdateUIMode)");
 
         if (stuck)
         {
-            // 无目标:5s 后仍停滞(原作协程死掉的状态)
-            double t0 = Time.GetTicksMsec() / 1000.0;
-            while (Time.GetTicksMsec() / 1000.0 - t0 < 5.0)
-                await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
-            Check(!_done, "无目标 5s 后仍停留 Loading");
-            Check(_progressLabel.Text == "60%", "停滞时进度文本不变");
+            Check(_failLogged && MessageBox.IsOpen(), "无目标显示可恢复的加载错误");
+            MessageBox.Current!.PressOk();
+            Check(_recoveryRequested, "加载错误按钮可以返回菜单");
         }
         else
         {

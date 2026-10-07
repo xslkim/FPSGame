@@ -24,6 +24,14 @@ public static class BinToTres
             ("damage", false, "damage"),
             ("die", false, "die"),
         },
+        ["level2_boss"] = new[]
+        {
+            ("Idle", true, "Idle"), ("Idle", true, "Idle02"),
+            ("Run", true, "Run"), ("Hit", false, "Damage02"),
+            ("Dead", false, "Dead"), ("Skill1", false, "Skill1"), ("Skill2", false, "Skill2"),
+        },
+        ["toon"] = new[] { ("reload", false, "reload"), ("shoot", false, "shoot") },
+        ["toon_alien"] = new[] { ("reload", false, "reload"), ("shoot", false, "shoot") },
     };
 
     public static void Run(string monsterKey)
@@ -35,7 +43,6 @@ public static class BinToTres
         }
         // 实例化怪物场景取骨架(骨骼名/父链)
         var inst = GD.Load<PackedScene>($"res://scenes/battle/monsters/{monsterKey}.tscn").Instantiate<Node3D>();
-        ((SceneTree)Engine.GetMainLoop()).Root.AddChild(inst);
         _sceneRoot = inst;
         var sk = inst.FindChild("Skeleton3D", true, false) as Skeleton3D;
         if (sk == null)
@@ -43,28 +50,31 @@ public static class BinToTres
             GD.PrintErr("[B2T] no skeleton");
             return;
         }
-        var lib = new AnimationLibrary();
+        string outPath = $"res://assets/models/monsters/{monsterKey}/{monsterKey}_anims.tres";
+        var lib = monsterKey.StartsWith("toon")
+            ? (AnimationLibrary)GD.Load<AnimationLibrary>(outPath).Duplicate(true) : new AnimationLibrary();
         foreach (var (bin, loop, outName) in clips)
         {
-            string path = $"G:/FPSGame/tools/bull_bake/{monsterKey}_{bin}.kdance.bin"; // 烘焙产物(不入包,编辑器离线转换用)
+            string path = monsterKey == "bull" ? $"G:/FPSGame/tools/bull_bake/{monsterKey}_{bin}.kdance.bin"
+                : $"G:/FPSGame/tools/combat_bake/{monsterKey}_{bin}.kdance.bin";
             var data = KDanceData.Load(path);
             if (data == null)
             {
                 GD.PrintErr($"[B2T] missing {path}");
                 continue;
             }
-            var anim = Convert(data, sk, outName, loop);
+            var anim = Convert(data, sk, outName, loop, monsterKey != "bull");
+            if (lib.HasAnimation(outName)) lib.RemoveAnimation(outName);
             lib.AddAnimation(outName, anim);
             GD.Print($"[B2T] {outName} ← {path}: frames={data.Frames} len={anim.Length:0.##}s tracks={anim.GetTrackCount()}");
         }
-        string outPath = $"res://assets/models/monsters/{monsterKey}/{monsterKey}_anims.tres";
         var err = ResourceSaver.Save(lib, outPath);
         GD.Print($"[B2T] saved {outPath} err={err}");
-        inst.QueueFree();
+        inst.Free();
     }
 
     /// <summary>单个 bin → Animation:骨骼局部姿态逐帧写轨道(复刻 KDancePlayer.Apply 的链数学)</summary>
-    private static Animation Convert(KDanceData d, Skeleton3D sk, string name, bool loop)
+    private static Animation Convert(KDanceData d, Skeleton3D sk, string name, bool loop, bool includeRoot)
     {
         int n = d.NodeCount;
         int boneCount = sk.GetBoneCount();
@@ -92,7 +102,7 @@ public static class BinToTres
         for (int b = 0; b < boneCount; b++)
         {
             posTrack[b] = rotTrack[b] = -1;
-            if (boneNode[b] < 0 || sk.GetBoneParent(b) < 0)
+            if (boneNode[b] < 0 || (!includeRoot && sk.GetBoneParent(b) < 0))
                 continue; // 根骨保持 rest(同 KDancePlayer;其轨道值本就≈rest)
             string boneName = sk.GetBoneName(b);
             posTrack[b] = anim.AddTrack(Animation.TrackType.Position3D);

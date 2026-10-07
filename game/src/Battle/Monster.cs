@@ -7,13 +7,32 @@ namespace FPSGame;
 /// 对应原作 MonsterBase.cs / legacy monster_base.gd:
 ///   出生进 controller 默认态(不抢播 Idle02)→ 等待期每 Idle02Time 秒插播 Idle02、3m/s 下坠落地
 ///   → 水平距进 AttackRadius 且 CD 到且在 Locomotion 且 3D 距 &lt; maxDistance → 站桩播攻击动画(CD 期原地等待)
-///   → 0.3s 动画事件 EventAttack(lastAttackTime=now,按屏幕 x 分侧命中,转嫁在 PlayerState)→ 死亡播 Dead + 血花(挂原点)
+///   → 原始动画事件 EventAttack(lastAttackTime=now,按屏幕 x 分侧命中,转嫁在 PlayerState)→ 死亡播 Dead + 血花(挂原点)
 ///   → 1.5s 回收;非 Boss 25s(宝箱 20s,HP=0 后 1.5s 缓期)超时自毁。
 ///   刷怪点:相机 3D forward ±fov 射线(最长 len),落点 y -= CC.center.y + 0.1(悬空出生,重力落地)。
 /// 数值全来自 MonsterInfo(data/monster_meta.json),派生类只做行为差异。
 /// </summary>
-public partial class Monster : CharacterBody3D
+public partial class Monster : CharacterBody3D, IDebugInspectable
 {
+    public string DebugSummary => $"{MetaKey} {CurState} HP={Hp:0.0} Lv={Level}";
+
+    public System.Collections.Generic.Dictionary<string, object?> CaptureDebugState() => new()
+    {
+        ["type"] = MetaKey,
+        ["state"] = CurState.ToString(),
+        ["active"] = IsActiveState,
+        ["hp"] = Hp,
+        ["max_hp"] = Info != null ? GetMaxHp() : 0,
+        ["level"] = Level,
+        ["world_position"] = GlobalPosition.ToString(),
+        ["on_floor"] = IsOnFloor(),
+        ["animation"] = Anim != null ? Anim.CurrentAnimation.ToString() : null,
+        ["animation_position"] = Anim != null && Anim.IsPlaying() ? Anim.CurrentAnimationPosition : 0,
+        ["animation_speed"] = Anim != null ? Anim.GetPlayingSpeed() : 0,
+        ["combat_event_count"] = CombatEventCount,
+        ["last_combat_event"] = LastCombatEvent,
+        ["attack_cooldown_remaining"] = Info != null ? Mathf.Max(0, GetAttackCd() - (float)(Time.GetTicksMsec() / 1000.0 - LastAttackTime)) : 0,
+    };
     public enum State { Idle, Waiting, Active, Dead }
 
     public const float MaxLifeTime = 25.0f;   // 原 ResetMaxLifeTimeDeath 恒 25s(保留行为)
@@ -22,7 +41,6 @@ public partial class Monster : CharacterBody3D
     public const float Gravity = 9.8f;
     public const uint BornRayMask = 0xFFFFFFF1; // 排除 layer2(Enemy)/layer3(UI按钮)/layer4(CameraWall)
     // 注:UI 按钮(隐藏面板的按钮碰撞仍激活,挂相机前 1m)不挡出生射线——原作隐藏 UI 不参与物理射线
-    public const float AttackEventDelay = 0.3f; // 攻击动画事件(原动画事件≈起手后,legacy 定 0.3s)
 
     [Signal] public delegate void DiedEventHandler(Monster monster);
 
@@ -53,7 +71,29 @@ public partial class Monster : CharacterBody3D
     protected PlayerState.Side LastHitSide = PlayerState.Side.Right; // 最后一击侧(原作 OnDead(bool Right))
 
     private CollisionShape3D _col = null!;
-    private Tween? _attackEventTween;
+    public int CombatEventCount { get; private set; }
+    public string LastCombatEvent { get; private set; } = "";
+    private readonly System.Collections.Generic.List<Tween> _lifeActions = new();
+
+    protected void ScheduleLifeAction(double seconds, System.Action action)
+    {
+        var tween = CreateTween(); // bound to this node; stops on scene exit and pauses with gameplay
+        _lifeActions.Add(tween);
+        tween.TweenInterval(seconds);
+        tween.TweenCallback(Callable.From(() =>
+        {
+            _lifeActions.Remove(tween);
+            action();
+        }));
+    }
+
+    private void CancelLifeActions()
+    {
+        foreach (var tween in _lifeActions) tween.Kill();
+        _lifeActions.Clear();
+    }
+
+    public override void _ExitTree() => CancelLifeActions();
 
     public bool IsActiveState => CurState != State.Idle;
     public bool IsDead => CurState == State.Dead;
@@ -65,8 +105,7 @@ public partial class Monster : CharacterBody3D
         Audio = GetNode<AudioStreamPlayer3D>("AudioStreamPlayer3D");
         HpBar = GetNodeOrNull<MonsterHpBar>("HpAnchor")!;
         _col = GetNode<CollisionShape3D>("CollisionShape3D");
-        // clip 自带的 event_attack/baotou_skill 方法轨与基类 0.3s 事件 Tween 重复,剥离(同 WolfMonster 先例)
-        AnimTrackUtil.StripMethodTracks(Anim);
+        AnimTrackUtil.InstallCombatEvents(Anim, MetaKey);
         if (BodyMaterial != null)
         {
             foreach (var n in BodyNode.FindChildren("*", "MeshInstance3D", true, false))
@@ -81,6 +120,10 @@ public partial class Monster : CharacterBody3D
     /// <summary>出生:HP 满 → 计数+1 → 碰撞启用 → 等待期</summary>
     public virtual void Born(Vector3 pos, int level, float waittingTime)
     {
+        CancelLifeActions();
+        bool wasInactive = CurState == State.Idle;
+        CombatEventCount = 0;
+        LastCombatEvent = "";
         Level = level;
         WaittingTime = waittingTime;
         LastAttackTime = -99.0;
@@ -98,7 +141,7 @@ public partial class Monster : CharacterBody3D
         SetPhysicsProcess(true);
         _col.SetDeferred(CollisionShape3D.PropertyName.Disabled, false);
         HpBar?.SetHp(1.0f);
-        PlayerState.CurAliveMonster += 1;
+        if (wasInactive) PlayerState.CurAliveMonster += 1;
         OnBorn();
         // 出生进控制器默认态(原作 Animator m_DefaultState:骷髅/斧/飞斧/牛=Locomotion、
         // 宝箱=Idle、Boss=anim_idle),不抢播 Idle02(等待期每 Idle02Time 才插播一次)
@@ -213,15 +256,26 @@ public partial class Monster : CharacterBody3D
         MoveAndSlide();
     }
 
-    /// <summary>随机播一个攻击动画(原作 CrossFade(att,0) 零混合);0.3s 后触发攻击事件(原动画事件)</summary>
+    /// <summary>Play an attack; its method track owns all attack timing.</summary>
     protected virtual void DoAttack()
     {
         string anim = Info.AttackAnims[GD.RandRange(0, Info.AttackAnims.Length - 1)];
         Anim.Play(anim, 0.0f);
-        _attackEventTween?.Kill();
-        _attackEventTween = CreateTween();
-        _attackEventTween.TweenInterval(AttackEventDelay);
-        _attackEventTween.TweenCallback(Callable.From(TriggerAttackEvent));
+    }
+
+    public void OnCombatAnimationEvent(string clip, string eventName, string parameter)
+    {
+        if (CurState != State.Active || Game.Instance.IsGamePause || Anim.CurrentAnimation != clip)
+            return;
+        CombatEventCount++;
+        LastCombatEvent = $"{clip}/{eventName}@{Anim.CurrentAnimationPosition:0.000}";
+        HandleCombatAnimationEvent(eventName, parameter);
+    }
+
+    protected virtual void HandleCombatAnimationEvent(string eventName, string parameter)
+    {
+        if (eventName is "EventAttack" or "BaotouSkill" or "RockAttack" or "ToonShoot")
+            TriggerAttackEvent();
     }
 
     protected bool AttackReady() => Time.GetTicksMsec() / 1000.0 - LastAttackTime >= GetAttackCd();
@@ -266,8 +320,9 @@ public partial class Monster : CharacterBody3D
         return Info.ImpactTag;
     }
 
-    protected async virtual void Die()
+    protected virtual void Die()
     {
+        CancelLifeActions();
         CurState = State.Dead;
         Velocity = Vector3.Zero;
         _col.SetDeferred(CollisionShape3D.PropertyName.Disabled, true);
@@ -276,8 +331,7 @@ public partial class Monster : CharacterBody3D
         if (Anim.HasAnimation(Info.DeadAnim))
             Anim.Play(Info.DeadAnim, 0.1, Info.DeadAnimSpeed);
         OnDeath();
-        await ToSignal(GetTree().CreateTimer(RecycleDelay), SceneTreeTimer.SignalName.Timeout);
-        Recycle();
+        ScheduleLifeAction(RecycleDelay, Recycle);
     }
 
     /// <summary>回收:隐藏 + 停 process + 计数-1,回对象池</summary>
@@ -292,6 +346,7 @@ public partial class Monster : CharacterBody3D
 
     protected virtual void Deactivate()
     {
+        CancelLifeActions();
         CurState = State.Idle;
         Visible = false;
         Velocity = Vector3.Zero;

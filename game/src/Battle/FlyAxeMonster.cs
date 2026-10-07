@@ -6,7 +6,7 @@ namespace FPSGame;
 /// 飞斧头僵尸:攻击半径 = 7+rand(0,3)(原作 int 重载,born 时定);面向相机出生。
 /// 出生射线参数走 meta born_override(±15°/12m)。
 /// Skill 攻击 = 扔斧(原作 ZombieSkill.cs + MonsterAZ@Skill 动画事件):
-///   起手 TakeHandAxe@0.224s(头后斧 axe_01 隐、手斧 axe_02 显)→ ThrowAxe@0.600s
+///   起手 TakeHandAxe@0.3735s(头后斧 axe_01 隐、手斧 axe_02 显)→ ThrowAxe@1.0006s
 ///   (双斧隐,生成斧头投射物,4s 后 ResetAxe 复原)。
 /// 命中率 HitRate=0.15 × 难度倍率(原作 _levelMeta.DiffRateHard/Hell,按本关 level_meta diff_rate);
 /// 未命中目标点上下±且左右±各偏移 3+rand(0,3)m;伤害由投射物命中结算(见 ProjectileAxe)。
@@ -14,15 +14,12 @@ namespace FPSGame;
 /// </summary>
 public partial class FlyAxeMonster : Monster
 {
-    public const double TakeHandAxeTime = 0.22410919; // MonsterAZ@Skill.FBX.meta 动画事件
-    public const double ThrowAxeTime = 0.60037744;
     public const double AxeResetDelay = 4.0;          // 原作 Invoke("ResetAxe", 4)
 
     private Node3D? _axeHead;   // axe_01(头后斧,待机常显)
     private Node3D? _axeHand;   // axe_02(手斧,Skill 期间显)
     private MeshInstance3D? _axeHandMesh;
     private int _axeEpoch;      // 原作 CancelInvoke("ResetAxe"):新一轮起手取消待复原
-    private Tween? _skillTween;
 
     public override void _Ready()
     {
@@ -65,16 +62,17 @@ public partial class FlyAxeMonster : Monster
     }
 
     /// <summary>Skill 攻击:播 Skill(零混合)+ 动画事件节奏 TakeHandAxe/ThrowAxe;
-    /// 不排基类 0.3s 近战事件(伤害由斧头投射物结算),不动 LastAttackTime(原作不更新)</summary>
+    /// 伤害由斧头投射物结算,不动 LastAttackTime(原作不更新)</summary>
     protected override void DoAttack()
     {
         Anim.Play(Info.AttackAnims[0], 0.0f); // "Skill",原作 CrossFade(...,0)
-        _skillTween?.Kill();
-        _skillTween = CreateTween();
-        _skillTween.TweenInterval(TakeHandAxeTime);
-        _skillTween.TweenCallback(Callable.From(TakeHandAxe));
-        _skillTween.TweenInterval(ThrowAxeTime - TakeHandAxeTime);
-        _skillTween.TweenCallback(Callable.From(ThrowAxe));
+    }
+
+    protected override void HandleCombatAnimationEvent(string eventName, string parameter)
+    {
+        if (eventName != "EventSkill") return;
+        if (parameter == "TakeHandAxe") TakeHandAxe();
+        if (parameter == "ThrowAxe") ThrowAxe();
     }
 
     /// <summary>近战事件对飞斧不存在(伤害由投射物);空覆盖防基类排程误伤</summary>
@@ -100,11 +98,11 @@ public partial class FlyAxeMonster : Monster
         if (_axeHead != null)
             _axeHead.Visible = false;
         int epoch = _axeEpoch;
-        GetTree().CreateTimer(AxeResetDelay).Timeout += () =>
+        ScheduleLifeAction(AxeResetDelay, () =>
         {
             if (CurState != State.Idle && epoch == _axeEpoch)
                 ResetAxe();
-        };
+        });
         // 命中率 × 难度倍率(原作 ZombieSkill.ThrowAxe)
         float hitRate = HitRateByDifficulty();
         bool hit = GD.Randf() < hitRate;

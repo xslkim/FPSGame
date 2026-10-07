@@ -14,7 +14,6 @@ public partial class FatZombie : Monster
     public override void _Ready()
     {
         base._Ready();
-        AnimTrackUtil.StripMethodTracks(Anim); // clip 自带 event_attack 方法轨与基类 Tween 重复
     }
 
     protected override void UpdateActive(float delta)

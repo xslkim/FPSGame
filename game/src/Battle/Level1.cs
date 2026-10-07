@@ -40,7 +40,7 @@ public partial class Level1 : LevelBase
         bool wantDebugJump = System.Array.FindIndex(args, a => a.StartsWith("--level1-shot-battle:")
             || a.StartsWith("--level1-shot-boss:") || a.StartsWith("--level1-shot-group:")
             || a.StartsWith("--level1-probe:") || a.StartsWith("--level1-fire:")
-            || a.StartsWith("--level1-shot-victory:")) >= 0;
+            || a.StartsWith("--level1-shot-victory:") || a.StartsWith("--level1-shot-ak:")) >= 0;
         if ((Game.Instance.IsDebug || wantDebugJump) && !wantIntro)
         {
             GD.Print("[L1] debug: 跳过 19s 开场直接开战");
@@ -63,6 +63,13 @@ public partial class Level1 : LevelBase
                 {
                     // 格式 --level1-shot-battle:<path>[:delaySec](从右往左拆,兼容盘符)
                     var (path, delay) = SplitShotArg(a["--level1-shot-battle:".Length..], 4.0f);
+                    TakeShotDelayed(path, delay);
+                }
+                else if (a.StartsWith("--level1-shot-ak:"))
+                {
+                    // 从默认手枪切到 AK，留下可重复的枪体/激光校准画面。
+                    InputRouter.Instance.MouseGun.SimulateSwitch();
+                    var (path, delay) = SplitShotArg(a["--level1-shot-ak:".Length..], 3.0f);
                     TakeShotDelayed(path, delay);
                 }
                 else if (a.StartsWith("--level1-shot-group:"))
@@ -527,6 +534,29 @@ public partial class Level1 : LevelBase
             Check(anyMonster != null && anyMonster.HasMethod("Hit"),
                 "fire path: monster exposes Hit (FireSystem dispatch name, case-sensitive)");
         }
+        // 非活动 Boss 弱点不应挡住 G1 的僵尸射线；飞斧应能被同一射线拦截。
+        await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+        var idleHeart = FindChild("BossHeart", true, false) as BossHeart;
+        Check(idleHeart != null && idleHeart.CollisionLayer == 0
+            && idleHeart.GetNode<CollisionShape3D>("HitShape").Disabled,
+            "idle BossHeart cannot block the firing ray");
+        var axe = GD.Load<PackedScene>("res://scenes/battle/projectile_axe.tscn")
+            .Instantiate<ProjectileAxe>();
+        AddChild(axe);
+        var axeForward = -Camera.GlobalBasis.Z;
+        axe.GlobalPosition = Camera.GlobalPosition + axeForward;
+        await ToSignal(GetTree(), SceneTree.SignalName.PhysicsFrame);
+        await ToSignal(GetTree(), SceneTree.SignalName.PhysicsFrame);
+        var axeRay = GetWorld3D().DirectSpaceState.IntersectRay(
+            PhysicsRayQueryParameters3D.Create(axe.GlobalPosition - axeForward,
+                axe.GlobalPosition + axeForward * 0.5f, 2));
+        Check(axe.CollisionLayer == 2 && axe.HasMethod("Hit"),
+            "flying axe exposes an enemy hit target");
+        Check(axeRay.Count > 0 && axeRay["collider"].AsGodotObject() == axe,
+            "firing ray intersects the flying axe hitbox");
+        axe.Hit(1.0f, Vector3.Zero, (int)Game.HitType.Body, (int)PlayerState.Side.Right);
+        Check(axe.CollisionLayer == 0 && axe.IsQueuedForDeletion(),
+            "shot flying axe leaves the firing ray immediately");
         // 玩家死亡 → open_continue(false, side)
         while (CurGroup < 1)
             await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);

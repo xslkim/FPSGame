@@ -18,9 +18,12 @@ public static class ConfigService
         {
             if (code == 200)
             {
-                var j = Json.ParseString(body.GetStringFromUtf8());
-                if (j.VariantType == Variant.Type.Dictionary)
-                    SaveService.Instance.RemoteConfig = j.AsGodotDictionary();
+                var json = new Json();
+                // A server can return an HTML error page with HTTP 200. Keep offline
+                // defaults without reporting that response as a game engine error.
+                if (json.Parse(body.GetStringFromUtf8()) == Error.Ok
+                    && json.Data.VariantType == Variant.Type.Dictionary)
+                    SaveService.Instance.RemoteConfig = json.Data.AsGodotDictionary();
             }
             req.QueueFree();
         };

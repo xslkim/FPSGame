@@ -11,8 +11,50 @@ namespace FPSGame;
 /// KDancePlayer 全局链镜像 X 回放,剧情时钟驱动;三条轨道的开始时间照原作。
 /// 启动参数:--story-selftest(加速断言,抑制切场景)/ --story-shot:&lt;path&gt;[:delay]
 /// </summary>
-public partial class StoryStart : Node3D
+public partial class StoryStart : Node3D, IDebugInspectable
 {
+    public string DebugSummary => $"story t={_clock:0.00}/{Duration:0.00}s cut={_cutIdx}/{_cuts.Length}";
+
+    public System.Collections.Generic.Dictionary<string, object?> CaptureDebugState()
+    {
+        var dancers = new System.Collections.Generic.List<System.Collections.Generic.Dictionary<string, object?>>();
+        foreach (var dancer in _grounding)
+        {
+            var sk = dancer.Skeleton;
+            var track = dancer.Actor.FindChild("KDancePlayer", true, false) as KDancePlayer;
+            int headBone = sk.FindBone(dancer.Actor == _f05 ? "Head"
+                : dancer.Actor == _blade ? "Bip001 Head" : "Bip01 Head");
+            Vector3 headWorld = headBone >= 0
+                ? (sk.GlobalTransform * sk.GetBoneGlobalPose(headBone)).Origin
+                : dancer.Actor.GlobalPosition + Vector3.Up * 1.5f;
+            Vector2 headScreen = _camera.UnprojectPosition(headWorld);
+            dancers.Add(new System.Collections.Generic.Dictionary<string, object?>
+            {
+                ["id"] = DebugIdentity.ObjectId(this, dancer.Actor),
+                ["root_world"] = dancer.Actor.GlobalPosition.ToString(),
+                ["root_bone_local"] = sk.GetBonePosePosition(dancer.RootBone).ToString(),
+                ["clip_time_seconds"] = track != null
+                    ? System.Math.Clamp(_clock - track.StartTime + track.Phase, 0, track.Duration) : null,
+                ["left_sole_y"] = (sk.GlobalTransform * sk.GetBoneGlobalPose(dancer.LeftSole)).Origin.Y,
+                ["right_sole_y"] = (sk.GlobalTransform * sk.GetBoneGlobalPose(dancer.RightSole)).Origin.Y,
+                ["head_world"] = headWorld.ToString(),
+                ["head_screen"] = headScreen.ToString(),
+                ["head_behind_camera"] = _camera.IsPositionBehind(headWorld),
+                ["visible"] = dancer.Actor.Visible,
+            });
+        }
+        return new System.Collections.Generic.Dictionary<string, object?>
+        {
+            ["time_seconds"] = _clock,
+            ["duration_seconds"] = Duration,
+            ["cut_index"] = _cutIdx,
+            ["cuts_total"] = _cuts.Length,
+            ["cut_marker"] = _cutIdx > 0 ? _cuts[_cutIdx - 1].Marker : null,
+            ["blade_visible"] = _blade != null && _blade.Visible,
+            ["rock_visible"] = _rock != null && _rock.Visible,
+            ["dancers"] = dancers,
+        };
+    }
     public const double Duration = 54.85;
     public const double NextSceneTime = Duration - 0.5; // StoryStart:_pd.time >= duration-0.5
     public const double RockShowTime = 50.5;
@@ -46,7 +88,6 @@ public partial class StoryStart : Node3D
     private bool _suppressSwitch;
     private bool _testFailed;
     private readonly System.Collections.Generic.List<KDancePlayer> _dancePlayers = new();
-    private readonly System.Collections.Generic.List<FootContact> _footContacts = new();
     private readonly System.Collections.Generic.List<DancerGrounding> _grounding = new();
 
     private sealed class DancerGrounding
@@ -59,15 +100,6 @@ public partial class StoryStart : Node3D
         public Vector3 RootPose;
     }
 
-    private sealed class FootContact
-    {
-        public Node3D Actor = null!;
-        public Skeleton3D Skeleton = null!;
-        public int Bone;
-        public MeshInstance3D Shadow = null!;
-        public StandardMaterial3D Material = null!;
-    }
-
     public override void _Ready()
     {
         PlayerState.Instance.UpdateUiMode("Level1Story");
@@ -77,6 +109,27 @@ public partial class StoryStart : Node3D
         // 保留实时近似，但压低强度以免与环境光叠加后过曝。
         foreach (var node in GetNode("Environment").FindChildren("*", "Light3D", true, false))
             ((Light3D)node).LightEnergy *= 0.12f;
+        // Keep the directional floor silhouettes, but do not project them onto
+        // the vertical hallway surfaces. Duplicate materials only in this scene.
+        var shadowMaterials = new System.Collections.Generic.Dictionary<StandardMaterial3D, StandardMaterial3D>();
+        foreach (var node in GetNode("Environment").FindChildren("*", "MeshInstance3D", true, false))
+        {
+            var mesh = (MeshInstance3D)node;
+            for (int s = 0; s < mesh.Mesh.GetSurfaceCount(); s++)
+            {
+                if (mesh.GetActiveMaterial(s) is not StandardMaterial3D source)
+                    continue;
+                if (source.ResourceName.Contains("Floor"))
+                    continue;
+                if (!shadowMaterials.TryGetValue(source, out var material))
+                {
+                    material = (StandardMaterial3D)source.Duplicate();
+                    material.DisableReceiveShadows = true;
+                    shadowMaterials[source] = material;
+                }
+                mesh.SetSurfaceOverrideMaterial(s, material);
+            }
+        }
         BuildActors();
         BuildCuts();
         _camera = GetNode<Camera3D>("Camera3D");
@@ -109,8 +162,8 @@ public partial class StoryStart : Node3D
 
     private void BuildActors()
     {
-        // FBX 导入后的几何中心偏右，整体校正到 Unity 第 2 镜头的三人构图。
-        var students = new Node3D { Name = "Students", Position = new Vector3(-0.42f, 0, 0) };
+        // 演员根节点使用 Unity 场景的原始坐标；镜头构图不应通过移动全组来补偿。
+        var students = new Node3D { Name = "Students" };
         AddChild(students);
         _casual = BuildDancer(students, "casual_dressed_girl",
             "res://assets/models/actors/casual_dressed_girl/casual_dressed_girl.FBX",
@@ -125,11 +178,7 @@ public partial class StoryStart : Node3D
             new Vector3(0.75f, 0.012f, 20.519f), 0.0);
         _blade.Scale = new Vector3(1.0f, 0.95f, 1.0f);
         _blade.Visible = false;
-        // Unity 的烘焙地面阴影在此场景未随网格导入；用脚趾骨投射软接触影，
-        // 跟随脚步但不移动演员或模型根节点。
-        AddFootContacts(_casual, "Bip01 L Toe0", "Bip01 R Toe0");
-        AddFootContacts(_f05, "LeftToes", "RightToes");
-        AddFootContacts(_blade, "Bip001 L Toe0", "Bip001 R Toe0");
+        // One real floor shadow per dancer; no additional foot-shadow quads.
         AddGrounding(_casual, "Bip01 L Toe0Nub", "Bip01 R Toe0Nub");
         AddGrounding(_f05, "LeftToesNull", "RightToesNull");
         AddGrounding(_blade, "Bip001 L Toe0Nub", "Bip001 R Toe0Nub");
@@ -160,66 +209,6 @@ public partial class StoryStart : Node3D
         {
             if (mi is MeshInstance3D m && m.Visible)
                 m.MaterialOverride = mat;
-        }
-    }
-
-    private void AddFootContacts(Node3D actor, string left, string right)
-    {
-        var skeleton = actor.FindChild("Skeleton3D", true, false) as Skeleton3D;
-        if (skeleton == null)
-            return;
-        foreach (var boneName in new[] { left, right })
-        {
-            int bone = skeleton.FindBone(boneName);
-            if (bone < 0)
-                continue;
-            var img = Image.CreateEmpty(64, 64, false, Image.Format.Rgba8);
-            for (int y = 0; y < 64; y++)
-                for (int x = 0; x < 64; x++)
-                {
-                    float dx = (x + 0.5f - 32.0f) / 32.0f;
-                    float dy = (y + 0.5f - 32.0f) / 32.0f;
-                    float falloff = Mathf.Pow(Mathf.Max(0, 1.0f - dx * dx - dy * dy), 2.0f);
-                    img.SetPixel(x, y, new Color(0.02f, 0.02f, 0.02f, falloff));
-                }
-            var mat = new StandardMaterial3D
-            {
-                AlbedoTexture = ImageTexture.CreateFromImage(img),
-                AlbedoColor = new Color(1, 1, 1, 0.22f),
-                ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded,
-                Transparency = BaseMaterial3D.TransparencyEnum.Alpha,
-                CullMode = BaseMaterial3D.CullModeEnum.Disabled,
-            };
-            var shadow = new MeshInstance3D
-            {
-                Name = $"Contact_{actor.Name}_{boneName.Replace(' ', '_')}",
-                Mesh = new QuadMesh { Size = new Vector2(0.28f, 0.18f) },
-                MaterialOverride = mat,
-                Rotation = new Vector3(-Mathf.Pi / 2, 0, 0),
-                CastShadow = GeometryInstance3D.ShadowCastingSetting.Off,
-                Visible = false,
-            };
-            AddChild(shadow);
-            _footContacts.Add(new FootContact
-            {
-                Actor = actor, Skeleton = skeleton, Bone = bone, Shadow = shadow, Material = mat,
-            });
-        }
-    }
-
-    private void UpdateFootContacts()
-    {
-        foreach (var contact in _footContacts)
-        {
-            contact.Shadow.Visible = contact.Actor.Visible;
-            if (!contact.Shadow.Visible)
-                continue;
-            var foot = (contact.Skeleton.GlobalTransform *
-                contact.Skeleton.GetBoneGlobalPose(contact.Bone)).Origin;
-            contact.Shadow.GlobalPosition = new Vector3(foot.X, 0.006f, foot.Z);
-            // 脚抬高时自然淡出，落地时加深；实际脚骨姿态与演员根保持独立。
-            float strength = Mathf.Lerp(0.30f, 0.04f, Mathf.Clamp(foot.Y / 0.24f, 0, 1));
-            contact.Material.AlbedoColor = new Color(1, 1, 1, strength);
         }
     }
 
@@ -483,7 +472,6 @@ public partial class StoryStart : Node3D
         foreach (var kd in _dancePlayers)
             kd.SetStoryTime(_clock);
         GroundDancers();
-        UpdateFootContacts();
         // RockWarrior 出场
         if (_clock >= RockShowTime && !_rock.Visible)
         {
@@ -572,7 +560,10 @@ public partial class StoryStart : Node3D
             ? GetNode<Node3D>("Markers/vcam8").GlobalTransform
             : CutTransform(_cuts[_cutIdx - 2]);
         float fromFov = _cutIdx == 1 ? 45.0f : CutFov(_cuts[_cutIdx - 2], from);
-        float weight = Mathf.Clamp((float)((_clock - current.Time) / current.Blend), 0, 1);
+        // StoryStartTimeline.playable 的 MixInCurve 两端切线均为 0；
+        // Unity Timeline 用三次 Hermite 权重，而非匀速直线插值。
+        float u = Mathf.Clamp((float)((_clock - current.Time) / current.Blend), 0, 1);
+        float weight = u * u * (3.0f - 2.0f * u);
         _camera.GlobalTransform = from.InterpolateWith(target, weight);
         _camera.Fov = Mathf.Lerp(fromFov, targetFov, weight);
     }
@@ -613,11 +604,32 @@ public partial class StoryStart : Node3D
             _f05.GetNode<Node3D>("Model").GlobalTransform,
             _blade.GetNode<Node3D>("Model").GlobalTransform,
         };
+        var sideCamera = GetNode<Node3D>("Markers/vcam3_2");
+        Vector3 unitySideForward = new Vector3(0.9490687f, 0, 0.3150693f);
+        Check((-sideCamera.GlobalBasis.Z).DistanceTo(unitySideForward) < 0.0001f,
+            "side camera forward matches mirrored Unity quaternion");
+        Check((-sideCamera.GlobalBasis.Z).Dot(_f05.GlobalPosition - sideCamera.GlobalPosition) > 0,
+            "side dancer is in front of camera, not behind it");
         Check(_cuts.Length == 10, $"cut table = 10 (got {_cuts.Length})");
         Check(_casual != null && _f05 != null && _blade != null, "three dancers exist");
         Check(!_blade.Visible, "blade dancer initially hidden");
         Check(_dancePlayers.Count == 3, $"full K-POP dance baked players = 3 (got {_dancePlayers.Count})");
         Check(_grounding.Count == 3, $"three sole-grounded dancers (got {_grounding.Count})");
+        bool wallShadowsDisabled = true;
+        bool floorReceivesShadows = false;
+        foreach (var node in GetNode("Environment").FindChildren("*", "MeshInstance3D", true, false))
+        {
+            var mesh = (MeshInstance3D)node;
+            for (int s = 0; s < mesh.Mesh.GetSurfaceCount(); s++)
+                if (mesh.GetActiveMaterial(s) is StandardMaterial3D material)
+                {
+                    if (material.ResourceName.Contains("Floor"))
+                        floorReceivesShadows |= !material.DisableReceiveShadows;
+                    else
+                        wallShadowsDisabled &= material.DisableReceiveShadows;
+                }
+        }
+        Check(wallShadowsDisabled && floorReceivesShadows, "single floor projection, no wall receiver shadows");
         Check(_rock != null && !_rock.Visible, "rock hidden before 50.5s");
         const double accel = 20.0; // 20 倍速跑完 54.85s ≈ 2.7s
         bool ended = false;

@@ -34,7 +34,6 @@ public partial class DragonMonster : Monster
     public const float ArriveDist = 2.0f;
     public const float FlyAnimSpeed = 2.0f;    // 非 Attack 段飞行动画倍速(Unity m_ani.speed=2)
     public const float BreathAnimSpeed = 0.75f;
-    public const float BreathClipLen = 0.8f; // clip 0.8s ÷ 0.75 倍速
     public const float DeadFallSpeed = 3.0f; // 死亡恒速下落(Unity down*3*dt)
     public const float FallRecycleY = -3.0f;
     public const string LocomotionAnim = "locomotion";
@@ -135,6 +134,7 @@ public partial class DragonMonster : Monster
         // 直接改 GlobalPosition 会让龙穿过镜头下方的地面，过早飞到玩家背后。
         MoveAndCollide(dir * speed * delta);
         if (!IsCurrentAnim(LocomotionAnim) && !IsPlayingAny(Info.AttackAnims)
+            && !(IsCurrentAnim(Info.DamageAnim) && Anim.IsPlaying())
             && Anim.HasAnimation(LocomotionAnim))
             // L4-8:非 Attack 段飞行动画 speed=2(Unity m_ani.speed=2)
             Anim.Play(LocomotionAnim, 0.2, _segment == FlySeg.Attack ? 1.0f : FlyAnimSpeed);
@@ -143,20 +143,37 @@ public partial class DragonMonster : Monster
     }
 
     /// <summary>Attack 段:与相机距离 &lt; attack_radius(75) → 吐息(0.75 倍速)+ 火焰锥;
-    /// 伤害由攻击动画事件(基类 0.3s)半屏判定结算</summary>
+    /// 伤害由原始 EventAttack 动画键半屏判定结算</summary>
     private void UpdateBreath(Camera3D cam)
     {
         if (IsPlayingAny(Info.AttackAnims))
             return;
+        if (IsCurrentAnim(Info.DamageAnim) && Anim.IsPlaying()) return;
         if (GlobalPosition.DistanceTo(cam.GlobalPosition) >= AttackRadius)
             return;
         Anim.Play(Info.AttackAnims[0], 0.1, BreathAnimSpeed);
+    }
+
+    protected override void HandleCombatAnimationEvent(string eventName, string parameter)
+    {
+        if (eventName != "StartFire")
+        {
+            base.HandleCombatAnimationEvent(eventName, parameter);
+            return;
+        }
         if (_breathFx != null)
         {
             _breathFx.Emitting = true;
-            _breathTime = BreathClipLen / BreathAnimSpeed;
+            _breathTime = (float)((Anim.CurrentAnimationLength - Anim.CurrentAnimationPosition) / Mathf.Max(Mathf.Abs(Anim.GetPlayingSpeed()), 0.001f));
             _breathAudio?.Play();
         }
+    }
+
+    protected override void OnHurt(Vector3 point, Game.HitType hitType, PlayerState.Side side)
+    {
+        if (_breathFx != null) _breathFx.Emitting = false;
+        _breathAudio?.Stop();
+        _breathTime = 0;
     }
 
     /// <summary>吐息特效:fire_breath.tscn 火焰锥挂龙口(0,1,-3);
@@ -212,6 +229,7 @@ public partial class DragonMonster : Monster
         FireSystem.SpawnBloodFlower(this, new Vector3(0.0f, 1.0f, 0.0f));
         if (_breathFx != null)
             _breathFx.Emitting = false;
+        _breathAudio?.Stop();
         if (Anim.HasAnimation(Info.DeadAnim))
             Anim.Play(Info.DeadAnim, 0.1, Info.DeadAnimSpeed);
         OnDeath();
@@ -219,6 +237,7 @@ public partial class DragonMonster : Monster
 
     public override void _PhysicsProcess(double delta)
     {
+        if (Game.Instance.IsGamePause) return;
         if (CurState == State.Dead)
         {
             // L4-9:恒速 3/s 下落(Unity DropToDie m_char.Move(Vector3.down*3*dt))

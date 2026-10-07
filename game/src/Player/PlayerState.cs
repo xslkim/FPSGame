@@ -7,10 +7,17 @@ namespace FPSGame;
 /// PlayerState [autoload]:左右双玩家状态 / 受击结算 / 存活怪物计数 / 常驻 HUD。
 /// 对应原作 PlayerSystem.cs(5.5 换枪、6.4 受击状态、8.2 HUD 数据源)。
 /// HUD 对应原作 GlobalObject 下 PlayerSystem.prefab(跨场景 DontDestroyOnLoad):
-/// CoinObj(菜单/选关/战斗)+ 战斗 HUD(子弹×2/头像环×2/受击闪×2;HP 条按真值截图隐藏,仅内部追踪)。
+/// CoinObj(菜单/选关/战斗)+ 战斗 HUD(子弹/头像/生命条与数值/受击闪)。
 /// </summary>
-public partial class PlayerState : Node
+public partial class PlayerState : Node, IDebugInspectable
 {
+    public string DebugSummary => $"R HP={PlayerRight.Hp:0}/{Player.MaxHp:0} L HP={PlayerLeft.Hp:0}/{Player.MaxHp:0}";
+    public Dictionary<string, object?> CaptureDebugState() => new()
+    {
+        ["right_hp"] = PlayerRight.Hp, ["left_hp"] = PlayerLeft.Hp, ["max_hp"] = Player.MaxHp,
+        ["right_health_text"] = _hpTextRight?.Text, ["left_health_text"] = _hpTextLeft?.Text,
+        ["right_health_visible"] = _hpRight?.IsVisibleInTree(), ["left_health_visible"] = _hpLeft?.IsVisibleInTree(),
+    };
     public enum Side { Left, Right, Both }
 
     [Signal] public delegate void PlayerHurtEventHandler(int side, int attackType);
@@ -161,6 +168,8 @@ public partial class PlayerState : Node
     private Label _bulletLeftText = null!;
     private TextureProgressBar _hpRight = null!;
     private TextureProgressBar _hpLeft = null!;
+    private Label _hpTextRight = null!;
+    private Label _hpTextLeft = null!;
     private TextureRect _hurtRight = null!;
     private TextureRect _hurtLeft = null!;
     private TextureRect _headLeftIcon = null!; // 左头像图标(左手未激活时藏,只留红环)
@@ -169,7 +178,7 @@ public partial class PlayerState : Node
 
     private void BuildBattleHud()
     {
-        // 战斗容器:子弹×2(底中)/头像×2(右上/左上,HP 条隐藏)/受击全屏闪×2
+        // 战斗容器:子弹×2(底中)/头像与生命值×2/受击全屏闪×2
         _battleRoot = new Control { Name = "BattleHud", MouseFilter = Control.MouseFilterEnum.Ignore };
         _battleRoot.SetAnchorsPreset(Control.LayoutPreset.FullRect);
         _hudLayer.AddChild(_battleRoot);
@@ -243,7 +252,7 @@ public partial class PlayerState : Node
 
     private Control MakeHeadHud(string name, bool isRight, out TextureProgressBar slider)
     {
-        // HdBg 128×128 右上角(右)/左上角(左)+ Head 100×100 + HP 438×16(隐藏,见下)
+        // Avatar 128x128, with a compact health bar and value below it.
         var root = new Control { Name = name, MouseFilter = Control.MouseFilterEnum.Ignore };
         root.SetAnchorsPreset(isRight ? Control.LayoutPreset.TopRight : Control.LayoutPreset.TopLeft);
         root.OffsetLeft = isRight ? -128.0f : 0.0f;
@@ -275,8 +284,6 @@ public partial class PlayerState : Node
         root.AddChild(head);
         if (!isRight)
             _headLeftIcon = head;
-        // 真值截图满血/残血均无可见 HP 条(l1u_gun_25s/l1u_battle_45s)→ 隐藏;
-        // 保留节点与 RefreshBattleHud 的 Value 刷新(HP 值内部追踪与 API 不变)
         slider = new TextureProgressBar
         {
             Name = "HPSlider",
@@ -285,12 +292,22 @@ public partial class PlayerState : Node
             MinValue = 0.0,
             MaxValue = 100.0,
             Value = 100.0,
-            Visible = false,
+            NinePatchStretch = true,
+            MouseFilter = Control.MouseFilterEnum.Ignore,
+            ZIndex = 2,
         };
-        slider.SetAnchorsPreset(Control.LayoutPreset.CenterBottom);
-        slider.Size = new Vector2(438.0f, 16.0f);
-        slider.Position = new Vector2(-219.0f + (isRight ? 0.0f : 0.0f), 8.0f);
+        slider.Size = new Vector2(176.0f, 14.0f);
+        slider.Position = new Vector2(isRight ? -56.0f : 8.0f, 136.0f);
         root.AddChild(slider);
+        var healthText = UiKit.MakeLabel("生命 100 / 100", 20, Colors.White);
+        healthText.Name = "HealthText";
+        healthText.Position = new Vector2(isRight ? -56.0f : 8.0f, 152.0f);
+        healthText.Size = new Vector2(176, 28);
+        healthText.ZIndex = 2;
+        healthText.AddThemeColorOverride("font_outline_color", Colors.Black);
+        healthText.AddThemeConstantOverride("outline_size", 4);
+        root.AddChild(healthText);
+        if (isRight) _hpTextRight = healthText; else _hpTextLeft = healthText;
         return root;
     }
 
@@ -331,6 +348,16 @@ public partial class PlayerState : Node
         }
         _hpRight.Value = Mathf.Clamp(pr.Hp, 0.0f, Player.MaxHp);
         _hpLeft.Value = Mathf.Clamp(pl.Hp, 0.0f, Player.MaxHp);
+        RefreshHealth(_hpRight, _hpTextRight, pr);
+        RefreshHealth(_hpLeft, _hpTextLeft, pl);
+    }
+
+    private static void RefreshHealth(TextureProgressBar bar, Label text, Player player)
+    {
+        bar.Visible = text.Visible = player.Active;
+        text.Text = $"生命 {Mathf.CeilToInt(Mathf.Clamp(player.Hp, 0, Player.MaxHp))} / {Player.MaxHp:0}";
+        bar.TintProgress = player.Hp <= 25 ? new Color(1, 0.25f, 0.2f)
+            : player.Hp <= 50 ? new Color(1, 0.8f, 0.25f) : Colors.White;
     }
 
     /// <summary>受击全屏闪(原作 UpdateHurtEffect,PlayerSystem.cs:262-300):
@@ -540,18 +567,19 @@ public partial class PlayerState : Node
     /// <summary>6.4:立即扣血 + 泛红(HUD 做);Ice 置 Frozen 2 秒;Poison 2 秒后再扣一次等额血</summary>
     private void ApplyHit(Player p, float monsterAttack, Game.AttackType attackType, Side side)
     {
-        if (!p.Active)
+        if (!p.Active || p.Hp <= 0)
             return;
         p.Hp -= monsterAttack;
-        p.StatusSeq += 1;
+        if (attackType == Game.AttackType.Ice) p.StatusSeq += 1;
         int seq = p.StatusSeq;
+        int life = p.LifeSequence;
         EmitSignal(SignalName.PlayerHurt, (int)side, (int)attackType);
         PlayHurtSound(side);
         if (attackType == Game.AttackType.Ice)
         {
             p.Status = Player.HurtState.Frozen;
             _freezePlayer?.Play();
-            GetTree().CreateTimer(2.0).Timeout += () =>
+            GetTree().CreateTimer(2.0, processAlways: false).Timeout += () =>
             {
                 if (p.StatusSeq == seq && p.Status == Player.HurtState.Frozen)
                 {
@@ -563,9 +591,9 @@ public partial class PlayerState : Node
         }
         else if (attackType == Game.AttackType.Poison)
         {
-            GetTree().CreateTimer(2.0).Timeout += () =>
+            GetTree().CreateTimer(2.0, processAlways: false).Timeout += () =>
             {
-                if (p.Active && p.Hp > 0.0f)
+                if (p.Active && p.LifeSequence == life && p.Hp > 0.0f && Game.Instance.SceneState == Game.GameState.Battle)
                 {
                     p.Hp -= monsterAttack;
                     EmitSignal(SignalName.UiChanged);
@@ -575,13 +603,14 @@ public partial class PlayerState : Node
         }
         EmitSignal(SignalName.UiChanged);
         // CheckDead 延迟 0.5s 检查
-        GetTree().CreateTimer(0.5).Timeout += () => CheckDead(p, side);
+        GetTree().CreateTimer(0.5).Timeout += () => { if (p.LifeSequence == life) CheckDead(p, side); };
     }
 
     private void CheckDead(Player p, Side side)
     {
-        if (p.Hp <= 0.0f)
+        if (p.Active && p.Hp <= 0.0f && !p.DeathReported && Game.Instance.SceneState == Game.GameState.Battle)
         {
+            p.DeathReported = true;
             p.Hp = 0.0f;
             EmitSignal(SignalName.UiChanged);
             EmitSignal(SignalName.PlayerDied, (int)side);

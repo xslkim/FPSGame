@@ -5,7 +5,7 @@ namespace FPSGame;
 /// <summary>
 /// Level3 战斗关(城市街区,7.2 L3 七波 15×7;G6 Boss rock_warrior + BossMusic)。
 /// 坐标系:环境烘焙为 Unity 镜像 X(SceneExporter mirror_x 约定),机位/方向光
-/// 由 Unity Level3.unity vcam 测绘换算 pos=(-x,y,z)、quat=(x,-y,-z,w)。
+/// 由 Unity Level3.unity vcam 测绘换算 pos=(-x,y,z)，并转换 Unity +Z / Godot -Z 相机前向。
 /// 启动参数:
 ///   (无)                    直接开战
 ///   --level3-selftest       headless 加速全流程断言
@@ -42,6 +42,11 @@ public partial class Level3 : LevelBase
     protected override void EnterLevel()
     {
         var args = OS.GetCmdlineUserArgs();
+        if (System.Array.IndexOf(args, "--level3-ground-selftest") >= 0)
+        {
+            GroundSelfTest();
+            return;
+        }
         if (System.Array.IndexOf(args, "--level3-selftest") >= 0)
         {
             SelfTest();
@@ -223,6 +228,35 @@ public partial class Level3 : LevelBase
         }
         Game.Instance.CurrentDifficulty = saved;
         LoadMeta();
+    }
+
+    private async void GroundSelfTest()
+    {
+        Game.Instance.IsGamePause = false;
+        var actor = GD.Load<PackedScene>("res://scenes/battle/monsters/toon_alien.tscn").Instantiate<ToonMonster>();
+        AddChild(actor);
+        var reportPosition = new Vector3(-71.04568f, 1.500041f, -75.59587f);
+        actor.Born(reportPosition, 0, 0); // Hard/Hell can enter Active before landing.
+        for (int i = 0; i < 100; i++)
+            await ToSignal(GetTree(), SceneTree.SignalName.PhysicsFrame);
+        Check(actor.IsOnFloor() && actor.GlobalPosition.Y < 0.1f,
+            $"reported street alien lands at {actor.GlobalPosition}");
+        actor.Born(reportPosition, 0, 0);
+        actor.Hit(1, reportPosition, Game.HitType.Body, PlayerState.Side.Right);
+        for (int i = 0; i < 100; i++)
+            await ToSignal(GetTree(), SceneTree.SignalName.PhysicsFrame);
+        Check(actor.IsOnFloor(), "street alien settles while hurt/reloading");
+        var window = new FireWindow();
+        AddChild(window);
+        window.GlobalPosition = reportPosition;
+        actor.FireWindow = window;
+        actor.Born(reportPosition, 0, 0);
+        for (int i = 0; i < 50; i++)
+            await ToSignal(GetTree(), SceneTree.SignalName.PhysicsFrame);
+        Check(Mathf.Abs(actor.GlobalPosition.Y - reportPosition.Y) < 0.06f,
+            "assigned window actor retains platform height");
+        GD.Print($"[L3-GROUND] {(_testFailed ? "FAILED" : "ALL PASS")}");
+        GetTree().Quit(_testFailed ? 1 : 0);
     }
 
     /// <summary>headless 自检:godot --headless --path game scenes/levels/level3.tscn -- --level3-selftest</summary>

@@ -27,15 +27,10 @@ public partial class UiAimGuide : CanvasLayer
     public const float GlowAlpha = 0.55f;
     public const float GlowPulse = 0.30f;
     public const float HitBackOffset = 10.0f;  // 原作:命中敌人时光点自命中点回退 10m
-    // 部分界面的 FBX 枪身和 MuzzleFlash 锚点投影不完全重合；按 1280×720
-    // 画布给各场景单独校准，射线和火光仍使用原 3D 锚点。
-    public Vector2 BeamOriginCorrection { get; set; } = Vector2.Zero;
-
     private readonly TextureRect[] _beamSegs = new TextureRect[BeamSegments];
     private TextureRect _dot = null!;
     private TextureRect? _core;
     private TextureRect _glow = null!;
-    private bool _unityFlash;
     private float _dotSize;
     private bool _hover;
     private double _t;
@@ -46,7 +41,6 @@ public partial class UiAimGuide : CanvasLayer
     {
         var g = new UiAimGuide { Name = "AimGuide", Layer = GuideLayer };
         g._dotSize = dotSize;
-        g._unityFlash = unityFlash;
         var add = new CanvasItemMaterial { BlendMode = CanvasItemMaterial.BlendModeEnum.Add };
         var beamTex = GD.Load<Texture2D>(LaserSight.BeamTexturePath);
         // 光束 K 段:旋转 TextureRect,lazer.png 亮纹纵向压扁后亮核落在段中线
@@ -127,13 +121,16 @@ public partial class UiAimGuide : CanvasLayer
         Vector2 uiTarget, bool hoverButton)
     {
         _hover = hoverButton;
+        Vector2 dotPos = uiTarget;
+        if (hitWorld is Vector3 hit && !cam.IsPositionBehind(hit - forward * HitBackOffset))
+            dotPos = cam.UnprojectPosition(hit - forward * HitBackOffset);
         Vector3 farWorld = muzzleWorld + forward * BeamLength;
         bool beamOk = !cam.IsPositionBehind(muzzleWorld) && !cam.IsPositionBehind(farWorld);
         if (beamOk)
         {
-            Vector2 viewportScale = cam.GetViewport().GetVisibleRect().Size / new Vector2(1280, 720);
-            Vector2 p0 = cam.UnprojectPosition(muzzleWorld) + BeamOriginCorrection * viewportScale;
-            Vector2 p1 = cam.UnprojectPosition(farWorld);
+            Vector2 p0 = cam.UnprojectPosition(muzzleWorld);
+            CurrentOrigin = p0;
+            Vector2 p1 = dotPos;
             var d = p1 - p0;
             float len = d.Length();
             if (len < MinBeamPixels)
@@ -163,25 +160,22 @@ public partial class UiAimGuide : CanvasLayer
         if (!beamOk)
             foreach (var seg in _beamSegs)
                 seg.Visible = false;
-        // 光点:3D 命中(怪物)贴命中点回退 10m 的投影;否则贴瞄准点(按钮/鼠标反馈)
-        Vector2 dotPos = uiTarget;
-        if (hitWorld is Vector3 hit && !cam.IsPositionBehind(hit - forward * HitBackOffset))
-            dotPos = cam.UnprojectPosition(hit - forward * HitBackOffset);
         bool hasImpact = hitWorld.HasValue || hoverButton;
         _glow.Visible = hasImpact;
-        if (_unityFlash)
-            _glow.Size = Vector2.One * (_dotSize * 3.0f);
+        _glow.PivotOffset = Vector2.One * (_dotSize * 1.5f);
+        _glow.Size = Vector2.One * (_dotSize * 3.0f);
         _glow.Position = dotPos - Vector2.One * (_dotSize * 1.5f);
         // Godot 首次挂载 TextureRect 时会把 Size 重置为贴图原尺寸
         // (Point19=128, Point5=256)，每帧按画布像素恢复粒子尺寸。
-        if (_unityFlash)
-            _dot.Size = Vector2.One * _dotSize;
+        _dot.PivotOffset = Vector2.One * (_dotSize * 0.5f);
+        _dot.Size = Vector2.One * _dotSize;
         _dot.Visible = hasImpact;
         _dot.Position = dotPos - Vector2.One * (_dotSize * 0.5f);
         _dot.Scale = Vector2.One * (hoverButton ? HoverScale : 1.0f);
         if (_core != null)
         {
             _core.Size = Vector2.One * (_dotSize * 0.65f);
+            _core.PivotOffset = _core.Size * 0.5f;
             _core.Visible = hasImpact;
             _core.Position = dotPos - _core.Size * 0.5f;
             _core.Scale = _dot.Scale;
@@ -207,10 +201,30 @@ public partial class UiAimGuide : CanvasLayer
     }
 
     /// <summary>当前光点位置(自检测试用)</summary>
+    public Vector2 CurrentOrigin { get; private set; }
+
     public Vector2 CurrentTarget => _dot.Position + Vector2.One * (_dotSize * 0.5f);
 
     /// <summary>光束当前是否可见(自检测试用)</summary>
     public bool BeamVisible => _beamSegs[0].Visible;
+
+    /// <summary>Measured screen-space error, including scaled texture pivots.</summary>
+    public float AlignmentError(Camera3D camera, Vector3 muzzle)
+    {
+        float error = CurrentOrigin.DistanceTo(camera.UnprojectPosition(muzzle));
+        Vector2 center = _dot.GetTransform() * (_dot.Size * 0.5f);
+        error = Mathf.Max(error, center.DistanceTo(CurrentTarget));
+        error = Mathf.Max(error, center.DistanceTo(_glow.GetTransform() * (_glow.Size * 0.5f)));
+        if (_core != null)
+            error = Mathf.Max(error, center.DistanceTo(_core.GetTransform() * (_core.Size * 0.5f)));
+        if (BeamVisible)
+        {
+            var last = _beamSegs[BeamSegments - 1];
+            Vector2 end = last.GetTransform() * new Vector2(last.Size.X - 1, last.Size.Y * 0.5f);
+            error = Mathf.Max(error, end.DistanceTo(center));
+        }
+        return error;
+    }
 
     public override void _Process(double delta)
     {

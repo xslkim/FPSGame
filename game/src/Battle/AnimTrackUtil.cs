@@ -3,27 +3,54 @@ using Godot;
 namespace FPSGame;
 
 /// <summary>
-/// 动画 clip 辅助:C# 框架用 DoAttack 的 0.3s Tween 代替原作动画事件
-/// (Monster.TriggerAttackEvent)。部分 FBX 导入 clip 自带 Call Method Track
-/// (event_attack / rock_attack),运行时会报 "Method not found" 并与 Tween 重复触发。
-/// 这里在内存中剥离 method 轨道(只改运行时资源,不动 .tres 共享资产)。
+/// Immutable clip libraries with Unity event times, executed by AnimationPlayer.
 /// </summary>
 internal static class AnimTrackUtil
 {
-    private static readonly System.Collections.Generic.HashSet<Animation> Stripped = new();
+    private static readonly System.Collections.Generic.Dictionary<(string, string), AnimationLibrary> Libraries = new();
+    private static Godot.Collections.Dictionary? _events;
 
-    public static void StripMethodTracks(AnimationPlayer anim)
+    public static void InstallCombatEvents(AnimationPlayer player, string monster)
     {
-        foreach (var name in anim.GetAnimationList())
+        _events ??= Json.ParseString(FileAccess.GetFileAsString("res://data/combat_animation_events.json")).AsGodotDictionary();
+        var clips = _events.ContainsKey(monster) ? _events[monster].AsGodotDictionary() : new Godot.Collections.Dictionary();
+        foreach (var libraryName in player.GetAnimationLibraryList())
         {
-            var a = anim.GetAnimation(name);
-            if (a == null || !Stripped.Add(a))
-                continue;
-            for (int t = a.GetTrackCount() - 1; t >= 0; t--)
+            var original = player.GetAnimationLibrary(libraryName);
+            var cacheKey = (monster, original.ResourcePath.Length > 0 ? original.ResourcePath : original.GetInstanceId().ToString());
+            if (!Libraries.TryGetValue(cacheKey, out var library))
             {
-                if (a.TrackGetType(t) == Animation.TrackType.Method)
-                    a.RemoveTrack(t);
+                library = new AnimationLibrary();
+                foreach (var name in original.GetAnimationList())
+                {
+                    var animation = (Animation)original.GetAnimation(name).Duplicate();
+                    for (int t = animation.GetTrackCount() - 1; t >= 0; t--)
+                        if (animation.TrackGetType(t) == Animation.TrackType.Method) animation.RemoveTrack(t);
+                    if (clips.ContainsKey(name.ToString()))
+                    {
+                        var record = clips[name.ToString()].AsGodotDictionary();
+                        animation.Length = record["length"].AsDouble();
+                        animation.LoopMode = Animation.LoopModeEnum.None;
+                        foreach (var item in record["events"].AsGodotArray())
+                        {
+                            var e = item.AsGodotDictionary();
+                            int track = animation.AddTrack(Animation.TrackType.Method);
+                            animation.TrackSetPath(track, new NodePath("."));
+                            animation.TrackInsertKey(track, e["time"].AsDouble(), new Godot.Collections.Dictionary
+                            {
+                                ["method"] = nameof(Monster.OnCombatAnimationEvent),
+                                ["args"] = new Godot.Collections.Array { name.ToString(), e["name"].AsString(),
+                                    e.ContainsKey("string_parameter") ? e["string_parameter"].AsString() : "" }
+                            });
+                        }
+                    }
+                    library.AddAnimation(name, animation);
+                }
+                Libraries.Add(cacheKey, library);
             }
+            player.RemoveAnimationLibrary(libraryName);
+            player.AddAnimationLibrary(libraryName, library);
         }
+        player.CallbackModeMethod = AnimationMixer.AnimationCallbackModeMethod.Immediate;
     }
 }

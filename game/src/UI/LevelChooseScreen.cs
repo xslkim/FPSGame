@@ -22,8 +22,34 @@ namespace FPSGame;
 /// 注意:原作 AK47 侧火光父级 Sphere(1) 默认 inactive 永不显示,移植版修正为正常播放(同菜单);
 ///   枪上 Movie(RawImage+VideoPlayer startmov.mp4 默认不播,渲染透明)未移植,属连接手机流程。
 /// </summary>
-public partial class LevelChooseScreen : Node
+public partial class LevelChooseScreen : Node, IDebugInspectable
 {
+    public string DebugSummary => $"page={_curPage} difficulty={_diffPanel?.Visible} AK={_gunAk?.Visible}";
+
+    public System.Collections.Generic.Dictionary<string, object?> CaptureDebugState()
+    {
+        var state = new System.Collections.Generic.Dictionary<string, object?>
+        {
+            ["page"] = _curPage,
+            ["difficulty_panel_visible"] = _diffPanel?.Visible,
+            ["subviewport_size"] = _subvp?.Size.ToString(),
+            ["mouse_aim"] = InputRouter.Instance.MouseGun.AimPos.ToString(),
+            ["aim_screen_point"] = InputRouter.Instance.GetRightAim().IsScreenPoint,
+        };
+        if (_gunAk != null && _muzzleAk != null && _camera != null)
+        {
+            state["ak_local_position"] = _gunAk.Position.ToString();
+            state["ak_local_rotation"] = _gunAk.RotationDegrees.ToString();
+            state["ak_muzzle_world"] = _muzzleAk.GlobalPosition.ToString();
+            state["ak_muzzle_screen"] = _camera.UnprojectPosition(_muzzleAk.GlobalPosition).ToString();
+            state["ak_beam_visible"] = _guideAk?.BeamVisible;
+            state["ak_beam_origin_screen"] = _guideAk?.CurrentOrigin.ToString();
+            state["ak_alignment_error_pixels"] = _guideAk?.AlignmentError(_camera, _muzzleAk.GlobalPosition);
+            state["ak_barrel_axis_world"] = (_gunAk.GlobalBasis * GunMath.UiAkBarrelAxis(_gunAk)).ToString();
+            state["ak_hit_screen"] = _guideAk?.CurrentTarget.ToString();
+        }
+        return state;
+    }
     private const string MenuScene = "res://scenes/ui/menu.tscn";
     private const string LoadingScene = "res://scenes/ui/loading.tscn";
     private const string LcDir = "res://assets/textures/ui/levelchoose/";
@@ -97,6 +123,7 @@ public partial class LevelChooseScreen : Node
         _gunM4 = GetNode<Node3D>(VpPrefix + "Camera3D/M4View");
         _muzzleAk = GetNode<MuzzleFlash>(VpPrefix + "Camera3D/AK47View/MuzzleFlash");
         _muzzleM4 = GetNode<MuzzleFlash>(VpPrefix + "Camera3D/M4View/MuzzleFlash");
+        UiWeaponPresentation.Create(this, _camera, _gunAk, _gunM4);
         // 2D 激光指引(原作右红/左绿):画在 UI 最上层,枪原点锥形光束+光点,悬停放光
         _guideAk = UiAimGuide.Create(this, LaserSight.RightRed);
         _guideM4 = UiAimGuide.Create(this, LaserSight.LeftGreen);
@@ -474,6 +501,8 @@ public partial class LevelChooseScreen : Node
 
     private void SyncViewportSize()
     {
+        if (_subvp.GetParent() is SubViewportContainer { Stretch: true })
+            return;
         var size = (Vector2I)GetViewport().GetVisibleRect().Size;
         if (size.X <= 0 || size.Y <= 0)
             return; // headless 首帧可视区为 0,保持场景默认 1280×720
@@ -518,9 +547,7 @@ public partial class LevelChooseScreen : Node
             if (aim.IsScreenPoint)
             {
                 // 鼠标模拟光枪:枪口指向鼠标射线方向
-                var dir = _camera.ProjectRayNormal(aim.ScreenPos);
-                var localDir = (_camera.GlobalTransform.Basis.Inverse() * dir).Normalized();
-                _gunAk.Quaternion = new Quaternion(Vector3.Forward, localDir);
+                GunMath.AimUiAk(_camera, _gunAk, _muzzleAk, aim.ScreenPos);
                 logical = UiKit.WindowToLogical(GetViewport(), aim.ScreenPos);
                 // 瞄准悬停 = 焦点视觉(MessageBox 按钮由原生 hover 承担)
                 var b = ButtonAtLogicalPoint(logical, skipBoxButtons: true);
@@ -532,11 +559,11 @@ public partial class LevelChooseScreen : Node
             }
             else
             {
-                _gunAk.Quaternion = aim.Rotation;
+                _gunAk.Quaternion = aim.Rotation * new Quaternion(GunMath.UiAkBarrelAxis(_gunAk), Vector3.Forward);
                 logical = RotationAimLogicalPoint(left: false);
                 _aimHover = null;
             }
-            _guideAk.SetAim(_camera, _muzzleAk.GlobalPosition, _gunAk.GlobalBasis * Vector3.Forward, null,
+            _guideAk.SetAim(_camera, _muzzleAk.GlobalPosition, _gunAk.GlobalBasis * GunMath.UiAkBarrelAxis(_gunAk), null,
                 logical, ButtonAtLogicalPoint(logical, skipBoxButtons: true) != null);
         }
         else
@@ -738,6 +765,18 @@ public partial class LevelChooseScreen : Node
             if (!ok) fails += 1;
         }
         await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+        foreach (var aim in new[] { new Vector2(35, 88), new Vector2(680, 587), new Vector2(555, 420), new Vector2(1150, 100) })
+        {
+            Vector3 direction = _camera.ProjectRayNormal(aim);
+            GunMath.AimUiAk(_camera, _gunAk, _muzzleAk, aim);
+            var target = _camera.ProjectPosition(aim, 100.0f);
+            var barrelEnd = _muzzleAk.GlobalPosition + (_gunAk.GlobalBasis * GunMath.UiAkBarrelAxis(_gunAk)) * target.DistanceTo(_muzzleAk.GlobalPosition);
+            Check(_camera.UnprojectPosition(barrelEnd).DistanceTo(aim) < 0.5f, $"actual AK barrel projects to target {aim}");
+            _guideAk.SetAim(_camera, _muzzleAk.GlobalPosition, direction, null, aim, true);
+            Check(_guideAk.AlignmentError(_camera, _muzzleAk.GlobalPosition) < 0.01f,
+                $"laser muzzle and single impact aligned at {aim}");
+        }
+        Check(GetNode<CanvasLayer>("WeaponPresentation").Layer > 20, "weapon drawn above dialog layer");
         await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
 
         // 确定性:内存里强制原作默认存档(3 星/3 分/排名 1),不落盘
@@ -849,12 +888,20 @@ public partial class LevelChooseScreen : Node
         SaveService.Instance.Coin = 10;
 
         // 难度选择 → LoadGame(最后测:触发 ChangeScene)
+        var tree = GetTree(); // this screen will be freed during the real transition
+        string targetScene = SceneMap[0];
         _pendingLevel = 0;
         ChooseDifficulty(0);
         Check(Game.Instance.CurrentDifficulty == Game.Difficulty.Easy, "简单难度设置");
         Check(Game.Instance.NextScenePath == SceneMap[0], "Loading 目标=level1");
 
+        double deadline = Time.GetTicksMsec() / 1000.0 + 30;
+        while (tree.CurrentScene?.SceneFilePath != targetScene && Time.GetTicksMsec() / 1000.0 < deadline)
+            await tree.ToSignal(tree, SceneTree.SignalName.ProcessFrame);
+        Check(tree.CurrentScene?.SceneFilePath == targetScene, "选关→Loading→第一关剧情实际加载完成");
+        AudioService.Instance.StopAll();
+
         GD.Print($"LEVELCHOOSE SELFTEST {(fails == 0 ? "PASS" : "FAIL")} (fails={fails})");
-        (Engine.GetMainLoop() as SceneTree)!.Quit(fails > 0 ? 1 : 0);
+        tree.Quit(fails > 0 ? 1 : 0);
     }
 }

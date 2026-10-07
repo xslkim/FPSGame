@@ -9,6 +9,20 @@ namespace FPSGame;
 /// </summary>
 public static class GunMath
 {
+    // automatic_rifle FBX barrel runs along native -X, not the view node's -Z.
+    public static Vector3 UiAkBarrelAxis(Node3D gun) => -gun.GetNode<Node3D>("Model").Basis.X.Normalized();
+
+    public static void AimUiAk(Camera3D camera, Node3D gun, Node3D muzzle, Vector2 screen)
+    {
+        var target = camera.ProjectPosition(screen, 100.0f);
+        var parentInverse = ((Node3D)gun.GetParent()).GlobalBasis.Inverse();
+        var axis = UiAkBarrelAxis(gun);
+        // The muzzle is offset from the pivot; solve from the rotated muzzle,
+        // so the projected barrel and the screen-space laser share one line.
+        for (int i = 0; i < 6; i++)
+            gun.Quaternion = new Quaternion(axis, (parentInverse * (target - muzzle.GlobalPosition)).Normalized());
+    }
+
     public enum QuatMirror
     {
         None,   // 不转换

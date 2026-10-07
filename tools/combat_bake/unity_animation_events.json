@@ -1,0 +1,584 @@
+{
+    "clips": [
+        {
+            "path": "Assets/Actor/牛魔王/BOSS/Bull/Animation/bull_king@attack_01.FBX",
+            "name": "attack_01",
+            "length": 1.0,
+            "frame_rate": 30.0,
+            "human": false,
+            "events": [
+                {
+                    "time": 0.769230842590332,
+                    "name": "EventAttack",
+                    "int_parameter": 0,
+                    "string_parameter": ""
+                }
+            ]
+        },
+        {
+            "path": "Assets/Actor/牛魔王/BOSS/Bull/Animation/bull_king@attack_02.FBX",
+            "name": "attack_02",
+            "length": 1.0,
+            "frame_rate": 30.0,
+            "human": false,
+            "events": [
+                {
+                    "time": 0.5981892347335815,
+                    "name": "EventAttack",
+                    "int_parameter": 0,
+                    "string_parameter": ""
+                }
+            ]
+        },
+        {
+            "path": "Assets/Actor/牛魔王/BOSS/Bull/Animation/bull_king@attack_03.FBX",
+            "name": "attack_03",
+            "length": 1.0,
+            "frame_rate": 30.0,
+            "human": false,
+            "events": [
+                {
+                    "time": 0.6268584728240967,
+                    "name": "EventAttack",
+                    "int_parameter": 0,
+                    "string_parameter": ""
+                }
+            ]
+        },
+        {
+            "path": "Assets/Actor/牛魔王/BOSS/Bull/Mesh/bull_king.FBX",
+            "name": "Take 001",
+            "length": 0.03333333507180214,
+            "frame_rate": 30.0,
+            "human": false,
+            "events": []
+        },
+        {
+            "path": "Assets/AssetTools/ToonSoldiers_militias/animation/Infantry/infantry_combat_reload.FBX",
+            "name": "infantry_combat_reload",
+            "length": 3.6666667461395265,
+            "frame_rate": 30.0,
+            "human": true,
+            "events": []
+        },
+        {
+            "path": "Assets/AssetTools/ToonSoldiers_militias/animation/Infantry/infantry_combat_shoot.FBX",
+            "name": "infantry_combat_shoot",
+            "length": 1.0,
+            "frame_rate": 30.0,
+            "human": true,
+            "events": [
+                {
+                    "time": 0.24137930572032929,
+                    "name": "ToonShoot",
+                    "int_parameter": 0,
+                    "string_parameter": ""
+                }
+            ]
+        },
+        {
+            "path": "Assets/Enemy/包头僵尸/Animations/Anim_ATTACK_01.FBX",
+            "name": "anim_attack",
+            "length": 1.1666669845581055,
+            "frame_rate": 30.0,
+            "human": true,
+            "events": [
+                {
+                    "time": 0.4980994462966919,
+                    "name": "BaotouSkill",
+                    "int_parameter": 0,
+                    "string_parameter": ""
+                }
+            ]
+        },
+        {
+            "path": "Assets/Enemy/发光小怪物/Animations/Magma Demon@attack01.FBX",
+            "name": "attack01",
+            "length": 1.1666667461395264,
+            "frame_rate": 30.0,
+            "human": false,
+            "events": [
+                {
+                    "time": 0.6796257495880127,
+                    "name": "EventAttack",
+                    "int_parameter": 0,
+                    "string_parameter": ""
+                }
+            ]
+        },
+        {
+            "path": "Assets/Enemy/发光小怪物/Animations/Magma Demon@attack02.FBX",
+            "name": "attack02",
+            "length": 0.8333333730697632,
+            "frame_rate": 30.0,
+            "human": false,
+            "events": [
+                {
+                    "time": 0.6013513207435608,
+                    "name": "EventAttack",
+                    "int_parameter": 0,
+                    "string_parameter": ""
+                }
+            ]
+        },
+        {
+            "path": "Assets/Enemy/斧子僵尸/Animations/Humanoid/MonsterAZ@Attack01.FBX",
+            "name": "Attack01",
+            "length": 1.3333333730697632,
+            "frame_rate": 30.0,
+            "human": true,
+            "events": [
+                {
+                    "time": 0.44680333137512209,
+                    "name": "EventAttack",
+                    "int_parameter": 0,
+                    "string_parameter": ""
+                }
+            ]
+        },
+        {
+            "path": "Assets/Enemy/斧子僵尸/Animations/Humanoid/MonsterAZ@Attack02.FBX",
+            "name": "Attack02",
+            "length": 1.6666667461395264,
+            "frame_rate": 30.0,
+            "human": true,
+            "events": [
+                {
+                    "time": 0.5380592942237854,
+                    "name": "EventAttack",
+                    "int_parameter": 0,
+                    "string_parameter": ""
+                },
+                {
+                    "time": 0.9481403827667236,
+                    "name": "EventAttack",
+                    "int_parameter": 0,
+                    "string_parameter": ""
+                }
+            ]
+        },
+        {
+            "path": "Assets/Enemy/斧子僵尸/Animations/Humanoid/MonsterAZ@AttackL.FBX",
+            "name": "AttackL",
+            "length": 1.0,
+            "frame_rate": 30.0,
+            "human": true,
+            "events": [
+                {
+                    "time": 0.30384525656700137,
+                    "name": "EventAttack",
+                    "int_parameter": 0,
+                    "string_parameter": ""
+                }
+            ]
+        },
+        {
+            "path": "Assets/Enemy/斧子僵尸/Animations/Humanoid/MonsterAZ@AttackR.FBX",
+            "name": "AttackR",
+            "length": 1.0,
+            "frame_rate": 30.0,
+            "human": true,
+            "events": [
+                {
+                    "time": 0.5340880155563355,
+                    "name": "EventAttack",
+                    "int_parameter": 0,
+                    "string_parameter": ""
+                }
+            ]
+        },
+        {
+            "path": "Assets/Enemy/斧子僵尸/Animations/Humanoid/MonsterAZ@Skill.FBX",
+            "name": "Skill",
+            "length": 1.6666667461395264,
+            "frame_rate": 30.0,
+            "human": true,
+            "events": [
+                {
+                    "time": 0.3735153079032898,
+                    "name": "EventSkill",
+                    "int_parameter": 0,
+                    "string_parameter": "TakeHandAxe"
+                },
+                {
+                    "time": 1.0006290674209595,
+                    "name": "EventSkill",
+                    "int_parameter": 0,
+                    "string_parameter": "ThrowAxe"
+                }
+            ]
+        },
+        {
+            "path": "Assets/Enemy/树皮石头怪/FantasyMonster/RockWarrior/Motion/RockWarrior@atk01.FBX",
+            "name": "atk01",
+            "length": 1.3333333730697632,
+            "frame_rate": 30.0,
+            "human": false,
+            "events": [
+                {
+                    "time": 0.7117628455162048,
+                    "name": "RockAttack",
+                    "int_parameter": 0,
+                    "string_parameter": ""
+                }
+            ]
+        },
+        {
+            "path": "Assets/Enemy/森林树木怪/小飞龙/Animations/Fantasy Dragon@FireBreathOnce.FBX",
+            "name": "FireBreathOnce",
+            "length": 2.0,
+            "frame_rate": 30.0,
+            "human": false,
+            "events": [
+                {
+                    "time": 0.7104513645172119,
+                    "name": "StartFire",
+                    "int_parameter": 0,
+                    "string_parameter": ""
+                },
+                {
+                    "time": 1.3478950262069703,
+                    "name": "EventAttack",
+                    "int_parameter": 0,
+                    "string_parameter": ""
+                }
+            ]
+        },
+        {
+            "path": "Assets/Enemy/牛逼的资源合集/狼/Animations/Demon Wolf@BiteAttack.FBX",
+            "name": "BiteAttack",
+            "length": 1.1666667461395264,
+            "frame_rate": 30.0,
+            "human": false,
+            "events": [
+                {
+                    "time": 0.7370637655258179,
+                    "name": "EventAttack",
+                    "int_parameter": 0,
+                    "string_parameter": ""
+                }
+            ]
+        },
+        {
+            "path": "Assets/Enemy/牛逼的资源合集/狼/Animations/Demon Wolf@ClawAttack.FBX",
+            "name": "ClawAttack",
+            "length": 1.1666667461395264,
+            "frame_rate": 30.0,
+            "human": false,
+            "events": [
+                {
+                    "time": 0.6717809438705444,
+                    "name": "EventAttack",
+                    "int_parameter": 0,
+                    "string_parameter": ""
+                }
+            ]
+        },
+        {
+            "path": "Assets/Enemy/狼僵尸/Animations/Generic/MonsterW@Attack01.FBX",
+            "name": "Attack01",
+            "length": 1.6666667461395264,
+            "frame_rate": 30.0,
+            "human": false,
+            "events": [
+                {
+                    "time": 0.34173858165740969,
+                    "name": "EventAttack",
+                    "int_parameter": 0,
+                    "string_parameter": ""
+                },
+                {
+                    "time": 0.7154572010040283,
+                    "name": "EventAttack",
+                    "int_parameter": 0,
+                    "string_parameter": ""
+                }
+            ]
+        },
+        {
+            "path": "Assets/Enemy/狼僵尸/Animations/Generic/MonsterW@Attack02.FBX",
+            "name": "Attack02",
+            "length": 2.0,
+            "frame_rate": 30.0,
+            "human": false,
+            "events": [
+                {
+                    "time": 0.32268446683883669,
+                    "name": "EventAttack",
+                    "int_parameter": 0,
+                    "string_parameter": ""
+                },
+                {
+                    "time": 0.6467747688293457,
+                    "name": "EventAttack",
+                    "int_parameter": 0,
+                    "string_parameter": ""
+                },
+                {
+                    "time": 1.1010661125183106,
+                    "name": "EventAttack",
+                    "int_parameter": 0,
+                    "string_parameter": ""
+                }
+            ]
+        },
+        {
+            "path": "Assets/Enemy/狼僵尸/Animations/Generic/MonsterW@Skill01.FBX",
+            "name": "Skill01",
+            "length": 2.0,
+            "frame_rate": 30.0,
+            "human": false,
+            "events": [
+                {
+                    "time": 0.8698008060455322,
+                    "name": "EventAttack",
+                    "int_parameter": 0,
+                    "string_parameter": ""
+                }
+            ]
+        },
+        {
+            "path": "Assets/Enemy/狼僵尸/Animations/Generic/MonsterW@Skill02.FBX",
+            "name": "Skill02",
+            "length": 1.8333333730697632,
+            "frame_rate": 30.0,
+            "human": false,
+            "events": [
+                {
+                    "time": 0.7057790160179138,
+                    "name": "EventAttack",
+                    "int_parameter": 0,
+                    "string_parameter": ""
+                }
+            ]
+        },
+        {
+            "path": "Assets/Enemy/胖僵尸/Animations/Humanoid/MonsterFZ.FBX",
+            "name": "MonsterFatZombie",
+            "length": 40.16666793823242,
+            "frame_rate": 30.0,
+            "human": true,
+            "events": []
+        },
+        {
+            "path": "Assets/Enemy/胖僵尸/Animations/Humanoid/MonsterFZ@Attack01.FBX",
+            "name": "Attack01",
+            "length": 1.6666667461395264,
+            "frame_rate": 30.0,
+            "human": true,
+            "events": [
+                {
+                    "time": 0.9357277154922485,
+                    "name": "EventAttack",
+                    "int_parameter": 0,
+                    "string_parameter": ""
+                }
+            ]
+        },
+        {
+            "path": "Assets/Enemy/胖僵尸/Animations/Humanoid/MonsterFZ@Attack02.FBX",
+            "name": "Attack02",
+            "length": 1.6666667461395264,
+            "frame_rate": 30.0,
+            "human": true,
+            "events": [
+                {
+                    "time": 0.47258976101875307,
+                    "name": "EventAttack",
+                    "int_parameter": 0,
+                    "string_parameter": ""
+                },
+                {
+                    "time": 0.8695651888847351,
+                    "name": "EventAttack",
+                    "int_parameter": 0,
+                    "string_parameter": ""
+                }
+            ]
+        },
+        {
+            "path": "Assets/Enemy/胖僵尸/Animations/Humanoid/MonsterFZ@Skill.FBX",
+            "name": "Skill",
+            "length": 1.3333333730697632,
+            "frame_rate": 30.0,
+            "human": true,
+            "events": [
+                {
+                    "time": 0.414905309677124,
+                    "name": "EventAttack",
+                    "int_parameter": 0,
+                    "string_parameter": ""
+                }
+            ]
+        },
+        {
+            "path": "Assets/Enemy/金属盔甲武士/LowPoly_Lancer/Ani/Dead.anim",
+            "name": "Dead",
+            "length": 0.5,
+            "frame_rate": 30.0,
+            "human": true,
+            "events": []
+        },
+        {
+            "path": "Assets/Enemy/金属盔甲武士/LowPoly_Lancer/Ani/Hit.anim",
+            "name": "Hit",
+            "length": 0.6666666865348816,
+            "frame_rate": 30.0,
+            "human": true,
+            "events": []
+        },
+        {
+            "path": "Assets/Enemy/金属盔甲武士/LowPoly_Lancer/Ani/Idle.anim",
+            "name": "Idle",
+            "length": 1.3333333730697632,
+            "frame_rate": 30.0,
+            "human": true,
+            "events": []
+        },
+        {
+            "path": "Assets/Enemy/金属盔甲武士/LowPoly_Lancer/Ani/In.anim",
+            "name": "In",
+            "length": 1.5000001192092896,
+            "frame_rate": 30.0,
+            "human": true,
+            "events": []
+        },
+        {
+            "path": "Assets/Enemy/金属盔甲武士/LowPoly_Lancer/Ani/Run.anim",
+            "name": "Run",
+            "length": 0.6666666865348816,
+            "frame_rate": 30.0,
+            "human": true,
+            "events": []
+        },
+        {
+            "path": "Assets/Enemy/金属盔甲武士/LowPoly_Lancer/Ani/Skill1.anim",
+            "name": "Skill1",
+            "length": 0.3333333432674408,
+            "frame_rate": 30.0,
+            "human": true,
+            "events": [
+                {
+                    "time": 0.0,
+                    "name": "StartSlow",
+                    "int_parameter": 0,
+                    "string_parameter": ""
+                },
+                {
+                    "time": 0.0,
+                    "name": "StartSlow",
+                    "int_parameter": 0,
+                    "string_parameter": ""
+                },
+                {
+                    "time": 0.10000000149011612,
+                    "name": "StopSlow",
+                    "int_parameter": 0,
+                    "string_parameter": ""
+                },
+                {
+                    "time": 0.1666666716337204,
+                    "name": "HertPlayerSkill1",
+                    "int_parameter": 0,
+                    "string_parameter": ""
+                }
+            ]
+        },
+        {
+            "path": "Assets/Enemy/金属盔甲武士/LowPoly_Lancer/Ani/Skill2.anim",
+            "name": "Skill2",
+            "length": 0.7000000476837158,
+            "frame_rate": 30.0,
+            "human": true,
+            "events": [
+                {
+                    "time": 0.23333333432674409,
+                    "name": "StartSlow",
+                    "int_parameter": 0,
+                    "string_parameter": ""
+                },
+                {
+                    "time": 0.3333333432674408,
+                    "name": "StopSlow",
+                    "int_parameter": 0,
+                    "string_parameter": ""
+                },
+                {
+                    "time": 0.46666666865348818,
+                    "name": "HertPlayerSkill2",
+                    "int_parameter": 0,
+                    "string_parameter": ""
+                }
+            ]
+        },
+        {
+            "path": "Assets/Enemy/金属盔甲武士/LowPoly_Lancer/Ani/Skill3.anim",
+            "name": "Skill3",
+            "length": 2.6666667461395265,
+            "frame_rate": 30.0,
+            "human": true,
+            "events": []
+        },
+        {
+            "path": "Assets/Enemy/金属盔甲武士/LowPoly_Lancer/Ani/Stun.anim",
+            "name": "Stun",
+            "length": 2.0,
+            "frame_rate": 30.0,
+            "human": true,
+            "events": []
+        },
+        {
+            "path": "Assets/Enemy/金属盔甲武士/LowPoly_Lancer/FBX/Modle.FBX",
+            "name": "Take 001",
+            "length": 1.3333333730697632,
+            "frame_rate": 30.0,
+            "human": true,
+            "events": []
+        },
+        {
+            "path": "Assets/Enemy/骷髅僵尸/Animations/Humanoid/MonsterS@Attack01.FBX",
+            "name": "Attack01",
+            "length": 1.0,
+            "frame_rate": 30.0,
+            "human": true,
+            "events": [
+                {
+                    "time": 0.33023256063461306,
+                    "name": "EventAttack",
+                    "int_parameter": 0,
+                    "string_parameter": ""
+                }
+            ]
+        },
+        {
+            "path": "Assets/Enemy/骷髅僵尸/Animations/Humanoid/MonsterS@Attack02.FBX",
+            "name": "Attack02",
+            "length": 1.3333333730697632,
+            "frame_rate": 30.0,
+            "human": true,
+            "events": [
+                {
+                    "time": 0.5395349264144898,
+                    "name": "EventAttack",
+                    "int_parameter": 0,
+                    "string_parameter": ""
+                }
+            ]
+        },
+        {
+            "path": "Assets/Enemy/骷髅僵尸/Animations/Humanoid/MonsterS@Skill.FBX",
+            "name": "Skill",
+            "length": 2.0,
+            "frame_rate": 30.0,
+            "human": true,
+            "events": [
+                {
+                    "time": 0.8380740880966187,
+                    "name": "EventAttack",
+                    "int_parameter": 0,
+                    "string_parameter": ""
+                }
+            ]
+        }
+    ]
+}

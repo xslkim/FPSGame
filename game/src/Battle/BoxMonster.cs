@@ -66,11 +66,11 @@ public partial class BoxMonster : Monster
             return;
         _expiring = true;
         Hp = 0.0f;
-        GetTree().CreateTimer(RecycleDelay).Timeout += () =>
+        ScheduleLifeAction(RecycleDelay, () =>
         {
             if (CurState != State.Idle)
                 Recycle();
-        };
+        });
     }
 
     /// <summary>掉落(原作 OnDead(bool Right)):只发受击侧;子弹箱 +60 弹、枪箱解锁对应枪;无掉落 FX</summary>

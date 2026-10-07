@@ -46,6 +46,14 @@ public partial class AudioService : Node
     /// <summary>Utils.PlayMenuSound():整段播放,重按打断重播</summary>
     public void PlayUiSound() => _uiSound.Play();
 
+    public void StopAll()
+    {
+        _menuMusic.Stop();
+        _uiSound.Stop();
+    }
+
+    public override void _ExitTree() => StopAll();
+
     /// <summary>战斗场景加载出来后停菜单音乐</summary>
     public override void _Process(double delta)
     {

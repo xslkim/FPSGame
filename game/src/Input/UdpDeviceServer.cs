@@ -7,7 +7,7 @@ namespace FPSGame;
 /// 向 255.255.255.255:8282 广播 "Fortune" 做设备发现;socket 级 5 秒无包重建。
 /// 对应原作 UdpServer.cs + UdpBroadCast.cs,由 InputRouter 持有并每帧 Poll()。
 /// </summary>
-public sealed class UdpDeviceServer
+public sealed class UdpDeviceServer : System.IDisposable
 {
     public const int ListenPort = 8281;
     public const int PhonePort = 8282;
@@ -34,8 +34,13 @@ public sealed class UdpDeviceServer
     private double _rebindTimer;
     private bool _bound;
     private bool _bindFailureReported;
+    public int BoundPort { get; }
 
-    public UdpDeviceServer() => OpenSocket();
+    public UdpDeviceServer(int port = ListenPort)
+    {
+        BoundPort = port;
+        OpenSocket();
+    }
 
     public void Poll(double delta)
     {
@@ -49,7 +54,9 @@ public sealed class UdpDeviceServer
             }
             return;
         }
-        while (_recv.GetAvailablePacketCount() > 0)
+        // Bound the per-frame work even if a device floods the socket.
+        int budget = 256;
+        while (budget-- > 0 && _recv.GetAvailablePacketCount() > 0)
         {
             var pkt = _recv.GetPacket();
             string ip = _recv.GetPacketIP();
@@ -126,7 +133,7 @@ public sealed class UdpDeviceServer
             _recv.Dispose();
         }
         _recv = new PacketPeerUdp();
-        var bindError = _recv.Bind(ListenPort);
+        var bindError = _recv.Bind(BoundPort);
         _bound = bindError == Error.Ok;
         if (!_bound)
         {
@@ -135,7 +142,7 @@ public sealed class UdpDeviceServer
             _recv = null;
             if (!_bindFailureReported)
             {
-                GD.PushWarning($"[UdpDeviceServer] 无法绑定 {ListenPort}/udp ({bindError})；可能已有游戏实例占用端口。每 {BindRetryInterval:0} 秒重试一次，鼠标和键盘仍可使用。");
+                GD.PushWarning($"[UdpDeviceServer] 无法绑定 {BoundPort}/udp ({bindError})；可能已有游戏实例占用端口。每 {BindRetryInterval:0} 秒重试一次，鼠标和键盘仍可使用。");
                 _bindFailureReported = true;
             }
         }
@@ -143,7 +150,7 @@ public sealed class UdpDeviceServer
         {
             _rebindTimer = 0.0;
             if (_bindFailureReported)
-                GD.Print($"[UdpDeviceServer] 已恢复绑定 {ListenPort}/udp");
+                GD.Print($"[UdpDeviceServer] 已恢复绑定 {BoundPort}/udp");
             _bindFailureReported = false;
         }
         if (_send == null)
@@ -161,5 +168,15 @@ public sealed class UdpDeviceServer
         var err = _send.PutPacket(text.ToUtf8Buffer());
         if (err != Error.Ok)
             GD.PushWarning($"[UdpDeviceServer] 发送 \"{text}\" → {ip} 失败: {err}");
+    }
+
+    public void Dispose()
+    {
+        _recv?.Close();
+        _recv?.Dispose();
+        _send?.Close();
+        _send?.Dispose();
+        _recv = _send = null;
+        _bound = false;
     }
 }

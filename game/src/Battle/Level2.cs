@@ -100,6 +100,11 @@ public partial class Level2 : LevelBase
 
     protected override void EnterLevel()
     {
+        if (System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--level2-presentation-selftest") >= 0)
+        {
+            PresentationSelfTest();
+            return;
+        }
         PatchMeta();
         TuneWindowLights();
         ToneBackdrop();
@@ -406,13 +411,8 @@ public partial class Level2 : LevelBase
             tm.FireWindow = w;
             // L2-2:Unity ToonSolder/Alien1 prefab WaittingTime=0,出生即到窗即射(不走难度等待)
             var srcPos = w.GetSrcPosition();
-            // 原作 CC 出生嵌入自动上推:src 上方 ~2.5m 内有檐板(窗标在板下)→ 抬到板面
-            // (如 G0 w4:窗标 y=-6.34 位于 -3.9 走道板下;否则 toon 生在板下不可见)
-            var upHit = GetWorld3D().DirectSpaceState.IntersectRay(PhysicsRayQueryParameters3D.Create(
-                srcPos + new Vector3(0.0f, 2.5f, 0.0f), srcPos + new Vector3(0.0f, -0.4f, 0.0f),
-                Monster.BornRayMask));
-            if (upHit.Count != 0 && ((Vector3)upHit["position"]).Y > srcPos.Y + 0.5f)
-                srcPos.Y = ((Vector3)upHit["position"]).Y;
+            // Original Toon prefabs have no CharacterController; their authored
+            // source/window height is not changed by ground depenetration.
             StatToonBorn += 1;
             StatLastToonWait = 0.0;
             tm.Born(srcPos, lv, 0.0f); // 从 SrcPosition 翻窗爬入
@@ -694,6 +694,11 @@ public partial class Level2 : LevelBase
             t.Born(w.GetSrcPosition(), 0, 0.0f);
             toons.Add(t);
         }
+        Check(toons.TrueForAll(t => Time.GetTicksMsec() / 1000.0 - t.LastAttackTime < 0.1),
+            "toon spawn starts attack cooldown as in Unity");
+        await ToSignal(GetTree().CreateTimer(0.6), SceneTreeTimer.SignalName.Timeout);
+        Check(toons.TrueForAll(t => !t.CaptureDebugState()["animation"]!.ToString()!.Contains("reload")),
+            "toon does not shoot immediately after spawning");
         Check(toons.Count == 7, "7 toons born at windows");
         int occupied = 0;
         foreach (var w in ws)
@@ -714,6 +719,83 @@ public partial class Level2 : LevelBase
     }
 
     /// <summary>headless 自检:godot --headless --path game scenes/levels/level2.tscn -- --level2-selftest</summary>
+    private async void PresentationSelfTest()
+    {
+        Game.Instance.IsGamePause = false;
+        GetTree().Root.Size = new Vector2I(1280, 720);
+        CollectWindows();
+        // Real authored entrances, including the long routes through town doors.
+        // Unity's Toon prefabs use a shot collider, not collision-based movement.
+        Camera.GlobalTransform = GetNode<Node3D>("CamPositions/cam_pos_1").GlobalTransform;
+        foreach (var window in _windowGroups[1])
+        foreach (var type in new[] { "toon", "toon_alien" })
+        {
+            var walker = GD.Load<PackedScene>($"res://scenes/battle/monsters/{type}.tscn").Instantiate<ToonMonster>();
+            AddChild(walker);
+            walker.FireWindow = window;
+            var source = window.GetSrcPosition();
+            walker.Born(source, 0, 0);
+            for (int i = 0; i < 360; i++)
+                await ToSignal(GetTree(), SceneTree.SignalName.PhysicsFrame);
+            var remaining = window.GlobalPosition - walker.GlobalPosition;
+            Check(new Vector2(remaining.X, remaining.Z).Length() <= ToonMonster.ArriveDist + 0.01f
+                && Mathf.Abs(walker.GlobalPosition.Y - source.Y) < 0.01f,
+                $"{type} {window.GetPath()} arrives at authored window without door collision or height drift");
+            var screen = Camera.UnprojectPosition(walker.HeadHitPosition);
+            var origin = Camera.ProjectRayOrigin(screen);
+            var ray = GetWorld3D().DirectSpaceState.IntersectRay(PhysicsRayQueryParameters3D.Create(origin,
+                origin + Camera.ProjectRayNormal(screen) * FireSystem.RayLength, FireSystem.RayMask));
+            Check(GetViewport().GetVisibleRect().HasPoint(screen) && ray.Count > 0
+                && ray["collider"].AsGodotObject() == walker,
+                $"{type} {window.Name} visible head can be aimed from the actual second camera");
+            walker.QueueFree();
+            await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+        }
+        Camera.GlobalTransform = GetNode<Node3D>("CamPositions/cam_pos_0").GlobalTransform;
+        var space = GetWorld3D().DirectSpaceState;
+        foreach (var type in new[] { "toon", "toon_alien" })
+        {
+            var actor = GD.Load<PackedScene>($"res://scenes/battle/monsters/{type}.tscn").Instantiate<ToonMonster>();
+            AddChild(actor);
+            actor.Born(new Vector3(8.258181f, -6.3289895f, -32.787052f), 0, 30);
+            for (int i = 0; i < 4; i++)
+                await ToSignal(GetTree(), SceneTree.SignalName.PhysicsFrame);
+            var anim = actor.GetNode<AnimationPlayer>("AnimationPlayer");
+            var clip = anim.GetAnimation("locomotion");
+            bool arms = false;
+            for (int t = 0; t < clip.GetTrackCount(); t++)
+                arms |= clip.TrackGetPath(t).ToString().Contains(type == "toon" ? "UpperArm" : "bn_UpperArm");
+            // The alien uses its own complete skeleton clips; militia must have upper-body tracks.
+            Check(type != "toon" || arms, "militia idle animates upper body at spawn");
+            var head = actor.HeadHitPosition + Vector3.Up * 0.18f; // upper head, above the old body capsule
+            var hit = space.IntersectRay(PhysicsRayQueryParameters3D.Create(head + Vector3.Back * 2,
+                head - Vector3.Back * 2, 2));
+            Check(hit.Count > 0 && hit["collider"].AsGodotObject() == actor,
+                $"{type} head ray hits the enemy");
+            actor.QueueFree();
+            await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+        }
+        for (int i = 0; i < 3; i++)
+        {
+            var box = GD.Load<PackedScene>("res://scenes/battle/monsters/box_monster.tscn").Instantiate<BoxMonster>();
+            AddChild(box);
+            var pos = Camera.GlobalPosition + (-Camera.GlobalBasis.Z) * (3 + i);
+            var floor = space.IntersectRay(PhysicsRayQueryParameters3D.Create(pos, pos + Vector3.Down * 30, 1));
+            Check(floor.Count > 0, $"box {i} has floor below spawn");
+            box.Born(pos, 0, 20);
+            for (int frame = 0; frame < 180; frame++)
+                await ToSignal(GetTree(), SceneTree.SignalName.PhysicsFrame);
+            Check(box.IsOnFloor() && floor.Count > 0
+                // The sloping ground contacts a box corner above its center ray.
+                && Mathf.Abs(box.GlobalPosition.Y - ((Vector3)floor["position"]).Y) < 0.15f,
+                $"box {i} rests on floor without floating: {box.GlobalPosition}");
+            box.QueueFree();
+            await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+        }
+        GD.Print($"[L2-PRESENTATION] {(_testFailed ? "FAILED" : "ALL PASS")}");
+        GetTree().Quit(_testFailed ? 1 : 0);
+    }
+
     private async void SelfTest()
     {
         TimeScaleTest = 0.04f; // 加速刷怪间隔/冻结/相机 Tween;boss 15s 与胜利 2s 保持真实以验证

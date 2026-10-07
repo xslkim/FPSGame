@@ -63,4 +63,9 @@ public sealed class MouseGunSource
             or InputRouter.InputMode.ControllerOrRight
             or InputRouter.InputMode.RightAndLeft
             or InputRouter.InputMode.Mouse;
+
+    public bool IsActiveForLeft(InputRouter router) =>
+        Enabled && !router.LegConnected && router.Mode == InputRouter.InputMode.OnlyLeft;
+
+    public void Release() => LeftHeld = false;
 }

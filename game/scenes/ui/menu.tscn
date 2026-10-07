@@ -57,7 +57,7 @@ visible = false
 
 [node name="MuzzleFlash" type="Node3D" parent="ViewportLayer/SubViewportContainer/SubViewport/Camera3D/M4View"]
 visible = false
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.2069)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.000115, 0.001909, -0.169967)
 script = ExtResource("7")
 
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="ViewportLayer/SubViewportContainer/SubViewport"]

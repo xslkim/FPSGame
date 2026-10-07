@@ -27,6 +27,7 @@ AudioService="*res://src/Core/AudioService.cs"
 PlayerState="*res://src/Player/PlayerState.cs"
 InputRouter="*res://src/Input/InputRouter.cs"
 FpsOverlay="*res://src/UI/FpsOverlay.cs"
+DebugOverlay="*res://src/Debug/DebugOverlay.cs"
 
 [display]
 

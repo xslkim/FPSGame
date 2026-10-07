@@ -37,6 +37,8 @@ Autoload 顺序:Game → SaveService → AudioService → PlayerState → InputR
 - **鼠标模拟光枪**(无实体枪时自动生效):移动 = 瞄准(枪口跟随;红色激光束+红点画在 UI 最上层指引命中,悬停按钮红点放大并放光),左键 = 扳机,右键 = 换枪;
   单人游戏 → "选择控制方式"弹框可选 **鼠标** 模式(原作只有 手机/遥控器 两键,鼠标为新增第三键)。
 - **键盘**:方向键焦点导航(默认选中单人游戏),回车 = 确认,Esc = 返回(选关页)。
+- **帧率显示**:按 F3 在任何场景打开/关闭左上角 FPS,暂停时也可切换。
+- **问题定位**:按 F4 显示场景/对象 ID、焦点、相机及性能;F5 保存截图+JSON 报告并复制报告路径;F6 固定对象;F7 复制对象 ID。开发流程与统一自检见 [docs/DEVELOPMENT_WORKFLOW.md](docs/DEVELOPMENT_WORKFLOW.md)。
 - **键盘调试战斗模式**:主菜单 → 单人游戏 → 选"遥控器";方向键瞄准(±45°)、回车射击、Menu 键或 LeftAlt 换枪。
 
 ## 分辨率自适应
@@ -65,7 +67,7 @@ bash tools/research/battle_audit/regress.sh
 G=G:/FPSGame/godot/bin/godot.windows.editor.x86_64.mono.exe
 cd /g/FPSGame/game
 dotnet build                                                 # 先编译 C#
-$G --headless --path . scenes/ui/menu.tscn -- --menu-selftest   # 29 项(主菜单 1:1)
+$G --headless --path . scenes/ui/menu.tscn -- --menu-selftest   # 31 项(主菜单 1:1，含怪物命中/空处未命中)
 $G --headless --path . scenes/ui/level_choose.tscn -- --levelchoose-selftest   # 34 项(选关 1:1)
 $G --headless --path . scenes/ui/device_connection.tscn -- --deviceconnection-selftest   # 20 项(连接手机 1:1)
 $G --path . scenes/ui/menu.tscn -- --e2e-mouse-flow   # 端到端:单人→鼠标模式→选关瞄准点击全链路
@@ -110,6 +112,13 @@ dist/FPSGame.exe -- "--quick:res://scenes/test/monster_view.tscn" "--monster-vie
 $G --path . scenes/levels/level2.tscn -- "--level2-shot:<out.png>:<sec>"
 $G --path . scenes/levels/level2.tscn -- "--level2-shot-group:<out.png>:<g>"  # 直跳第 g 波 2.5s 后截
 $G --path . scenes/levels/level2.tscn -- "--level2-shot-boss:<out.png>"       # 直跳 G2 Boss 立即出场 5s 后截
+$G --path . scenes/levels/level3.tscn -- "--level3-shot:<out.png>[:<sec>]"    # 可多次传入;截图模式相机直接到位(无 blend)
+$G --path . scenes/levels/level3.tscn -- "--level3-camshot:<idx>:<out.png>"   # 直取机位 idx
+$G --path . scenes/levels/level3.tscn -- "--level3-freeshot:<x>:<y>:<z>:<lx>:<ly>:<lz>:<out.png>[:<sec>]"  # 自由机位
+# 通用附加参数:
+#   --autofire    每 0.4s 强制右路开火(枪口火光/烟雾位置截图验证;火光检视另有 game/tools/flash_view.gd)
+#   --no-mouse    屏蔽物理鼠标瞄准/扳机注入(窗口截图防真机光标污染:误中暂停按钮会锁死暂停)
+#   --cam-debug   机位 blend 创建/完成/被杀打点
 ```
 
 Unity 侧真值:`G:\test\FPSGame\Assets\Editor\MenuScreenshot.cs`(GUI 模式 `-executeMethod MenuScreenshot.Capture` / `.CaptureStill`),几何测量 `MenuMeasure.cs -executeMethod MenuMeasure.Dump`,枪口火光 `FlashScreenshot.cs -executeMethod FlashScreenshot.Capture`(FLASH_ISO=nosmoke/noflame 可隔离子效果),选关/连接页 `LevelShot.cs -executeMethod LevelShot.Capture`(LEVEL_SHOT_SCENE=Assets/UI/LevelChoose.unity 或 DeviceConnection.unity,LEVEL_SHOT_ACTION=page2/difficult),双枪包围盒 `GunMeasure.cs -executeMethod GunMeasure.Dump`,Level1 战斗 `Level1Shot.cs -executeMethod Level1Shot.Capture`(L1_SHOT_TIMES/L1_SHOT_DEBUG/L1_SHOT_GROUPS 环境变量)。
@@ -165,13 +174,13 @@ dotnet publish 的运行时包来自 nuget.org(NuGet.config 已配)。
 > **2026-09-26 第四轮(玩家实机反馈三修)**(详见 level1_deviation_log.md 第四轮):① 激光/命中红点与射线改回原作共线语义——射线从枪原点出(原 `Ray(Gun.position, Gun.forward)`),鼠标模式先取相机光标目标点再转枪指向;② M4/手枪 FBX 枪口实际朝 +Z,装配时补 rotY180°(AK 原有 rotY-90 不变);③ **L1 战斗机位 x 按环境镜像约定取负**(cam_pos_0~4 x → 正值)——出生锥距离恢复真值(楼梯间墙 1.27m→3.2m),怪不再贴脸/钻进相机;④ 牛魔王是全场唯一 humanoid(animationType=2)怪,原 tres 动画为原始曲线直转,行走/待机整体前俯 ~90°——已用 K-POP 同款烘焙管线(Unity 2022 PlayableGraph 逐帧求值 humanoid 姿态)烘 idle/walk/attack_01~03/damage/die 七剪辑,`BinToTres` 离线转写 `bull_anims.tres`(骨骼局部=镜像局部,逐帧 30fps),等待期按原作混合树 Speed=0 语义播 idle(meta idle_anim 新增)。
 
 - 被抱女生/报人/换人抱(开场背负):原作是 UMotion 导出的 **humanoid 肌肉曲线** .anim——已用 K-POP 同款烘焙管线还原(BakeKpopDance.cs 任务模式,`KPOP_JOBS`,rootMotion=0):`dance/baotou_carry.kdance.bin`(1s 循环)/`soldier_carry.kdance.bin`(1.167s)/`f05_carried.kdance.bin`(7s),IntroBadGroup 以 KDancePlayer 循环回放(挂骨 local TRS 保持原作序列化值,f05 Animator applyRootMotion=0 语义)。
-- K-POP 舞蹈:**已完整还原**——原作 `K-POP Dance 1.anim` 是 humanoid 肌肉曲线(无 FBX 源),无法直接转骨骼;改为在 Unity(2022.3 临时工程,2019.4 许可证失效)用 PlayableGraph 逐帧烘焙两舞者全骨骼局部 TRS 为 `.kdance.bin`(`assets/models/actors/dance/`,f05 36MB/casual 9MB,200.8s@30fps),运行时 `KDancePlayer` 按"局部链→Unity 全局→镜像 X→父全局⁻¹→Godot 局部"回放(f05 t=5s 六骨骼世界坐标与 Unity 逐位一致,见 tools/dance_bake/);剧情时钟驱动(2.9667s 起、相位错落照原作 0/0.0667s)。烘焙器在 `G:\test\FPSGame\Assets\Editor\AITools\BakeKpopDance.cs`。
-- blade_girl:原作场景中 inactive 且 Animator 被清空(不参与演出),剧情不创建该角色。
+- K-POP 舞蹈:原作 `K-POP Dance 1.anim` 是 humanoid 肌肉曲线;用 Unity 2022.3 临时工程逐帧烘焙三舞者全骨架 TRS 为 `.kdance.bin`(200.8s@30fps)。Timeline 轨道在 2.967/3.033/3.1 秒启动 blade/casual/f05,Activation Track 在 2.983 秒激活初始 inactive 的 blade。Godot 已按各 FBX 单位缩放和原 prefab 缩放回放三人,并修正三名演员的镜像 X 根坐标和多余的 180° 模型旋转;第 2 镜头约 7~9 秒的三人正面构图已与用户 Unity 截图接近。f05 的脸与头发使用独立贴图槽,剧情窗外背景改为日间灰蓝。两引擎的实时/烘焙阴影与色调仍有差异。烘焙器在 `G:\test\FPSGame\Assets\Editor\AITools\BakeKpopDance.cs`。
+- Level2 坐标:Unity `Environments` 根 X=-84.9,Godot 场景根 X=+84.9,场景沿 X 镜像。2026-09-30 修正三个机位的矩阵转置错误,G0 重新对准双塔城门;保留灰色地面,对子场景材质复制后调暗而不丢纹理/透明度。884×437 构图已与用户提供的 Unity 图接近;烘焙光照和敌人出现时刻仍需细调。
 - 相机切换:Level1 用原作自定义 Blend 资产 Level1.asset 的 1s(Cubic EaseInOut 近似);vcam1 注视 Neck 以每帧 LookAt 近似。
 - 难度数量截断:Unity float 数学改 double 精确(10×1.8 恒 18,不再掉 17);**例外:L2 G0 Hard 按原作 `(int)DiffRateHard` 强转 bug bug-for-bug 保留为 30**(level_meta num_override,L234 审计 L2-1)。
 - 胜利结算:原作只弹 VectoryPanel 无星数(全工程无星级写入点,选关星数恒默认值)——1:1 照此,无本地结算。
 - Level2/3/4 原工程 `Invoke("FinishLevel")` bug(方法不存在永不触发)在 LevelBase 统一修复。
-- Level2:光照按真值(level2_unity.png 黄昏毒气镇)重做实时光照——env 全部材质点亮化(去 unshaded)、远景 Terrain_d_gas 整组压暗(暗剪影,VC 材质不可乘色只能盖材质)、环境改暗冷 ambient(0.30/0.34/0.44×0.22)、方向光 0.55 带阴影、9 窗口补 Unity 同款暖点光(intensity 2/range 10/(1,0.893,0.707),Level2.unity type2 灯)、相机逐波 far 50/80/100(meta cam_far,基类 SwitchCamera 应用);Boss 已按 Unity 真值 ×3 缩放(根节点,命中体/血条随动)。
+- Level2:使用实时光照近似 Unity 烘焙效果——保留 Terrain_d_gas 灰色可玩地面,其子物体复制原材质后调暗以保留纹理和透明度;环境 ambient(0.30/0.34/0.44×0.22)、方向光 0.55 带阴影、窗口暖点光由原场景 intensity 2/range 10 在运行时降到 0.7/range 6.5,避免 Compatibility 渲染器下地面偏黄;相机逐波 far 50/80/100(meta cam_far,基类 SwitchCamera 应用);Boss 按 Unity ×3 缩放(根节点,命中体/血条随动)。
 - Level3:烘焙导出的坐标约定为 mirror-X(SceneExporter.cs 注释),机位照此换算并经落位验证;雾=深度雾 20→90 真值色 (0.356,0.476,0.575);Boss 出生点照真值 (-83.83,-0.02,-101.3) 并已 ×5 缩放;部分机位视野内城市观感偏空。
 - Level4:env 同 mirror-X 约定;雾按真值 ExpSquared 近似值;fire_breath 特效 emit 默认值 bug-for-bug 保留;方向光按真值恢复常开 0.57;龙四点巡回(FarWay75/80→InCamera150/15±10/20±20→Attack 贴脸 20m→CamOffset±20)+出生瞬移 FarWay 已按 Unity 重写;Magma 四色变体(蓝/绿/橙/紫)已补齐。
 - Level1 战斗场景环境(env_school_hallway)整体为原作 X 镜像(FBX 导入差异)——机位/平行光全部按"镜像四元数 (z,w,x,y) 分量置换"换算并经运行时逐位验证(裁决记录 tools/research/battle_audit/battle0_mirror_verdict.md);雾按真值线性 5→12m 用深度雾原值落地(本引擎深度雾实测生效,旧"无效"注记作废);出生后修正 x 微调随镜像翻转(x>0→−0.3)。
@@ -179,6 +188,7 @@ dotnet publish 的运行时包来自 nuget.org(NuGet.config 已配)。
 - Level1 出生:±33°(FOV>50→40°)/8m 射线落点,G1~G4 覆盖散开角 15°(原作 GroupMaxBornFov);宝箱/枪箱占刷怪配额(5%/2%);只有牛魔王/斧头/骷髅(原作 _Name 序列化同 0)吃难度等待 Easy3~8s。
 - 各关环境烘焙坐标约定可能不同(走廊=数值不变 / 城市与村庄=mirror-X),机位均按各自 env 已验证约定换算,场景内自洽。
 - 玩家 HUD:HP Slider 原作 prefab 存在但真值截图恒不可见(满血/残血均无),移植版隐藏(值内部追踪);子弹真值 Debug 构建 90 发/发布 120 发(Game.IsDebug 分支已移植,默认 false=120);换枪"新枪瞬现"按原作字面行为(伸出动画作用于隐藏旧枪)。
-- L3 Boss 血条宽度:原作 HpReduceNumber RectTransform x 被 override 0.03(×5 后 9m 宽细条,疑似原作调参遗留),移植版血条随根 ×5(3m),未逐 bug 复刻;L3 火球起点原作锚点随 ×5 到 +15m(同为缩放遗留),移植版保持代码常量 1.5m。
+- L3 Boss 血条宽度按原作 HpReduceNumber RectTransform x override 0.03 复刻(×5 后 9m 宽);火球序列帧贴图按 8×4 格逐帧播放,避免整张图集显示成网格;火球起点照原作锚点 local y=3 及 Boss ×5 缩放取 +15m。
+- L4 主相机初始机位取原作 vcam5,开场以 2s blend 进入 vcam0;红龙飞行使用 CharacterController 对应的碰撞移动,防止直接穿过建筑和地形。
 
 其余关卡自检见上文命令清单。战斗 1:1 审计与修复全记录:`tools/research/battle_audit/`(4 份审计报告 + 偏差总表 DEVIATIONS.md + 各波修复笔记 wave*_notes_*.md)。

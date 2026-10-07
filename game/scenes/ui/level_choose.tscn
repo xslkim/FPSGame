@@ -44,7 +44,7 @@ fov = 60.0
 near = 0.01
 
 [node name="AK47View" type="Node3D" parent="ViewportLayer/SubViewportContainer/SubViewport/Camera3D"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.27, -0.03, -0.2)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.25, -0.08, -0.2)
 
 [node name="Model" type="Node3D" parent="ViewportLayer/SubViewportContainer/SubViewport/Camera3D/AK47View"]
 transform = Transform3D(-0.000044, 0.000238, -0.060000, 0.025593, 0.117238, 0.000445, 0.117239, -0.025592, -0.000188, -0.006, -0.0394, -0.009)
@@ -53,7 +53,7 @@ transform = Transform3D(-0.000044, 0.000238, -0.060000, 0.025593, 0.117238, 0.00
 
 [node name="MuzzleFlash" type="Node3D" parent="ViewportLayer/SubViewportContainer/SubViewport/Camera3D/AK47View"]
 visible = false
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.025, -0.038, -0.162)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.005891, -0.05623, -0.188565)
 script = ExtResource("4")
 
 [node name="M4View" type="Node3D" parent="ViewportLayer/SubViewportContainer/SubViewport/Camera3D"]
@@ -69,7 +69,7 @@ visible = false
 
 [node name="MuzzleFlash" type="Node3D" parent="ViewportLayer/SubViewportContainer/SubViewport/Camera3D/M4View"]
 visible = false
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.2069)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.000115, 0.001909, -0.169967)
 script = ExtResource("4")
 
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="ViewportLayer/SubViewportContainer/SubViewport"]

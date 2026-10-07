@@ -5,12 +5,23 @@ namespace FPSGame;
 /// <summary>
 /// 飞斧投射物(1:1 原作 ProjectileAxe.prefab + ProjectileEx.cs):
 /// 速度 2m/s 直线飞行(无重力)、寿命 10s、三轴自旋 Random.Range(-360,-720)°/s;
-/// 命中判定 = 进入相机空间 |z|&lt;0.5 且 |x|&lt;1 且 |y|&lt;1(无碰撞体,纯坐标判定),
+/// 命中玩家判定 = 进入相机空间 |z|&lt;0.5 且 |x|&lt;1 且 |y|&lt;1。
+/// 加上可射击的独立命中盒；原 Unity prefab 没有射击碰撞，但游戏要求飞斧可被拦截。
 /// 命中按斧头在屏幕 x 分左右侧扣血(原作 HitPlayer),命中后斧头继续飞 1s 消失(原作 Destroy 1s)。
 /// 视觉复用斧头怪手持斧(axe_02)网格(原作 ProjectileAxe.prefab 为同源斧头网格)。
 /// </summary>
-public partial class ProjectileAxe : Node3D
+public partial class ProjectileAxe : StaticBody3D, IDebugInspectable
 {
+    public string DebugSummary => $"flying axe life={_life:0.0}s shot={_shotDown}";
+
+    public System.Collections.Generic.Dictionary<string, object?> CaptureDebugState() => new()
+    {
+        ["world_position"] = GlobalPosition.ToString(),
+        ["direction"] = _dir.ToString(),
+        ["life_seconds"] = _life,
+        ["hit_player"] = _hitPlayer,
+        ["shot_down"] = _shotDown,
+    };
     public const float Speed = 2.0f;        // ProjectileEx.m_speed
     public const float LifeTime = 10.0f;    // ProjectileEx.m_lifeTime
     public const float HitFreeDelay = 1.0f; // 原作 Destroy(gameObject, 1f)
@@ -23,6 +34,7 @@ public partial class ProjectileAxe : Node3D
     private Game.AttackType _type;
     private float _life = LifeTime;
     private bool _hitPlayer;
+    private bool _shotDown;
     private float _hitTime;
 
     /// <summary>从手斧网格出处生成:位置/朝向/缩放与出手瞬间的手斧逐位一致(原作手斧旋转抛出)</summary>
@@ -31,6 +43,8 @@ public partial class ProjectileAxe : Node3D
     {
         var p = GD.Load<PackedScene>("res://scenes/battle/projectile_axe.tscn").Instantiate<ProjectileAxe>();
         parent.AddChild(p);
+        p.CollisionLayer = 2; // Enemy 层，与怪物走同一条开火射线
+        p.CollisionMask = 0;
         p._dir = dir.Normalized();
         p._attack = attack;
         p._type = type;
@@ -45,9 +59,24 @@ public partial class ProjectileAxe : Node3D
             meshInst.Mesh = srcMesh.Mesh;
             for (int i = 0; i < srcMesh.GetSurfaceOverrideMaterialCount(); i++)
                 meshInst.SetSurfaceOverrideMaterial(i, srcMesh.GetSurfaceOverrideMaterial(i));
-            p.GlobalTransform = srcMesh.GlobalTransform; // 朝向/缩放逐位(含 FBX 烘焙缩放)
+            // 碰撞体保持米制半径；FBX 的缩放只给可见网格。
+            var source = srcMesh.GlobalTransform;
+            p.GlobalTransform = new Transform3D(source.Basis.Orthonormalized(), pos);
+            meshInst.Transform = new Transform3D(p.GlobalBasis.Inverse() * source.Basis, Vector3.Zero);
         }
         p.GlobalPosition = pos;
+    }
+
+    public string Hit(float attack, Vector3 point, int hitType, int side)
+    {
+        if (_shotDown || _hitPlayer)
+            return "Metal";
+        _shotDown = true;
+        CollisionLayer = 0;
+        GetNode<CollisionShape3D>("HitShape").SetDeferred(CollisionShape3D.PropertyName.Disabled, true);
+        GetNode<MeshInstance3D>("AxeMesh").Hide();
+        QueueFree();
+        return "Metal";
     }
 
     public override void _Process(double delta)

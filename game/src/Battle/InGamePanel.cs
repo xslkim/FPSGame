@@ -45,6 +45,7 @@ public partial class InGamePanel : Node3D
     private bool _continueIsBullet;
     private int _continueSide;
     private double _openContinueTime; // BackToMenu 1s 防误触(原作 startOpenContinueTime)
+    private readonly System.Collections.Generic.List<(bool Bullet, int Side)> _pendingContinue = new();
 
     public override void _Ready()
     {
@@ -71,7 +72,16 @@ public partial class InGamePanel : Node3D
             PanelClickTest();
     }
 
-    public override void _ExitTree() => Instance = null;
+    public override void _ExitTree()
+    {
+        if (Instance == this) Instance = null;
+        PlayerState.Instance.UiChanged -= RefreshCoin;
+        if (_level != null && GodotObject.IsInstanceValid(_level))
+        {
+            _level.OpenContinue -= OpenContinue;
+            _level.LevelVictory -= Victory;
+        }
+    }
 
     // ------------------------------------------------ 构建辅助(canvas px → 面板局部 3D)
 
@@ -254,6 +264,12 @@ public partial class InGamePanel : Node3D
     {
         if (Game.Instance.SceneState != Game.GameState.Battle)
             return;
+        if (_continuePanel.Visible)
+        {
+            if (side != _continueSide && !_pendingContinue.Exists(item => item.Side == side))
+                _pendingContinue.Add((isOpen, side));
+            return;
+        }
         _continueIsBullet = isOpen;
         _continueSide = side;
         Game.Instance.SetPaused(true);
@@ -281,6 +297,17 @@ public partial class InGamePanel : Node3D
         p.Relife();
         Game.Instance.SetPaused(false);
         _continuePanel.Visible = false;
+        while (_pendingContinue.Count > 0)
+        {
+            var pending = _pendingContinue[0];
+            _pendingContinue.RemoveAt(0);
+            var next = PlayerState.Instance.GetPlayer((PlayerState.Side)pending.Side);
+            if (next.Active && (pending.Bullet ? next.Bullet <= 0 : next.Hp <= 0))
+            {
+                OpenContinue(pending.Bullet, pending.Side);
+                break;
+            }
+        }
         UpdatePauseBtn();
     }
 
@@ -307,6 +334,7 @@ public partial class InGamePanel : Node3D
     /// <summary>自检用:关闭所有面板并恢复</summary>
     public void CloseAll()
     {
+        _pendingContinue.Clear();
         Game.Instance.SetPaused(false);
         _pausePanel.Visible = false;
         _continuePanel.Visible = false;
@@ -413,6 +441,8 @@ public partial class InGamePanel : Node3D
             case "victory": Victory(); break;
             default: OpenPause(); break;
         }
+        var camera = GetViewport().GetCamera3D();
+        InputRouter.Instance.MouseGun.SimulateMove(camera.UnprojectPosition(GlobalPosition));
         await ToSignal(GetTree().CreateTimer(delay), SceneTreeTimer.SignalName.Timeout);
         var img = GetViewport().GetTexture().GetImage();
         img.SavePng(path.Replace('/', '\\'));

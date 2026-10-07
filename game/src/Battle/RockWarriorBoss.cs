@@ -26,7 +26,6 @@ public partial class RockWarriorBoss : Monster
     public override void _Ready()
     {
         base._Ready();
-        AnimTrackUtil.StripMethodTracks(Anim); // clip 自带 rock_attack 方法轨与 TriggerAttackEvent Tween 重复
     }
 
     protected override void UpdateActive(float delta)

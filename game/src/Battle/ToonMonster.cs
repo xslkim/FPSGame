@@ -5,7 +5,7 @@ namespace FPSGame;
 /// <summary>
 /// ToonShoot / ToonShootAlien(6.3 ToonMonster 1:1):
 /// born 时动画 SpeedScale=1+0.5×Lv;先走向分配的 FireWindow(距离>0.1 速度 3),
-/// 到位后面向相机,CD 到播 reload;0.3s 动画事件(toon_shoot):视觉子弹(速度 50,1s 自隐)
+/// 到位后面向相机,CD 到播 reload→shoot;原始 ToonShoot 动画事件发视觉子弹(速度 50,1s 自隐)
 /// + 射击音 + 0.5s 后定时命中(50% 选边,目标不活跃由 HitPlayer 转嫁另一侧)。
 /// 死亡/回收释放窗口占用;换装:头/身/腿各随机一件,extra 配件逐件随机显隐。
 /// </summary>
@@ -13,7 +13,8 @@ public partial class ToonMonster : Monster
 {
     public const float WalkSpeed = 3.0f;
     public const float ArriveDist = 0.1f;
-    public const string ReloadAnim = "reload"; // meta attack_anims=["reload"]
+    public const string ReloadAnim = "reload";
+    public const string ShootAnim = "shoot";
     public const float BulletSpeed = 50.0f;
     public const float BulletLife = 1.0f;
     public const float HitDelay = 0.5f;
@@ -27,13 +28,48 @@ public partial class ToonMonster : Monster
 
     /// <summary>由 Level2 在 born 前分配(FireWindow.PickFree)</summary>
     public FireWindow? FireWindow;
+    private Skeleton3D? _headSkeleton;
+    private int _headBone = -1;
+    private CollisionShape3D? _headCollision;
+
+    public Vector3 HeadHitPosition => _headCollision != null ? _headCollision.GlobalPosition : GlobalPosition;
 
     public override void _Ready()
     {
         base._Ready();
+        Info.AttackAnims = new[] { ReloadAnim, ShootAnim };
         EnsureAttachments(); // 导出包里 tscn 挂在 FBX 实例子树内的节点会静默丢失 → 代码补挂(编辑器已存在则跳过)
         ApplyMaterials();
         ChangeAppearance(); // 未 born 前也给完整形态(池陈列)
+        _headSkeleton = FindChild("Skeleton3D", true, false) as Skeleton3D;
+        if (_headSkeleton != null)
+        {
+            _headBone = _headSkeleton.FindBone(MetaKey == "toon_shoot_alien" ? "bn_Head" : "Bip001 Head");
+            _headCollision = new CollisionShape3D { Name = "HeadHitShape", Disabled = true,
+                Shape = new SphereShape3D { Radius = 0.24f } };
+            AddChild(_headCollision);
+        }
+    }
+
+    public override void _PhysicsProcess(double delta)
+    {
+        if (_headCollision != null && _headSkeleton != null && _headBone >= 0 && IsActiveState && !IsDead)
+            _headCollision.GlobalPosition = (_headSkeleton.GlobalTransform * _headSkeleton.GetBoneGlobalPose(_headBone)).Origin;
+        base._PhysicsProcess(delta);
+    }
+
+    protected override void Deactivate()
+    {
+        _headCollision?.SetDeferred(CollisionShape3D.PropertyName.Disabled, true);
+        base.Deactivate();
+    }
+
+    public override void Born(Vector3 pos, int level, float waittingTime)
+    {
+        base.Born(pos, level, waittingTime);
+        // Apply the full idle pose before the first visible frame.
+        Anim.Advance(0);
+        _headCollision?.SetDeferred(CollisionShape3D.PropertyName.Disabled, false);
     }
 
     /// <summary>头盔/步枪(alien)与 AK47(militia)的 BoneAttachment 代码补挂</summary>
@@ -80,8 +116,22 @@ public partial class ToonMonster : Monster
 
     protected override void OnBorn()
     {
+        LastAttackTime = Time.GetTicksMsec() / 1000.0; // Unity ToonMonster.born()
         Anim.SpeedScale = 1.0f + 0.5f * Level; // ToonShootAlien 动画 1+0.5Lv 倍速
         ChangeAppearance();
+    }
+
+    protected override void UpdateWaiting(float delta)
+    {
+        if (FireWindow != null && IsInstanceValid(FireWindow))
+        {
+            // Unity ToonSolder/Alien1 have CapsuleCollider, not CharacterController.
+            // Window actors never call MonsterBase.UpdateWaitting or fall on entry.
+            CurState = State.Active;
+            UpdateActive(delta);
+            return;
+        }
+        base.UpdateWaiting(delta);
     }
 
     // ------------------------------------------------ 材质/换装(M7)
@@ -155,24 +205,45 @@ public partial class ToonMonster : Monster
 
     // ------------------------------------------------ 行为
 
+    protected override void DoAttack() => Anim.Play(ReloadAnim, 0);
+
+    protected override void HandleCombatAnimationEvent(string eventName, string parameter)
+    {
+        if (eventName == "BeginShoot") Anim.Play(ShootAnim, 0.25);
+        else base.HandleCombatAnimationEvent(eventName, parameter);
+    }
+
     protected override void UpdateActive(float delta)
     {
-        // 原作 ToonMonster 任何状态都无重力源(移动仅 UpdateMoveTo 内 dir.y=0 的 CC.Move;
-        // 攻击/受伤动画期不调 Move 站桩)→ 全状态保持出生/窗口高度。
-        // 任何分支带重力都会让 toon 在 reload/受伤期间沉穿廊桥缝隙(实机"怪物掉下去"根因)
+        // Window actors retain their authored platform height (Level2 bridges).
+        // Street actors have no window: keep settling even during reload/hurt.
+        if (FireWindow == null || !IsInstanceValid(FireWindow))
+        {
+            Velocity = new Vector3(0, Velocity.Y, 0);
+            ApplyGravity(delta);
+            MoveAndSlide();
+            FaceCamera();
+            if (IsPlayingAny(Info.AttackAnims) || (IsCurrentAnim(Info.DamageAnim) && Anim.IsPlaying()))
+                return;
+            if (AttackReady()) DoAttack();
+            else if (!Anim.IsPlaying() && Anim.HasAnimation(Info.Idle2Anim))
+                Anim.Play(Info.Idle2Anim, 0.3);
+            return;
+        }
         if (IsPlayingAny(Info.AttackAnims) || (IsCurrentAnim(Info.DamageAnim) && Anim.IsPlaying()))
         {
             Velocity = Vector3.Zero;
-            MoveAndSlide();
             return;
         }
-        if (FireWindow != null && IsInstanceValid(FireWindow)
-            && GlobalPosition.DistanceTo(FireWindow.GlobalPosition) > ArriveDist)
+        Vector3 windowDelta = FireWindow != null && IsInstanceValid(FireWindow)
+            ? FireWindow.GlobalPosition - GlobalPosition : Vector3.Zero;
+        windowDelta.Y = 0;
+        if (windowDelta.Length() > ArriveDist)
         {
             // 走向窗口(距离>0.1 时速度 3)。原作 UpdateMoveTo:dir.y=0,纯水平移动,
             // 出生 y 与窗口 y 同值(prefab 序列化对),全程保持高度不下坠——
             // 带重力会沉穿廊桥缝隙掉到墙底,永远到不了窗(实机"怪物掉下去"根因)
-            Vector3 dir = FireWindow.GlobalPosition - GlobalPosition;
+            Vector3 dir = windowDelta;
             dir.Y = 0.0f;
             if (dir.LengthSquared() > 0.0001f)
             {
@@ -181,8 +252,11 @@ public partial class ToonMonster : Monster
                 rot.Y = YawTowards(rot.Y, Mathf.Atan2(-dir.X, -dir.Z), Info.TurnSpeed * delta);
                 Rotation = rot;
             }
-            Velocity = new Vector3(dir.X * WalkSpeed, 0.0f, dir.Z * WalkSpeed);
-            MoveAndSlide();
+            float speed = Mathf.Min(WalkSpeed, windowDelta.Length() / Mathf.Max(delta, 0.001f));
+            Velocity = Vector3.Zero;
+            // Original UpdateMoveTo's m_char == null branch: authored entrances
+            // can cross doorway geometry. The shot capsule still blocks gun rays.
+            GlobalPosition += new Vector3(dir.X * speed, 0.0f, dir.Z * speed) * delta;
             if (!IsCurrentAnim("locomotion") && Anim.HasAnimation("locomotion"))
                 Anim.Play("locomotion", 0.2);
             return;
@@ -190,11 +264,10 @@ public partial class ToonMonster : Monster
         // 到位:面向相机,CD 到播 reload。原作到点后不再调 m_char.Move → 无重力定身,
         // 保持窗口高度(廊桥有缝隙也不下坠)
         Velocity = Vector3.Zero;
-        MoveAndSlide();
         FaceCamera();
         if (AttackReady())
         {
-            DoAttack(); // 基类:记 CD + 播 reload + 0.3s 后 TriggerAttackEvent
+            DoAttack(); // 播 reload；动画事件记录射击 CD。
         }
         else if (!Anim.IsPlaying() && Anim.HasAnimation(Info.Idle2Anim))
         {
@@ -207,24 +280,29 @@ public partial class ToonMonster : Monster
     {
         if (CurState == State.Dead || CurState == State.Idle)
             return;
+        LastAttackTime = Time.GetTicksMsec() / 1000.0; // Unity toon_shoot animation event
         ToonBullet.Spawn(GetTree().CurrentScene, GlobalPosition + new Vector3(0.0f, 1.2f, 0.0f),
             BulletSpeed, BulletLife);
         PlaySound("shoot");
         float atk = GetAttack();
         Game.AttackType atype = Info.AttackType;
-        GetTree().CreateTimer(HitDelay).Timeout += () =>
+        ScheduleLifeAction(HitDelay, () =>
         {
             if (CurState == State.Dead || CurState == State.Idle)
                 return;
             // 50% 选边;目标侧不活跃由 PlayerState.HitPlayer 转嫁另一侧
             var side = GD.Randf() < 0.5f ? PlayerState.Side.Right : PlayerState.Side.Left;
             PlayerState.Instance.HitPlayer(atk, atype, side);
-        };
+        });
     }
 
     // ------------------------------------------------ 死亡/回收释放窗口
 
-    protected override void OnDeath() => ReleaseWindow();
+    protected override void OnDeath()
+    {
+        _headCollision?.SetDeferred(CollisionShape3D.PropertyName.Disabled, true);
+        ReleaseWindow();
+    }
 
     protected override void Recycle()
     {
@@ -255,6 +333,8 @@ public partial class ToonBullet : Node3D
         var b = new ToonBullet { _speed = speed, _life = life };
         parent.AddChild(b);
         b.GlobalPosition = from;
+        var camera = b.GetViewport().GetCamera3D();
+        if (camera != null) b._dir = (camera.GlobalPosition - from).Normalized();
     }
 
     public override void _Ready()
@@ -270,9 +350,6 @@ public partial class ToonBullet : Node3D
         sphere.Material = mat;
         mesh.Mesh = sphere;
         AddChild(mesh);
-        var cam = GetViewport().GetCamera3D();
-        if (cam != null)
-            _dir = (cam.GlobalPosition - GlobalPosition).Normalized();
     }
 
     public override void _Process(double delta)

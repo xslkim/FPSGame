@@ -13,8 +13,47 @@ namespace FPSGame;
 /// 新枪直接出现在最终位置(照原作字面行为:伸出循环作用于已隐藏旧枪,新枪瞬现;换枪期不挡扳机)。
 /// 弹尽且 Battle 态 → OpenContinue(true, side)(只发一次,补弹复位)。
 /// </summary>
-public partial class FireSystem : Node3D
+public partial class FireSystem : Node3D, IDebugInspectable
 {
+    private sealed class FireRaySnapshot
+    {
+        public Vector3 Origin;
+        public Vector3 Muzzle;
+        public Vector3 Direction;
+        public Vector3 HitPoint;
+        public Node? HitNode;
+        public bool HasHit;
+    }
+
+    private readonly System.Collections.Generic.Dictionary<PlayerState.Side, FireRaySnapshot> _rayDebug = new();
+
+    public string DebugSummary => $"R={GunName(PlayerState.Side.Right)} L={GunName(PlayerState.Side.Left)}";
+
+    private string GunName(PlayerState.Side side) =>
+        _currentGun.TryGetValue(side, out var gun) && gun != null ? gun.GunType.ToString() : "none";
+
+    public System.Collections.Generic.Dictionary<string, object?> CaptureDebugState()
+    {
+        var rays = new System.Collections.Generic.Dictionary<string, object?>();
+        foreach (var side in new[] { PlayerState.Side.Right, PlayerState.Side.Left })
+        {
+            _rayDebug.TryGetValue(side, out var ray);
+            rays[side.ToString()] = new System.Collections.Generic.Dictionary<string, object?>
+            {
+                ["gun_type"] = GunName(side),
+                ["laser_visible"] = _lazer.TryGetValue(side, out var laser) && laser.Visible,
+                ["ray_origin"] = ray?.Origin.ToString(),
+                ["muzzle_world"] = ray?.Muzzle.ToString(),
+                ["visual_muzzle_world"] = _currentGun.TryGetValue(side, out var current) && current != null ? current.VisualMuzzle.ToString() : null,
+                ["muzzle_error_meters"] = current != null ? current.Muzzle.GlobalPosition.DistanceTo(current.VisualMuzzle) : null,
+                ["ray_direction"] = ray?.Direction.ToString(),
+                ["hit_id"] = ray?.HitNode != null && GodotObject.IsInstanceValid(ray.HitNode)
+                    ? DebugIdentity.ObjectId(GetTree().CurrentScene, ray.HitNode) : "(none)",
+                ["hit_world"] = ray?.HasHit == true ? ray.HitPoint.ToString() : null,
+            };
+        }
+        return new System.Collections.Generic.Dictionary<string, object?> { ["sides"] = rays };
+    }
     [Signal] public delegate void OpenContinueEventHandler(bool isOpen, int side);
 
     public const float RayLength = 2000.0f;
@@ -24,9 +63,10 @@ public partial class FireSystem : Node3D
     public const int BloodFlowerPoolSize = 3; // 原作 _BloodEffects×3
     public const float SwitchSink = 0.10f;   // 换枪下沉量(+Z,相机看 -Z)
     public const float SwitchDownTime = 0.5f;
-    /// <summary>枪模型统一缩放系数:真值截图手枪 ~320×180px vs 旧值 ~440×250px(同 1472×668 FOV45)
-    /// → 0.725;三枪同包(Weapons Pack LOW POLY)同导入管线,AK/M4 无真值截图,按同系数推断</summary>
+    /// <summary>手枪/M4 的屏幕占比校准值。</summary>
     public const float GunModelScale = 0.725f;
+    // AK FBX 的本体比例与手枪不同；按用户截图和枪口投影单独校准。
+    public const float AkModelScale = 0.20f;
 
     public static readonly string[] GunModelPaths =
     {
@@ -106,6 +146,7 @@ public partial class FireSystem : Node3D
             _anchors[side] = anchor;
             _guns[side] = new System.Collections.Generic.Dictionary<int, GunBase>();
             _currentGun[side] = null;
+            _rayDebug[side] = new FireRaySnapshot();
             _emptySignaled[side] = false;
             // 命中光标火光(原作 Effect/Flash.prefab 右手红 (1,0,0) / FlashGreen.prefab 左手绿 (0,1,0.034):
             // 根 scale 0.5(运行时被 flashScale 公式覆盖)、Darkness 粒子 startSize 0.5、
@@ -175,17 +216,177 @@ public partial class FireSystem : Node3D
             };
             AddChild(_uiShotPlayer);
         }
-        InputRouter.Instance.TriggerRight += () => { }; // 扳机用电平查询,事件仅保留接口
-        InputRouter.Instance.SwitchGunRight += () => OnSwitchKey(PlayerState.Side.Right);
-        InputRouter.Instance.SwitchGunLeft += () => OnSwitchKey(PlayerState.Side.Left);
+        InputRouter.Instance.SwitchGunRight += OnSwitchRight;
+        InputRouter.Instance.SwitchGunLeft += OnSwitchLeft;
+        RenderingServer.FramePreDraw += SyncVisualBeams;
         // --autofire:测试挂接,每 0.4s 强制右路开火(截图验证枪口火光/烟雾位置)
         _autoFire = System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--autofire") >= 0;
+        if (System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--combat-presentation-selftest") >= 0)
+            CallDeferred(nameof(PresentationSelfTest));
+        foreach (var arg in OS.GetCmdlineUserArgs())
+            if (arg.StartsWith("--combat-presentation-shot:"))
+                CallDeferred(nameof(PresentationShot), arg["--combat-presentation-shot:".Length..]);
     }
 
     private bool _autoFire;
     private float _autoFireTimer;
+    private readonly System.Collections.Generic.HashSet<PlayerState.Side> _switchingSides = new();
+    private bool _rightUiPullConsumed, _leftUiPullConsumed;
 
-    public override void _ExitTree() => Current = null;
+    private void OnSwitchRight() => OnSwitchKey(PlayerState.Side.Right);
+    private void OnSwitchLeft() => OnSwitchKey(PlayerState.Side.Left);
+
+    public override void _ExitTree()
+    {
+        RenderingServer.FramePreDraw -= SyncVisualBeams;
+        if (Current == this) Current = null;
+        if (InputRouter.Instance == null) return;
+        InputRouter.Instance.SwitchGunRight -= OnSwitchRight;
+        InputRouter.Instance.SwitchGunLeft -= OnSwitchLeft;
+    }
+
+    private void SyncVisualBeams()
+    {
+        // Camera tweens and model animation can advance after _Process. Resolve
+        // the visible beam from the final barrel pose immediately before drawing.
+        foreach (var side in new[] { PlayerState.Side.Right, PlayerState.Side.Left })
+            if (_currentGun.TryGetValue(side, out var gun) && gun != null
+                && _lazer.TryGetValue(side, out var laser) && laser.Visible)
+            {
+                gun.RefreshMuzzle();
+                laser.SetOverlay(Game.Instance.IsGamePause);
+                laser.SetBeam(gun.Muzzle.GlobalPosition, gun.Muzzle.GlobalPosition + gun.BarrelDirection * 200);
+            }
+    }
+
+    private async void PresentationSelfTest()
+    {
+        GetTree().Root.Size = new Vector2I(1280, 720); // headless defaults to a square viewport
+        await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+        SetProcess(false);
+        bool failed = false;
+        void Check(bool condition, string label)
+        {
+            GD.Print($"[COMBAT-PRESENTATION] {(condition ? "PASS" : "FAIL")}: {label}");
+            failed |= !condition;
+        }
+        var player = PlayerState.Instance.PlayerRight;
+        player.Born();
+        player.Hp = 10000;
+        BindPlayers();
+        var gunList = _guns[PlayerState.Side.Right];
+        var expected = new[] { new Vector3(0, 0.014569f, -0.119348f),
+            new Vector3(0, 0.004887f, -0.308574f), new Vector3(0, 0.0014615f, -0.052324f) };
+        foreach (var gun in gunList.Values)
+            Check(gun.ToLocal(gun.VisualMuzzle).DistanceTo(expected[gun.GunType]) < 0.0001f,
+                $"{gun.GunName} true barrel front measured from FBX");
+        float originalFov = _camera.Fov;
+        foreach (float fov in new[] { 45f, 52f })
+        {
+            _camera.Fov = fov;
+            foreach (var gun in gunList.Values)
+            {
+                gun.Position = GunBasePos(PlayerState.Side.Right, gun.GunType);
+                gun.AimRotation(Quaternion.Identity);
+                var screen = _camera.UnprojectPosition(gun.VisualMuzzle) / GetViewport().GetVisibleRect().Size;
+                Check(screen.X > 0.65f && screen.X < 1.0f && screen.Y > 0.6f && screen.Y < 0.97f,
+                    $"{gun.GunName} visible muzzle in lower right at FOV {fov}: {screen}");
+            }
+        }
+        _camera.Fov = originalFov;
+        foreach (var gun in gunList.Values)
+            gun.Position = GunBasePos(PlayerState.Side.Right, gun.GunType);
+        foreach (float yaw in new[] { -25.203205f, 155.59274f, 40.0f })
+        {
+            _camera.Rotation = new Vector3(0.04f, Mathf.DegToRad(yaw), 0);
+            foreach (var gun in gunList.Values)
+            foreach (var point in new[] { new Vector2(0.1f, 0.2f), new Vector2(0.5f, 0.5f), new Vector2(0.85f, 0.75f) })
+            {
+                var screen = point * GetViewport().GetVisibleRect().Size;
+                var target = _camera.ProjectPosition(screen, 20);
+                gun.AimAt(target);
+                Check(gun.Muzzle.GlobalPosition.DistanceTo(gun.VisualMuzzle) < 0.00001f
+                    && gun.BarrelDirection.Cross((target - gun.VisualMuzzle).Normalized()).Length() < 0.0001f,
+                    $"{gun.GunName} muzzle/ray collinear at camera yaw={yaw}, aim={point}");
+            }
+        }
+        foreach (var gun in gunList.Values)
+        {
+            _currentGun[PlayerState.Side.Right] = gun;
+            gun.LastFireTime = -99;
+            Check(gun.Fire().Success, $"{gun.GunName} fires");
+            var laser = _lazer[PlayerState.Side.Right];
+            laser.SetBeam(gun.VisualMuzzle, gun.VisualMuzzle + gun.BarrelDirection * 200);
+            for (int i = 0; i < 8; i++)
+            {
+                _camera.RotateY(0.02f); // camera motion in the same frame as recoil
+                await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+                SyncVisualBeams();
+                Check(gun.Muzzle.GlobalPosition.DistanceTo(gun.VisualMuzzle) < 0.00001f,
+                    $"{gun.GunName} muzzle follows animated recoil frame {i}");
+                Check(laser.GlobalPosition.DistanceTo(gun.VisualMuzzle) < 0.00001f
+                    && (-laser.GlobalBasis.Z).Dot(gun.BarrelDirection) > 0.99999f,
+                    $"{gun.GunName} visible beam follows camera/recoil frame {i}");
+            }
+        }
+        player.GunType = 2;
+        _currentGun[PlayerState.Side.Right] = gunList[2];
+        for (int i = 0; i < 3; i++)
+        {
+            int expectedType = (player.GunType + 1) % 3;
+            OnSwitchRight();
+            await ToSignal(GetTree().CreateTimer(0.55), SceneTreeTimer.SignalName.Timeout);
+            var gun = _currentGun[PlayerState.Side.Right]!;
+            gun.AimRotation(Quaternion.Identity);
+            Check(gun.GunType == expectedType && gun.Muzzle.GlobalPosition.DistanceTo(gun.VisualMuzzle) < 0.00001f,
+                $"switch to {expectedType} keeps calibrated muzzle");
+        }
+        int rapidExpected = (player.GunType + 1) % 3;
+        OnSwitchRight();
+        OnSwitchRight();
+        OnSwitchRight();
+        await ToSignal(GetTree().CreateTimer(0.55), SceneTreeTimer.SignalName.Timeout);
+        int visibleGuns = 0;
+        foreach (var gun in gunList.Values) if (gun.Visible) visibleGuns++;
+        Check(player.GunType == rapidExpected && _currentGun[PlayerState.Side.Right]!.GunType == rapidExpected
+            && visibleGuns == 1, "rapid swap presses cannot overlap weapons or desynchronize selected gun");
+        player.Hp = 37;
+        PlayerState.Instance.NotifyUiChanged();
+        var state = PlayerState.Instance.CaptureDebugState();
+        Check((string?)state["right_health_text"] == "生命 37 / 100"
+            && state["right_health_visible"] is true, "visible live health value 37/100");
+        GD.Print($"[COMBAT-PRESENTATION] {(failed ? "FAILED" : "ALL PASS")}");
+        GetTree().Quit(failed ? 1 : 0);
+    }
+
+    private async void PresentationShot(string specification)
+    {
+        var fields = specification.Split('|'); // path|camera marker index|gun type|HP
+        if (fields.Length < 4 || fields.Length > 5) throw new System.ArgumentException("Expected path|camera|gun|HP[|controller]");
+        DisplayServer.WindowSetMode(DisplayServer.WindowMode.Windowed);
+        DisplayServer.WindowSetSize(new Vector2I(1280, 720));
+        await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+        var level = GetTree().CurrentScene;
+        level.ProcessMode = ProcessModeEnum.Disabled;
+        _camera.GlobalTransform = level.GetNode<Node3D>($"CamPositions/cam_pos_{fields[1]}").GlobalTransform;
+        var player = PlayerState.Instance.PlayerRight;
+        player.Born();
+        player.GunType = int.Parse(fields[2]);
+        player.Hp = float.Parse(fields[3]);
+        InputRouter.Instance.Mode = fields.Length == 5 ? InputRouter.InputMode.ControllerOrRight : InputRouter.InputMode.Mouse;
+        InputRouter.Instance.MouseGun.Enabled = fields.Length == 4;
+        InputRouter.Instance.MouseGun.SimulateMove(new Vector2(555, 479));
+        BindPlayers();
+        PlayerState.Instance.NotifyUiChanged();
+        UpdateSide(PlayerState.Side.Right);
+        var shotGun = _currentGun[PlayerState.Side.Right]!;
+        GD.Print($"[COMBAT-SHOT] before draw muzzle={_camera.UnprojectPosition(shotGun.VisualMuzzle)} laser={_camera.UnprojectPosition(_lazer[PlayerState.Side.Right].GlobalPosition)} camera={_camera.GlobalPosition}");
+        await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
+        GD.Print($"[COMBAT-SHOT] after draw muzzle={_camera.UnprojectPosition(shotGun.VisualMuzzle)} laser={_camera.UnprojectPosition(_lazer[PlayerState.Side.Right].GlobalPosition)} camera={_camera.GlobalPosition}");
+        GetViewport().GetTexture().GetImage().SavePng(fields[0]);
+        GD.Print($"[COMBAT-PRESENTATION] shot saved: {fields[0]}");
+        GetTree().Quit();
+    }
 
     // ------------------------------------------------ 绑定玩家(战斗开始时)
 
@@ -216,9 +417,6 @@ public partial class FireSystem : Node3D
             var gun = new GunBase();
             // 先挂枪口节点,Setup 会往 Muzzle 下挂火光
             var muzzle = new Node3D { Name = "Muzzle" };
-            // 原作枪口标记 Sphere(Unity +Z 前):AK47 z=0.088 / M4 z=0.162 / HandGun z=0.042 → Godot -Z
-            float muzzleZ = type == 1 ? 0.162f : type == 2 ? 0.042f : 0.088f;
-            muzzle.Position = new Vector3(0, 0, -muzzleZ);
             gun.AddChild(muzzle);
             gun.Setup(type, side == PlayerState.Side.Left);
             gun.Player = player; // Fire() 耗弹/激活判定依赖(缺失会在开火时 NRE)
@@ -231,11 +429,12 @@ public partial class FireSystem : Node3D
             model.Rotation = type == 0
                 ? new Vector3(0, -Mathf.Pi / 2.0f, 0)
                 : new Vector3(0, Mathf.Pi, 0);
-            model.Scale = Vector3.One * (type == 0 ? 0.4f : 1.0f) * GunModelScale;
+            model.Scale = Vector3.One * (type == 0 ? 0.4f * AkModelScale : GunModelScale);
             WireGunMaterial(model, type);
             gun.AddChild(model);
             anchor.AddChild(gun);
             gun.Position = GunBasePos(side, type);
+            gun.CalibrateMuzzle();
             gun.Visible = type == player.GunType;
             _guns[side][type] = gun;
             if (gun.Visible)
@@ -262,9 +461,10 @@ public partial class FireSystem : Node3D
         }
     }
 
-    private static Vector3 GunBasePos(PlayerState.Side side, int type)
-    {        var info = SaveService.Instance.GetGunInfo(type);
-        bool wide = false; // FOV>50 用 pos60;战斗相机 FOV 恒 45,取 pos
+    private Vector3 GunBasePos(PlayerState.Side side, int type)
+    {
+        var info = SaveService.Instance.GetGunInfo(type);
+        bool wide = _camera.Fov > 50;
         var p = SaveService.Get(info, wide ? "pos60" : "pos",
             new Godot.Collections.Dictionary { ["x"] = 0.1, ["y"] = -0.04, ["z"] = 0.16 }).AsGodotDictionary();
         var v = new Vector3((float)p["x"].AsDouble(), (float)p["y"].AsDouble(), -(float)p["z"].AsDouble());
@@ -277,6 +477,8 @@ public partial class FireSystem : Node3D
 
     public override void _Process(double delta)
     {
+        if (!InputRouter.Instance.GetCurKeyRing()) _rightUiPullConsumed = false;
+        if (!InputRouter.Instance.GetCurKeyLeg()) _leftUiPullConsumed = false;
         // 暂停期只放行 Button 命中(枪打面板按钮),其余冻结
         UpdateSide(PlayerState.Side.Right);
         UpdateSide(PlayerState.Side.Left);
@@ -316,9 +518,8 @@ public partial class FireSystem : Node3D
             _lazer[side].HideBeam();
             return;
         }
-        // 2. 枪口旋转 + 射线(原作 Ray(Gun.position, Gun.forward):射线与激光共线,激光终点=命中点。
-        // 鼠标模式:先取相机过屏幕点的射线定"光标目标点",枪(世界 -Z)转向它,射线从枪原点出——
-        // 不再直接用相机射线当命中(枪口偏移会导致激光打不到红点,红点悬浮错位)
+        // 2. Use the screen ray to choose a target, then solve the actual barrel
+        // pose. Collision, laser and muzzle flash all use that same muzzle/axis.
         AimState aim = side == PlayerState.Side.Right
             ? InputRouter.Instance.GetRightAim()
             : InputRouter.Instance.GetLeftAim();
@@ -330,25 +531,35 @@ public partial class FireSystem : Node3D
             var rayDir = _camera.ProjectRayNormal(aim.ScreenPos);
             var chit = space.IntersectRay(PhysicsRayQueryParameters3D.Create(rayOrigin, rayOrigin + rayDir * RayLength, RayMask));
             Vector3 target = chit.Count > 0 ? (Vector3)chit["position"] : rayOrigin + rayDir * 200.0f;
-            dir = (target - gun.GlobalPosition).Normalized();
-            var up2 = Mathf.Abs(dir.Dot(Vector3.Up)) > 0.99f ? Vector3.Right : Vector3.Up;
-            gun.Quaternion = (_camera.GlobalTransform.Basis.Inverse() * Basis.LookingAt(dir, up2)).GetRotationQuaternion();
-            from = gun.GlobalPosition; // 原作:射线起点 = 枪节点原点
+            gun.AimAt(target);
         }
         else
         {
-            gun.Quaternion = aim.Rotation;
-            from = gun.GlobalPosition;
-            dir = -gun.GlobalBasis.Z;
+            gun.AimRotation(aim.Rotation);
         }
+        from = gun.Muzzle.GlobalPosition;
+        dir = gun.BarrelDirection;
         var hit = space.IntersectRay(PhysicsRayQueryParameters3D.Create(from, from + dir * RayLength, RayMask));
         // 激光:枪口起恒伸 200m(原作 LineRenderer (0,0,0)→(0,0,200):打怪穿透,被墙遮挡段由深度剔除);
         // 枪口在枪 -Z 轴上,与射线共线 → 光束正对命中红点
         var muzzlePos = gun.Muzzle.GlobalPosition;
+        var rayDebug = _rayDebug[side];
+        rayDebug.Origin = from;
+        rayDebug.Muzzle = muzzlePos;
+        rayDebug.Direction = dir;
+        rayDebug.HasHit = hit.Count > 0;
+        rayDebug.HitNode = hit.Count > 0 ? hit["collider"].AsGodotObject() as Node : null;
+        if (hit.Count > 0)
+            rayDebug.HitPoint = hit["position"].AsVector3();
+        _lazer[side].SetOverlay(Game.Instance.IsGamePause);
         _lazer[side].SetBeam(muzzlePos, muzzlePos + dir * 200.0f);
+        bool trigger = side == PlayerState.Side.Right
+            ? InputRouter.Instance.GetCurKeyRing()
+            : InputRouter.Instance.GetCurKeyLeg();
         if (hit.Count == 0)
         {
             flash.Visible = false;
+            if (trigger && !Game.Instance.IsGamePause && player.Hp > 0) TryFire(side, gun);
             return;
         }
         var point = (Vector3)hit["position"];
@@ -366,34 +577,24 @@ public partial class FireSystem : Node3D
         flash.Visible = true;
         flash.GlobalPosition = point - dir * backOff;
         flash.Scale = Vector3.One * flashScale;
-        bool trigger = side == PlayerState.Side.Right
-            ? InputRouter.Instance.GetCurKeyRing()
-            : InputRouter.Instance.GetCurKeyLeg();
         if (!trigger)
             return;
         // 4. 命中 Button(layer 3)→ 触发回调,不耗弹不开火(暂停期唯一放行路径)
         if (collider is CollisionObject3D co && (co.CollisionLayer & 0b100) != 0)
         {
+            if (collider is UiButton3D button && (!button.Enabled || !button.IsVisibleInTree())) return;
+            bool consumed = side == PlayerState.Side.Right ? _rightUiPullConsumed : _leftUiPullConsumed;
+            if (consumed) return; // one UI action per pull; holding cannot click through consecutive panels
+            if (side == PlayerState.Side.Right) _rightUiPullConsumed = true; else _leftUiPullConsumed = true;
             if (collider.HasMethod("OnShot")) // UiButton3D.OnShot(C# 方法注册为原名,大小写敏感)
                 collider.Call("OnShot");
             _uiShotPlayer?.Play();
             return;
         }
-        if (Game.Instance.IsGamePause)
+        if (Game.Instance.IsGamePause || player.Hp <= 0)
             return;
         // 5. 开枪
-        var (success, bulletEnough) = gun.Fire();
-        if (!success)
-        {
-            if (!bulletEnough && Game.Instance.SceneState == Game.GameState.Battle
-                && !_emptySignaled[side])
-            {
-                _emptySignaled[side] = true;
-                EmitSignal(SignalName.OpenContinue, true, (int)side);
-            }
-            return;
-        }
-        _emptySignaled[side] = false;
+        if (!TryFire(side, gun)) return;
         // 6. 命中敌人(layer 2)→ hit();否则环境 tag
         bool isEnemy = collider is CollisionObject3D c2 && (c2.CollisionLayer & 0b010) != 0;
         string tag = "Dust";
@@ -413,17 +614,34 @@ public partial class FireSystem : Node3D
         SpawnEffect(tag, point, normal, flashScale, isEnemy);
     }
 
+    private bool TryFire(PlayerState.Side side, GunBase gun)
+    {
+        var (success, bulletEnough) = gun.Fire();
+        if (success)
+        {
+            _emptySignaled[side] = false;
+            _lazer[side].SetBeam(gun.Muzzle.GlobalPosition, gun.Muzzle.GlobalPosition + gun.BarrelDirection * 200.0f);
+        }
+        else if (!bulletEnough && Game.Instance.SceneState == Game.GameState.Battle && !_emptySignaled[side])
+        {
+            _emptySignaled[side] = true;
+            EmitSignal(SignalName.OpenContinue, true, (int)side);
+        }
+        return success;
+    }
+
     // ------------------------------------------------ 换枪(5.5)
 
     private void OnSwitchKey(PlayerState.Side side)
     {
         var player = PlayerState.Instance.GetPlayer(side);
-        if (!player.Active)
+        if (!player.Active || _switchingSides.Contains(side))
             return;
         var old = _currentGun[side];
         if (old == null || !player.NextGun())
             return;
         var newGun = _guns[side][player.GunType];
+        _switchingSides.Add(side);
         // 照原作字面行为(Unity FireSystem.ChangeGun):旧枪 0.5s 下沉 0.1 后 SetActive(false),
         // 新枪在 CreateGun 中直接出现在最终位置——原作随后的"伸出"循环作用于已隐藏旧枪,
         // 视觉上新枪瞬现,无升起动画;原作换枪全程不挡扳机(新枪立即可射,收起中旧枪也可射)。
@@ -436,6 +654,7 @@ public partial class FireSystem : Node3D
             newGun.Position = GunBasePos(side, newGun.GunType);
             newGun.Show();
             _currentGun[side] = newGun;
+            _switchingSides.Remove(side);
         }));
     }
 
@@ -526,7 +745,7 @@ public partial class FireSystem : Node3D
             lb.GlobalPosition = point + new Vector3(0, 0.3f, 0);
             lb.Modulate = new Color(1.0f, 0.0f, 0.0f, 1.0f);
             lb.Visible = true;
-            var tw = CreateTween();
+            var tw = lb.CreateTween();
             tw.TweenProperty(lb, "global_position:y", lb.GlobalPosition.Y + 0.035f, 0.7); // 5px/s×0.7s×0.01
             tw.Parallel().TweenProperty(lb, "modulate:a", 0.3, 0.7);
             tw.TweenCallback(Callable.From(() => lb.Visible = false));
@@ -534,7 +753,7 @@ public partial class FireSystem : Node3D
         }
     }
 
-    /// <summary>血花线性池(5.2):取第一个未激活挂怪身上;自隐后回池</summary>
+    /// <summary>血花线性池:跟随怪物但保留特效池所有权；怪物释放不能销毁池条目。</summary>
     public static void SpawnBloodFlower(Node3D parent, Vector3 localPos)
     {
         if (Current == null)
@@ -543,9 +762,7 @@ public partial class FireSystem : Node3D
         {
             if (bf.Visible)
                 continue;
-            if (bf.GetParent() != parent)
-                bf.Reparent(parent, false);
-            bf.Transform = new Transform3D(Basis.Identity, localPos);
+            bf.Follow(parent, localPos);
             bf.Activate(1.2f);
             return;
         }

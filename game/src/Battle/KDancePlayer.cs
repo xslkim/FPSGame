@@ -50,7 +50,13 @@ public partial class KDancePlayer : Node
             GD.PushWarning($"[KDance] {model.Name} 无 Skeleton3D");
             return null;
         }
-        var p = new KDancePlayer { Name = "KDancePlayer", _data = data, _sk = sk };
+        var p = new KDancePlayer
+        {
+            Name = "KDancePlayer",
+            ProcessPriority = -10, // 先更新骨架，再由过场根节点计算跟随镜头
+            _data = data,
+            _sk = sk,
+        };
         p._motionRoot = model;
         p._motionBase = motionBase;
         p._gU = new Transform3D[data.NodeCount];
@@ -65,6 +71,16 @@ public partial class KDancePlayer : Node
             if (i >= 0)
                 matched++;
         GD.Print($"[KDance] {model.Name}: bones={sk.GetBoneCount()} matched={matched} frames={data.Frames}");
+        // 导入 FBX 自带的 AnimationPlayer 若同时写同一骨架，会造成逐帧姿态交替。
+        foreach (var node in model.FindChildren("*", "AnimationPlayer", true, false))
+        {
+            if (node is AnimationPlayer imported)
+            {
+                imported.Stop();
+                imported.SetProcess(false);
+                imported.SetPhysicsProcess(false);
+            }
+        }
         model.AddChild(p);
         return p;
     }

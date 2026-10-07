@@ -114,8 +114,10 @@ public partial class Fireball : Node3D
         PlaySound3d("res://assets/audio/effects/fireball_hit.wav", GlobalPosition);
         float attack = _attack;
         var type = _type;
-        GetTree().CreateTimer(DamageDelay).Timeout += () =>
-            PlayerState.Instance.HitPlayer(attack, type, PlayerState.Side.Both);
+        var delay = CreateTween(); // destruction of the old scene cancels its damage
+        delay.TweenInterval(DamageDelay);
+        delay.TweenCallback(Callable.From(() =>
+            PlayerState.Instance.HitPlayer(attack, type, PlayerState.Side.Both)));
     }
 
     /// <summary>3D 音效(挂场景根,火球消失后余音不受影响)</summary>

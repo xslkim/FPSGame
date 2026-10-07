@@ -26,9 +26,14 @@ public partial class BossHeart : StaticBody3D
         var h = new BossHeart { Name = "BossHeart" };
         h._boss = boss;
         // 命中盒:0.5³(原作 BoxCollider)
-        h._col = new CollisionShape3D { Shape = new BoxShape3D { Size = Vector3.One * 0.5f } };
+        h._col = new CollisionShape3D
+        {
+            Name = "HitShape",
+            Shape = new BoxShape3D { Size = Vector3.One * 0.5f },
+            Disabled = true,
+        };
         h.AddChild(h._col);
-        h.CollisionLayer = 2; // Enemy 层(FireSystem 射线按此判敌)
+        h.CollisionLayer = 0; // 池中 Boss 初始不可命中；出生时才进入 Enemy 层
         h.CollisionMask = 0;
         // 红心 billboard(heart.png 黑底无 alpha → 加色混合,黑=不可见;染红)
         var mat = new StandardMaterial3D
@@ -61,7 +66,7 @@ public partial class BossHeart : StaticBody3D
             }
         if (skel != null && bone >= 0)
         {
-            var attach = new BoneAttachment3D { BoneIdx = bone };
+            var attach = new BoneAttachment3D { Name = "HeartAttachment", BoneIdx = bone };
             skel.AddChild(attach);
             attach.AddChild(h);
             h.Position = new Vector3(0.096f, 0.189f, -0.089f); // 原作局部偏移(坐标系镜像)
@@ -76,7 +81,9 @@ public partial class BossHeart : StaticBody3D
 
     /// <summary>命中转发(对应原作 BoxHead:BoxHead.HitType 恒 Body)</summary>
     public string Hit(float attack, Vector3 point, int hitType, int side) =>
-        _boss.Hit(attack, point, (Game.HitType)hitType, (PlayerState.Side)side);
+        _boss.IsActiveState && !_boss.IsDead
+            ? _boss.Hit(attack, point, (Game.HitType)hitType, (PlayerState.Side)side)
+            : "Dust";
 
     public override void _Process(double delta)
     {
@@ -85,8 +92,10 @@ public partial class BossHeart : StaticBody3D
         if (active != _lastActive)
         {
             _lastActive = active;
+            CollisionLayer = active ? 2u : 0u;
             _col.SetDeferred(CollisionShape3D.PropertyName.Disabled, !active);
         }
+        _sprite.Visible = active;
         _t += delta;
         // 呼吸脉动 + 上下浮动
         float pulse = 1.0f + PulseAmp * Mathf.Sin((float)_t * 4.0f);

@@ -194,7 +194,11 @@ public partial class MessageBox : CanvasLayer
             OkButton.FocusNeighborLeft = OkButton.GetPathTo(CancelButton);
         }
         // 打开即选中"确定"(原作 MessageBox.Show 里 SetSelectedGameObject)
-        Callable.From(() => OkButton.GrabFocus()).CallDeferred();
+        Callable.From(() =>
+        {
+            if (IsInstanceValid(OkButton) && OkButton.IsInsideTree() && !OkButton.IsQueuedForDeletion())
+                OkButton.GrabFocus();
+        }).CallDeferred();
     }
 
     public void PressOk() => Close(true);

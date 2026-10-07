@@ -16,8 +16,20 @@ namespace FPSGame;
 ///   鼠标模拟光枪(移动=瞄准,左键=扳机;无实体枪时自动生效);
 ///   "选择控制方式"弹框含移植版新增的"鼠标"模式(手机/遥控器/鼠标三键)。
 /// </summary>
-public partial class MenuScreen : Node
+public partial class MenuScreen : Node, IDebugInspectable
 {
+    public string DebugSummary => $"menu gun={_gun?.Visible} dialog={MessageBox.IsOpen()}";
+
+    public System.Collections.Generic.Dictionary<string, object?> CaptureDebugState() => new()
+    {
+        ["muzzle_world"] = _muzzle?.GlobalPosition.ToString(),
+        ["muzzle_screen"] = _camera != null && _muzzle != null ? _camera.UnprojectPosition(_muzzle.GlobalPosition).ToString() : null,
+        ["beam_origin_screen"] = _guide?.CurrentOrigin.ToString(),
+        ["impact_screen"] = _guide?.CurrentTarget.ToString(),
+        ["alignment_error_pixels"] = _camera != null && _muzzle != null && _guide != null ? _guide.AlignmentError(_camera, _muzzle.GlobalPosition) : null,
+        ["weapon_canvas_layer"] = UiWeaponPresentation.WeaponLayer,
+        ["laser_canvas_layer"] = UiAimGuide.GuideLayer,
+    };
     private const string LevelChooseScene = "res://scenes/ui/level_choose.tscn";
     private const string DeviceConnectionScene = "res://scenes/ui/device_connection.tscn";
     private const string VpPrefix = "ViewportLayer/SubViewportContainer/SubViewport/";
@@ -58,7 +70,7 @@ public partial class MenuScreen : Node
         // 2D 激光指引(原作 Lazer.mat 红)画在 UI 最上层(UiAimGuide):枪原点 → 前方 200m
         //   锥形光束(近粗远细);射线命中怪兽时光点贴命中点(原作 Flash),悬停按钮发亮
         _guide = UiAimGuide.Create(this, LaserSight.RightRed, dotSize: 34.0f, unityFlash: true);
-        _guide.BeamOriginCorrection = new Vector2(-18.0f, 15.0f);
+        UiWeaponPresentation.Create(this, _camera, _gun);
 
         SyncViewportSize();
         GetViewport().SizeChanged += SyncViewportSize;
@@ -88,7 +100,7 @@ public partial class MenuScreen : Node
         foreach (var mi in _gun.GetNode("Model").FindChildren("*", "MeshInstance3D", true, false))
             ((MeshInstance3D)mi).MaterialOverride = gunMat;
         // 默认选中"单人游戏"(原作 MenuController.Start)
-        Callable.From(() => _btnOne.GrabFocus()).CallDeferred();
+        Callable.From(() => { if (GodotObject.IsInstanceValid(_btnOne) && _btnOne.IsInsideTree()) _btnOne.GrabFocus(); }).CallDeferred();
         ConfigService.FetchRemoteConfig(this);
         InputRouter.Instance.TriggerRight += OnGunTrigger;
         InputRouter.Instance.MouseGun.Triggered += OnMouseTrigger;
@@ -634,6 +646,15 @@ public partial class MenuScreen : Node
             if (!ok) fails += 1;
         }
         await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+        foreach (var aim in new[] { new Vector2(35, 88), new Vector2(680, 587), new Vector2(555, 420), new Vector2(1150, 100) })
+        {
+            Vector3 direction = _camera.ProjectRayNormal(aim);
+            _gun.Basis = Basis.LookingAt(_camera.GlobalBasis.Inverse() * direction);
+            _guide.SetAim(_camera, _muzzle.GlobalPosition, direction, null, aim, true);
+            Check(_guide.AlignmentError(_camera, _muzzle.GlobalPosition) < 0.01f,
+                $"laser muzzle and single impact aligned at {aim}");
+        }
+        Check(GetNode<CanvasLayer>("WeaponPresentation").Layer > 20, "weapon drawn above dialog layer");
         await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
         Check(GetViewport().GuiGetFocusOwner() == _btnOne, "默认选中单人游戏");
         Check(_btnOne.Size == new Vector2(505, 102), "按钮尺寸 505x102");

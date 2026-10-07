@@ -4,7 +4,7 @@ namespace FPSGame;
 
 /// <summary>
 /// 包头僵尸(L1 Boss):不移动(缓降 0.5/s);CD 到且处于 anim_idle → 播 anim_attack;
-/// 0.3s 攻击事件 BaotouSkill 从左手骨(Bone_ L Hand)发火球(lastAttackTime=now);
+/// 原始 BaotouSkill 动画键从左手骨(Bone_ L Hand)发火球(lastAttackTime=now);
 /// 被打(Hit)→ lastAttackTime=now(5s 内不反击)+ ChangePositionStar 闪现(旧位,被打瞬间)
 /// + 0.5s 后在出生点 x±1.8 / z±2 满幅随机瞬移并面向相机;Hurt 动画播完前不抢回 anim_idle。
 /// </summary>
@@ -16,7 +16,11 @@ public partial class BaotouMonster : Monster
     private Tween? _teleportTween;
     private Node3D? _handAttach; // 火球发射点:原作 BaotouFireball 挂 Bone_ L Hand 下
 
-    protected override void OnBorn() => IsBoss = true; // Boss 不超时自毁
+    protected override void OnBorn()
+    {
+        _teleportTween?.Kill();
+        IsBoss = true;
+    }
 
     public override void _Ready()
     {

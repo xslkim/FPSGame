@@ -5,9 +5,8 @@
 [ext_resource type="AnimationLibrary" path="res://assets/models/monsters/box_monster/box_monster_anims.tres" id="4"]
 [ext_resource type="Material" path="res://assets/models/monsters/box_monster/box_monster_mat.tres" id="5"]
 
-[sub_resource type="CapsuleShape3D" id="BodyShape"]
-radius = 0.4
-height = 0.4
+[sub_resource type="BoxShape3D" id="BodyShape"]
+size = Vector3(0.65, 0.4, 0.55)
 
 [node name="BoxMonster" type="CharacterBody3D"]
 collision_layer = 2

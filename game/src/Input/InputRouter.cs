@@ -7,8 +7,20 @@ namespace FPSGame;
 /// 输入源:UDP 体感枪(双路 R/L)、键盘回落(方向键瞄准/回车扳机)、鼠标模拟光枪(MouseGun)。
 /// 消费方通过 GetRightAim()/GetLegAim() 拿统一瞄准状态,通过 Trigger*/SwitchGun* 信号接边沿事件。
 /// </summary>
-public partial class InputRouter : Node
+public partial class InputRouter : Node, IDebugInspectable
 {
+    public string DebugSummary => $"mode={Mode} fire={FireEnabled} R={RingConnected} L={LegConnected}";
+
+    public System.Collections.Generic.Dictionary<string, object?> CaptureDebugState() => new()
+    {
+        ["mode"] = Mode.ToString(),
+        ["fire_enabled"] = FireEnabled,
+        ["ring_connected"] = RingConnected,
+        ["leg_connected"] = LegConnected,
+        ["ring_last_packet_seconds"] = RingLastPacketTime,
+        ["leg_last_packet_seconds"] = LegLastPacketTime,
+        ["mouse_left_held"] = MouseGun.LeftHeld,
+    };
     public enum InputMode { Menu, OnlyRight, OnlyLeft, ControllerOrRight, RightAndLeft, Mouse }
 
     [Signal] public delegate void TriggerRightEventHandler();   // 右手扳机边沿(0→1)
@@ -25,7 +37,7 @@ public partial class InputRouter : Node
     /// <summary>鼠标模拟光枪(无实体枪时的瞄准/扳机源)</summary>
     public MouseGunSource MouseGun { get; } = new();
 
-    public InputMode Mode = InputMode.RightAndLeft;
+    public InputMode Mode = InputMode.Menu;
 
     /// <summary>开火/换枪输入总开关(关卡开场演出期间禁用,7.4 节)</summary>
     public bool FireEnabled = true;
@@ -57,6 +69,8 @@ public partial class InputRouter : Node
 
     private bool _key1RightLevel, _key1LeftLevel, _key2RightLevel, _key2LeftLevel;
     private bool _prevKey1Right, _prevKey1Left, _prevKey2Right, _prevKey2Left;
+    private bool _deviceFireRight, _deviceFireLeft, _deviceSwitchRight, _deviceSwitchLeft;
+    private bool _windowFocused = true;
 
     public override void _Ready()
     {
@@ -64,7 +78,11 @@ public partial class InputRouter : Node
         // 暂停(timeScale 0)期输入必须继续走:暂停/续币面板的 3D 按钮靠扳机电平点击
         // (原作 Unity Update 不受 timeScale 影响;否则会停在暂停面板无任何响应)
         ProcessMode = ProcessModeEnum.Always;
-        _server = new UdpDeviceServer();
+        int port = UdpDeviceServer.ListenPort;
+        foreach (var arg in OS.GetCmdlineUserArgs())
+            if (arg.StartsWith("--qa-udp-port:") && int.TryParse(arg["--qa-udp-port:".Length..], out int candidate)
+                && candidate > 1024 && candidate <= 65535) port = candidate;
+        _server = new UdpDeviceServer(port);
         _server.PacketReceived += OnUdpPacket;
         _server.StartBroadcast();
         // 鼠标右键按下 = 换枪(原作右键 Down → OnKey2_Ring/Leg 事件,InputManager.cs:273-310)
@@ -72,6 +90,7 @@ public partial class InputRouter : Node
         {
             if (!FireEnabled)
                 return;
+            if (NoMouse || !(MouseGun.IsActiveForRight(this) || MouseGun.IsActiveForLeft(this))) return;
             EmitSignal(Mode == InputMode.OnlyLeft ? SignalName.SwitchGunLeft : SignalName.SwitchGunRight);
         };
     }
@@ -81,7 +100,8 @@ public partial class InputRouter : Node
     public void SetInputMode(InputMode mode)
     {
         Mode = mode;
-        RingConnected = mode == InputMode.ControllerOrRight;
+        RingConnected = mode == InputMode.ControllerOrRight || _ringPhyConnected;
+        ReleaseTransientInput();
         PlayerState.Instance.SetupPlayers(mode);
     }
 
@@ -94,6 +114,33 @@ public partial class InputRouter : Node
         MouseGun.HandleInput(e);
     }
 
+    public override void _Notification(int what)
+    {
+        if (what == NotificationApplicationFocusOut || what == NotificationApplicationFocusIn)
+        {
+            _windowFocused = what == NotificationApplicationFocusIn;
+            ReleaseTransientInput();
+        }
+    }
+
+    public void ReleaseTransientInput()
+    {
+        MouseGun.Release();
+        _leftAltHeld = false;
+        _key1RightLevel = _key1LeftLevel = _key2RightLevel = _key2LeftLevel = false;
+        // Holding a hardware trigger across a scene change must not create a new UI press edge.
+        _prevKey1Right = _deviceFireRight;
+        _prevKey1Left = _deviceFireLeft;
+        _prevKey2Right = _deviceSwitchRight;
+        _prevKey2Left = _deviceSwitchLeft;
+    }
+
+    public override void _ExitTree()
+    {
+        _server.PacketReceived -= OnUdpPacket;
+        _server.Dispose();
+    }
+
     public override void _Process(double delta)
     {
         _now += delta;
@@ -104,18 +151,10 @@ public partial class InputRouter : Node
         if (KeyboardFallbackActive())
         {
             UpdateKeyboardAim((float)delta);
-            UpdateKeyboardButtons();
         }
         // 鼠标左键按住 = 扳机电平(原作 _MouseFireRing,InputManager.cs:567-570:GetCurKeyRing=硬件∥鼠标);
         // 仅战斗态注入——UI 界面走 MouseGun.Triggered 边沿(GunUiController),避免一击双发
-        if (!NoMouse && MouseGun.LeftHeld && Game.Instance.SceneState == Game.GameState.Battle
-            && MouseGun.IsActiveForRight(this))
-        {
-            if (Mode == InputMode.OnlyLeft)
-                _key1LeftLevel = true;   // 原作 OnlyLeft 模式鼠标走左路(_MouseFireLeg)
-            else
-                _key1RightLevel = true;
-        }
+        ComposeButtons();
         EmitEdges();
         _ringHadPacket = false;
     }
@@ -127,29 +166,35 @@ public partial class InputRouter : Node
     /// </summary>
     private void OnUdpPacket(byte[] data, string _fromIp)
     {
+        AcceptDevicePacket(data);
+    }
+
+    internal bool AcceptDevicePacket(byte[] data)
+    {
         if (data.Length < 22)
-            return;
+            return false;
         byte flag = data[0];
         bool isRing;
         if (flag == 0x52) // 'R'
         {
             if (Mode == InputMode.OnlyLeft)
-                return;
+                return false;
             isRing = true;
         }
         else if (flag == 0x4C) // 'L'
         {
             if (Mode == InputMode.OnlyRight)
-                return;
+                return false;
             isRing = false;
         }
         else
-            return;
+            return false;
         var q = new Quaternion(
             System.BitConverter.ToSingle(data, 1), System.BitConverter.ToSingle(data, 5),
             System.BitConverter.ToSingle(data, 9), System.BitConverter.ToSingle(data, 13));
-        if (q.LengthSquared() < 1e-8)
-            return;
+        if (!float.IsFinite(q.X) || !float.IsFinite(q.Y) || !float.IsFinite(q.Z) || !float.IsFinite(q.W)
+            || !float.IsFinite(q.LengthSquared()) || q.LengthSquared() < 1e-8)
+            return false;
         q = q.Normalized();
         int pressure = System.BitConverter.ToInt32(data, 17);
         bool k = data[21] != 0;
@@ -163,8 +208,8 @@ public partial class InputRouter : Node
             RingConnected = true;
             _ringPhyConnected = true;
             RingLastPacketTime = _now;
-            _key1RightLevel = k;
-            _key2RightLevel = k2;
+            _deviceFireRight = k;
+            _deviceSwitchRight = k2;
         }
         else
         {
@@ -172,9 +217,10 @@ public partial class InputRouter : Node
             LegPressure = pressure;
             LegConnected = true;
             LegLastPacketTime = _now;
-            _key1LeftLevel = k;
-            _key2LeftLevel = k2;
+            _deviceFireLeft = k;
+            _deviceSwitchLeft = k2;
         }
+        return true;
     }
 
     /// <summary>2 秒无数据 → 该路断开;ControllerOrRight 保留逻辑连接(回落键盘),其余模式照原作清标志</summary>
@@ -183,6 +229,7 @@ public partial class InputRouter : Node
         if (_ringPhyConnected && _now - RingLastPacketTime > DeviceTimeout)
         {
             _ringPhyConnected = false;
+            _deviceFireRight = _deviceSwitchRight = false;
             if (Mode != InputMode.ControllerOrRight)
                 RingConnected = false;
             GD.Print($"[InputRouter] 戒指(R) {DeviceTimeout:0} 秒无数据:phy 断开,RingConnected={RingConnected}");
@@ -190,6 +237,7 @@ public partial class InputRouter : Node
         if (LegConnected && _now - LegLastPacketTime > DeviceTimeout)
         {
             LegConnected = false;
+            _deviceFireLeft = _deviceSwitchLeft = false;
             GD.Print($"[InputRouter] 腿部(L) {DeviceTimeout:0} 秒无数据:LegConnected=false");
         }
     }
@@ -250,10 +298,25 @@ public partial class InputRouter : Node
 
     /// <summary>开火 = Return / 小键盘 Enter;换枪 = Menu 键 或 LeftAlt(右手调试)。
     /// 仅键盘回落激活时写右路电平;左路电平始终由 UDP 写入。</summary>
-    private void UpdateKeyboardButtons()
+    private void ComposeButtons()
     {
-        _key1RightLevel = Input.IsKeyPressed(Key.Enter) || Input.IsKeyPressed(Key.KpEnter);
-        _key2RightLevel = Input.IsKeyPressed(Key.Menu) || _leftAltHeld;
+        if (!_windowFocused)
+        {
+            _key1RightLevel = _key1LeftLevel = _key2RightLevel = _key2LeftLevel = false;
+            return;
+        }
+        bool right = Mode != InputMode.OnlyLeft;
+        bool left = Mode is InputMode.Menu or InputMode.OnlyLeft or InputMode.RightAndLeft;
+        bool keyboard = KeyboardFallbackActive();
+        bool mouseHeld = !NoMouse && MouseGun.LeftHeld && Game.Instance.SceneState == Game.GameState.Battle;
+        _key1RightLevel = right && ((_ringPhyConnected && _deviceFireRight)
+            || (keyboard && (Input.IsKeyPressed(Key.Enter) || Input.IsKeyPressed(Key.KpEnter)))
+            || (mouseHeld && MouseGun.IsActiveForRight(this)));
+        _key2RightLevel = right && ((_ringPhyConnected && _deviceSwitchRight)
+            || (keyboard && (Input.IsKeyPressed(Key.Menu) || _leftAltHeld)));
+        _key1LeftLevel = left && ((LegConnected && _deviceFireLeft)
+            || (mouseHeld && MouseGun.IsActiveForLeft(this)));
+        _key2LeftLevel = left && LegConnected && _deviceSwitchLeft;
     }
 
     private void EmitEdges()
@@ -286,7 +349,8 @@ public partial class InputRouter : Node
         System.Array.IndexOf(OS.GetCmdlineUserArgs(), "--no-mouse") >= 0;
 
     /// <summary>左手瞄准(仅体感枪四元数)</summary>
-    public AimState GetLeftAim() => AimState.Rot(GunMath.PhoneToGunRotation(RawLegRotation));
+    public AimState GetLeftAim() => !NoMouse && MouseGun.IsActiveForLeft(this)
+        ? AimState.Screen(MouseGun.AimPos) : AimState.Rot(GunMath.PhoneToGunRotation(RawLegRotation));
 
     /// <summary>扳机电平查询</summary>
     public bool GetCurKeyRing() => _key1RightLevel && FireEnabled;

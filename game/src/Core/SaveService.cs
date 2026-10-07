@@ -10,7 +10,8 @@ namespace FPSGame;
 /// </summary>
 public partial class SaveService : Node
 {
-    public const string SavePath = "user://save.json";
+    public static string SavePath { get; private set; } = "user://save.json";
+    public static string SaveDirectory { get; private set; } = "user://";
     public const int LevelCount = 13;
 
     public static SaveService Instance { get; private set; } = null!;
@@ -41,6 +42,13 @@ public partial class SaveService : Node
     public override void _Ready()
     {
         Instance = this;
+        foreach (var arg in OS.GetCmdlineUserArgs())
+            if (arg.StartsWith("--qa-save-dir:"))
+            {
+                SaveDirectory = arg["--qa-save-dir:".Length..].Replace('\\', '/').TrimEnd('/') + "/";
+                DirAccess.MakeDirRecursiveAbsolute(SaveDirectory);
+                SavePath = SaveDirectory + "save.json";
+            }
         _fireMeta = ReadJson("res://data/fire_meta.json", new Godot.Collections.Dictionary());
         GunTypeNum = GetInt(_fireMeta, "gun_type_num", 7);
         _monsterMeta = ReadJson("res://data/monster_meta.json", new Godot.Collections.Dictionary());
@@ -48,6 +56,21 @@ public partial class SaveService : Node
         var tipsRoot = ReadJson("res://data/tips.json", new Godot.Collections.Dictionary());
         _tips = Get(tipsRoot, "tips", new Godot.Collections.Array()).AsGodotArray();
         LoadUserData();
+        ApplyPendingTestCredits();
+    }
+
+    private void ApplyPendingTestCredits()
+    {
+        string pending = SaveDirectory + "test_credits.json";
+        if (!FileAccess.FileExists(pending)) return;
+        var grant = ReadJson(pending, new Godot.Collections.Dictionary());
+        int amount = GetInt(grant, "coin", 0);
+        if (amount <= 0 || amount > 10000) return;
+        Coin += amount;
+        MaxCoin = System.Math.Max(MaxCoin, Coin);
+        if (!SaveUserData()) return;
+        DirAccess.RemoveAbsolute(ProjectSettings.GlobalizePath(pending));
+        GD.Print($"[TEST-CREDITS] added {amount}, total={Coin}");
     }
 
     // ------------------------------------------------ 金币经济(8.3)
@@ -60,16 +83,12 @@ public partial class SaveService : Node
         double now = Time.GetUnixTimeFromSystem();
         if (LastAddCoinTime + AddCoinTime > now)
             return;
-        bool changed = false;
-        while (LastAddCoinTime + AddCoinTime <= now)
-        {
-            if (Coin < MaxCoin)
-            {
-                Coin += 1;
-                changed = true;
-            }
-            LastAddCoinTime += AddCoinTime;
-        }
+        // Resolve even a long offline interval in constant time.
+        double periods = System.Math.Floor((now - LastAddCoinTime) / System.Math.Max(1, AddCoinTime));
+        int granted = (int)System.Math.Min(System.Math.Max(0, MaxCoin - Coin), periods);
+        bool changed = granted > 0;
+        Coin += granted;
+        LastAddCoinTime += periods * System.Math.Max(1, AddCoinTime);
         if (changed)
         {
             SaveUserData();
@@ -80,7 +99,7 @@ public partial class SaveService : Node
     /// <summary>扣币(选关 -1 / 续币 -1);不足返回 false。扣币后重新计回币时间</summary>
     public bool SpendCoin(int n = 1)
     {
-        if (Coin < n)
+        if (n <= 0 || Coin < n)
             return false;
         Coin -= n;
         LastAddCoinTime = Time.GetUnixTimeFromSystem();
@@ -101,7 +120,7 @@ public partial class SaveService : Node
         var s = LevelState[idx];
         s["star"] = System.Math.Max(GetInt(s, "star", 0), star);
         s["score"] = System.Math.Max(GetInt(s, "score", 0), score);
-        s["rank"] = rank;
+        if (rank > 0) s["rank"] = rank;
         LevelState[idx] = s;
         SaveUserData();
         Changed?.Invoke();
@@ -130,9 +149,20 @@ public partial class SaveService : Node
 
     public void LoadUserData()
     {
-        if (FileAccess.FileExists(SavePath))
+        LevelState.Clear();
+        var parsed = ReadSave(SavePath);
+        if (parsed.VariantType != Variant.Type.Dictionary)
         {
-            var parsed = Json.ParseString(FileAccess.GetFileAsString(SavePath));
+            parsed = ReadSave(SavePath + ".bak");
+            if (FileAccess.FileExists(SavePath))
+            {
+                // Preserve a damaged save for diagnosis before replacing it.
+                string damaged = ProjectSettings.GlobalizePath(SavePath);
+                System.IO.File.Move(damaged, damaged + ".corrupt-" + Time.GetTicksMsec());
+                GD.PushWarning("[SaveService] 存档损坏，已保留原文件并尝试恢复备份。");
+            }
+        }
+        {
             if (parsed.VariantType == Variant.Type.Dictionary)
             {
                 var d = parsed.AsGodotDictionary();
@@ -141,13 +171,21 @@ public partial class SaveService : Node
                 AddCoinTime = GetInt(d, "add_coin_time", AddCoinTime);
                 MaxBullet = GetInt(d, "max_bullet", MaxBullet);
                 BoxBullet = GetInt(d, "box_bullet", BoxBullet);
-                Udid = Get(d, "udid", "").AsString();
-                LastAddCoinTime = Get(d, "last_add_coin_time", 0.0).AsDouble();
-                var ls = Get(d, "level_state", new Godot.Collections.Array()).AsGodotArray();
+                var id = Get(d, "udid", "");
+                Udid = id.VariantType == Variant.Type.String ? id.AsString() : "";
+                var timestamp = Get(d, "last_add_coin_time", 0.0);
+                LastAddCoinTime = timestamp.VariantType is Variant.Type.Int or Variant.Type.Float ? timestamp.AsDouble() : 0;
+                var levels = Get(d, "level_state", new Godot.Collections.Array());
+                var ls = levels.VariantType == Variant.Type.Array ? levels.AsGodotArray() : new Godot.Collections.Array();
                 for (int i = 0; i < System.Math.Min(ls.Count, LevelCount); i++)
                 {
-                    if (ls[i].VariantType == Variant.Type.Dictionary)
-                        LevelState.Add(ls[i].AsGodotDictionary());
+                    var s = ls[i].VariantType == Variant.Type.Dictionary ? ls[i].AsGodotDictionary() : DefaultLevelState();
+                    LevelState.Add(new Godot.Collections.Dictionary
+                    {
+                        ["star"] = System.Math.Clamp(GetInt(s, "star", 0), 0, 3),
+                        ["score"] = System.Math.Max(0, GetInt(s, "score", 0)),
+                        ["rank"] = System.Math.Max(0, GetInt(s, "rank", 0)),
+                    });
                 }
             }
         }
@@ -155,7 +193,12 @@ public partial class SaveService : Node
             Udid = $"{(long)Time.GetUnixTimeFromSystem()}_{GD.Randi()}";
         while (LevelState.Count < LevelCount)
             LevelState.Add(DefaultLevelState());
-        if (LastAddCoinTime <= 0.0)
+        Coin = System.Math.Clamp(Coin, 0, 1000000);
+        MaxCoin = System.Math.Clamp(System.Math.Max(MaxCoin, Coin), 1, 1000000);
+        AddCoinTime = System.Math.Clamp(AddCoinTime, 1, 86400);
+        MaxBullet = System.Math.Clamp(MaxBullet, 1, 1000000);
+        BoxBullet = System.Math.Clamp(BoxBullet, 1, 1000000);
+        if (!double.IsFinite(LastAddCoinTime) || LastAddCoinTime <= 0.0 || LastAddCoinTime > Time.GetUnixTimeFromSystem())
             LastAddCoinTime = Time.GetUnixTimeFromSystem();
         SaveUserData();
     }
@@ -165,7 +208,7 @@ public partial class SaveService : Node
     private static Godot.Collections.Dictionary DefaultLevelState() =>
         new() { ["star"] = 3, ["score"] = 3, ["rank"] = 1 };
 
-    public void SaveUserData()
+    public bool SaveUserData()
     {
         var levelArray = new Godot.Collections.Array();
         foreach (var s in LevelState)
@@ -181,8 +224,39 @@ public partial class SaveService : Node
             ["udid"] = Udid,
             ["last_add_coin_time"] = LastAddCoinTime,
         };
-        using var f = FileAccess.Open(SavePath, FileAccess.ModeFlags.Write);
-        f?.StoreString(Json.Stringify(d, "  "));
+        string path = ProjectSettings.GlobalizePath(SavePath);
+        string temporary = path + ".tmp";
+        try
+        {
+            using (var stream = new System.IO.FileStream(temporary, System.IO.FileMode.Create, System.IO.FileAccess.Write))
+            {
+                byte[] bytes = System.Text.Encoding.UTF8.GetBytes(Json.Stringify(d, "  "));
+                stream.Write(bytes);
+                stream.Flush(flushToDisk: true);
+            }
+            if (System.IO.File.Exists(path))
+                System.IO.File.Replace(temporary, path, path + ".bak");
+            else
+                System.IO.File.Move(temporary, path);
+            return true;
+        }
+        catch (System.IO.IOException ex)
+        {
+            GD.PushError("[SaveService] 存档保存失败：" + ex.Message);
+            return false;
+        }
+        catch (System.UnauthorizedAccessException ex)
+        {
+            GD.PushError("[SaveService] 存档保存失败：" + ex.Message);
+            return false;
+        }
+    }
+
+    private static Variant ReadSave(string path)
+    {
+        if (!FileAccess.FileExists(path)) return default;
+        using var json = new Json();
+        return json.Parse(FileAccess.GetFileAsString(path)) == Error.Ok ? json.Data : default;
     }
 
     private static Godot.Collections.Dictionary ReadJson(string path, Godot.Collections.Dictionary fallback)
@@ -207,5 +281,5 @@ public partial class SaveService : Node
         d.TryGetValue(key, out var v) ? v : def;
 
     public static int GetInt(Godot.Collections.Dictionary d, string key, int def) =>
-        d.TryGetValue(key, out var v) ? v.AsInt32() : def;
+        d.TryGetValue(key, out var v) && v.VariantType is Variant.Type.Int or Variant.Type.Float ? v.AsInt32() : def;
 }

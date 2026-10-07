@@ -90,7 +90,7 @@ public partial class UiButton3D : StaticBody3D
 
     public void Trigger()
     {
-        if (!Enabled)
+        if (!Enabled || !IsVisibleInTree())
             return;
         EmitSignal(SignalName.Pressed);
         OnPressed?.Invoke();
@@ -132,6 +132,12 @@ public partial class UiButton3D : StaticBody3D
         uint want = IsVisibleInTree() ? 0b100u : 0u;
         if (CollisionLayer != want)
             CollisionLayer = want;
+    }
+
+    public override void _Notification(int what)
+    {
+        if (what == NotificationVisibilityChanged && IsInsideTree())
+            CollisionLayer = IsVisibleInTree() ? 0b100u : 0u;
     }
 
     private void UpdateVisual()

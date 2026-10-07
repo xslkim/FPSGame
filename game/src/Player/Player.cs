@@ -15,6 +15,8 @@ public sealed class Player
     public HurtState Status = HurtState.Normal;
     public bool Active;
     public int StatusSeq;      // 受击序号,防止过期冰冻定时器误清状态
+    public int LifeSequence;
+    public bool DeathReported;
 
     private int _bullet;
 
@@ -42,6 +44,8 @@ public sealed class Player
         Status = HurtState.Normal;
         Active = true;
         StatusSeq += 1;
+        LifeSequence++;
+        DeathReported = false;
     }
 
     /// <summary>向后找已解锁枪,回绕;只一把返回 false 不动画(5.5 节)</summary>
@@ -77,6 +81,9 @@ public sealed class Player
     /// <summary>续命:HP=100 且 Bullet += MaxBullet(8.3 节;原作 Relife 直接加,无放大动画)</summary>
     public void Relife()
     {
+        LifeSequence++;
+        StatusSeq++;
+        DeathReported = false;
         Hp = MaxHp;
         _bullet += SaveService.Instance.MaxBullet;
         Status = HurtState.Normal;

@@ -15,8 +15,25 @@ namespace FPSGame;
 /// humanoid 肌肉剪辑(报人/换人抱/黄头发被抱)由 BakeKpopDance 逐帧烘焙成 .kdance.bin,
 /// KDancePlayer 循环回放(见 README 保真注记)。
 /// </summary>
-public partial class IntroBadGroup : Node3D
+public partial class IntroBadGroup : Node3D, IDebugInspectable
 {
+    public string DebugSummary => $"intro t={_clock:0.00}s active={_activated} visible={Visible}";
+
+    public System.Collections.Generic.Dictionary<string, object?> CaptureDebugState() => new()
+    {
+        ["time_seconds"] = _clock,
+        ["playing"] = _playing,
+        ["activated"] = _activated,
+        ["visible"] = Visible,
+        ["root_world"] = GlobalPosition.ToString(),
+        ["carrier_world"] = GetNodeOrNull<Node3D>("BaotouNPC")?.GlobalPosition.ToString(),
+        ["soldier_world"] = GetNodeOrNull<Node3D>("SoldierBad")?.GlobalPosition.ToString(),
+        ["neck_world"] = _carriedSkeleton != null && _neckBone >= 0
+            ? (_carriedSkeleton.GlobalTransform * _carriedSkeleton.GetBoneGlobalPose(_neckBone)).Origin.ToString()
+            : null,
+        ["camera_mirrored"] = _camera != null && _camera.Scale.X < 0,
+        ["baked_players"] = _kdPlayers.Count,
+    };
     public const double ActivateTime = 2.7286;
     public const double ScreamTime = 0.09;
     public const double HelpTime = 11.7;
@@ -173,9 +190,8 @@ public partial class IntroBadGroup : Node3D
         }
         else
             _camera.Quaternion = shot.Quat; // 相机挂在关卡根下(identity),局部=全局
-        // Unity 与 Godot 走廊 FBX 的水平手性相反；反转视图 X 后演员与门窗均回到原作左右构图。
-        // Stop() 在交接战斗镜头前还原，避免影响射击坐标。
-        _camera.Scale = target.Z < shot.Pos.Z ? new Vector3(-1, 1, 1) : Vector3.One;
+        // 镜像相机也会把海报和门牌文字反过来，保持正常手性。
+        _camera.Scale = Vector3.One;
     }
 
     // ------------------------------------------------ NPC 组装

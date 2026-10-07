@@ -7,8 +7,23 @@ namespace FPSGame;
 /// 对应原作 LevelBase.cs(波参数 GetLevelMeta 硬编码,移植进 data/level_meta.json)。
 /// 派生(如 Level1)负责开场演出,结束后调 StartBattle()。
 /// </summary>
-public partial class LevelBase : Node3D
+public partial class LevelBase : Node3D, IDebugInspectable
 {
+    public string DebugSummary =>
+        $"{LevelKey} group={CurGroup} left={MonsterLeft} active={BattleActive} freeze={FreezeTimer:0.00}s";
+
+    public System.Collections.Generic.Dictionary<string, object?> CaptureDebugState() => new()
+    {
+        ["level_key"] = LevelKey,
+        ["group"] = CurGroup,
+        ["groups_total"] = Groups.Count,
+        ["monsters_left"] = MonsterLeft,
+        ["battle_active"] = BattleActive,
+        ["freeze_seconds"] = FreezeTimer,
+        ["victory_state"] = VictoryState,
+        ["camera_index"] = PoolIdx,
+        ["boss_id"] = Boss != null ? DebugIdentity.ObjectId(this, Boss) : null,
+    };
     [Signal] public delegate void LevelVictoryEventHandler();
     [Signal] public delegate void OpenContinueEventHandler(bool isOpen, int side);
 
@@ -65,25 +80,35 @@ public partial class LevelBase : Node3D
     public override void _Ready()
     {
         LoadMeta();
-        Pool = GetNodeOrNull<MonsterPool>(PoolPath)!;
-        Camera = GetNodeOrNull<Camera3D>(CameraPath)!;
+        Pool = SceneContract.Require<MonsterPool>(this, PoolPath);
+        Camera = SceneContract.Require<Camera3D>(this, CameraPath);
         FireSys = GetNodeOrNull<FireSystem>(FireSystemPath)!;
-        BgmPlayer = GetNodeOrNull<AudioStreamPlayer>(BgmPlayerPath)!;
+        BgmPlayer = SceneContract.Require<AudioStreamPlayer>(this, BgmPlayerPath);
         var cams = new System.Collections.Generic.List<Node3D>();
         foreach (var p in CamPositionPaths)
         {
             var n = GetNodeOrNull<Node3D>(p);
             if (n != null)
                 cams.Add(n);
+            else
+                GD.PushWarning($"[SceneContract] {DebugIdentity.ObjectId(GetTree().CurrentScene, this)} missing camera marker '{p}'");
         }
         CamPositions = cams.ToArray();
         RegisterMonsterTypes();
         PlayerState.Instance.PlayerDied += OnPlayerDied;
         if (FireSys != null)
-            FireSys.OpenContinue += (isOpen, side) => EmitSignal(SignalName.OpenContinue, isOpen, side);
+            FireSys.OpenContinue += OnFireContinue;
         ApplyShotRes(); // --shot-res:WxH 截图分辨率(全关卡生效)
         ResetGameState();
         EnterLevel();
+    }
+
+    private void OnFireContinue(bool isOpen, int side) => EmitSignal(SignalName.OpenContinue, isOpen, side);
+
+    public override void _ExitTree()
+    {
+        PlayerState.Instance.PlayerDied -= OnPlayerDied;
+        if (GodotObject.IsInstanceValid(FireSys)) FireSys.OpenContinue -= OnFireContinue;
     }
 
     /// <summary>类型→场景注册(各关按需覆盖/补充)</summary>
@@ -108,7 +133,9 @@ public partial class LevelBase : Node3D
     {
         Game.Instance.SceneState = Game.GameState.Battle;
         PlayerState.CurAliveMonster = 0;
-        InputRouter.Instance.SetInputMode(InputRouter.InputMode.ControllerOrRight);
+        var mode = InputRouter.Instance.Mode;
+        InputRouter.Instance.SetInputMode(mode == InputRouter.InputMode.Menu
+            ? InputRouter.InputMode.ControllerOrRight : mode);
         PlayerState.Instance.UpdateUiMode("Battle"); // 战斗 HUD(原作 UpdateUIMode 其余=Battle)
     }
 
@@ -434,15 +461,18 @@ public partial class LevelBase : Node3D
     }
 
     /// <summary>胜利延迟 2s,单次触发(修原作每帧重复注册 bug);
-    /// 原作 Victory 只弹面板回菜单、无任何星级/分数结算(全工程无星级写入点),不写档</summary>
-    protected async void TriggerVictory()
+    /// 记录已完成的难度，保留已有更高星级，然后弹出胜利面板。</summary>
+    protected internal async void TriggerVictory()
     {
+        if (VictoryState != 0) return;
         VictoryState = 1;
         GD.Print($"[{LevelKey}] level clear → victory in {VictoryDelay:0.0}s");
-        await ToSignal(GetTree().CreateTimer(VictoryDelay), SceneTreeTimer.SignalName.Timeout);
-        if (VictoryState != 1)
+        await ToSignal(GetTree().CreateTimer(VictoryDelay, processAlways: false), SceneTreeTimer.SignalName.Timeout);
+        if (!GodotObject.IsInstanceValid(this) || !IsInsideTree() || VictoryState != 1)
             return;
         VictoryState = 2;
+        if (LevelKey.StartsWith("level") && int.TryParse(LevelKey[5..], out int number))
+            SaveService.Instance.SetLevelResult(number - 1, (int)Game.Instance.CurrentDifficulty + 1, 0, 0);
         GD.Print($"[{LevelKey}] level_victory");
         EmitSignal(SignalName.LevelVictory);
     }

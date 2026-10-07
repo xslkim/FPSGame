@@ -24,3 +24,10 @@ game/obj/
 
 # 战斗审计大批量对照截图(161MB,留盘不入库;单张对照图仍放 tools/screenshots 根)
 /tools/screenshots/audit/
+
+# 本地调试输出与代码分析缓存
+/temp/
+/graphify-out/
+
+# 逐轮测试截图（保留已跟踪的参考图）
+/tools/screenshots/fix*/

@@ -63,6 +63,7 @@ public partial class DeviceConnectionScreen : Node
         _gunM4 = GetNode<Node3D>(VpPrefix + "Camera3D/M4View");
         _muzzleAk = GetNode<MuzzleFlash>(VpPrefix + "Camera3D/AK47View/MuzzleFlash");
         _muzzleM4 = GetNode<MuzzleFlash>(VpPrefix + "Camera3D/M4View/MuzzleFlash");
+        UiWeaponPresentation.Create(this, _camera, _gunAk, _gunM4);
         // 2D 激光指引(原作右红/左绿):画在 UI 最上层,枪原点锥形光束+光点,悬停放光
         _guideAk = UiAimGuide.Create(this, LaserSight.RightRed);
         _guideM4 = UiAimGuide.Create(this, LaserSight.LeftGreen);
@@ -260,6 +261,8 @@ public partial class DeviceConnectionScreen : Node
 
     private void SyncViewportSize()
     {
+        if (_subvp.GetParent() is SubViewportContainer { Stretch: true })
+            return;
         var size = (Vector2I)GetViewport().GetVisibleRect().Size;
         if (size.X <= 0 || size.Y <= 0)
             return; // headless 首帧可视区为 0,保持场景默认 1280×720
@@ -285,9 +288,7 @@ public partial class DeviceConnectionScreen : Node
             if (aim.IsScreenPoint)
             {
                 // 鼠标模拟光枪:枪口指向鼠标射线方向
-                var dir = _camera.ProjectRayNormal(aim.ScreenPos);
-                var localDir = (_camera.GlobalTransform.Basis.Inverse() * dir).Normalized();
-                _gunAk.Quaternion = new Quaternion(Vector3.Forward, localDir);
+                GunMath.AimUiAk(_camera, _gunAk, _muzzleAk, aim.ScreenPos);
                 logical = UiKit.WindowToLogical(GetViewport(), aim.ScreenPos);
                 // 瞄准悬停 = 焦点视觉(MessageBox 按钮由原生 hover 承担)
                 var b = ButtonAtLogicalPoint(logical, skipBoxButtons: true);
@@ -299,11 +300,11 @@ public partial class DeviceConnectionScreen : Node
             }
             else
             {
-                _gunAk.Quaternion = aim.Rotation;
+                _gunAk.Quaternion = aim.Rotation * new Quaternion(GunMath.UiAkBarrelAxis(_gunAk), Vector3.Forward);
                 logical = RotationAimLogicalPoint(left: false);
                 _aimHover = null;
             }
-            _guideAk.SetAim(_camera, _muzzleAk.GlobalPosition, _gunAk.GlobalBasis * Vector3.Forward, null,
+            _guideAk.SetAim(_camera, _muzzleAk.GlobalPosition, _gunAk.GlobalBasis * GunMath.UiAkBarrelAxis(_gunAk), null,
                 logical, ButtonAtLogicalPoint(logical, skipBoxButtons: true) != null);
         }
         else

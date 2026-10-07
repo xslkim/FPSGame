@@ -14,6 +14,7 @@ public partial class GunBase : Node3D
     public float Attack = 10.0f;
     public int BulletCost = 1;
     public double LastFireTime = -99.0;
+    public int ShotsFired { get; private set; }
 
     public Player Player = null!;
     public bool IsLeft;
@@ -21,6 +22,64 @@ public partial class GunBase : Node3D
     public Node3D Muzzle => GetNode<Node3D>("Muzzle");
     private MuzzleFlash _flash = null!;
     private AudioStreamPlayer3D _audio = null!;
+    private MeshInstance3D _barrelMesh = null!;
+    private Vector3 _meshMuzzle;
+    private Vector3 _meshBarrelAxis;
+
+    public Vector3 BarrelDirection => (_barrelMesh.GlobalBasis * _meshBarrelAxis).Normalized();
+    public Vector3 VisualMuzzle => _barrelMesh.GlobalTransform * _meshMuzzle;
+
+    /// <summary>Calibrate from the actual barrel mesh once, then follow its animated transform.</summary>
+    public void CalibrateMuzzle()
+    {
+        string name = GunType switch { 0 => "AK 47 Standard", 1 => "M4_Gun", _ => "Gun" };
+        foreach (var node in GetNode("Model").FindChildren("*", "MeshInstance3D", true, false))
+            if (node.Name == name) { _barrelMesh = (MeshInstance3D)node; break; }
+        if (_barrelMesh == null)
+            throw new System.InvalidOperationException($"Missing barrel mesh for {GunName}: {name}");
+        var transform = GlobalTransform.AffineInverse() * _barrelMesh.GlobalTransform;
+        var points = new System.Collections.Generic.List<Vector3>();
+        float front = float.PositiveInfinity;
+        for (int s = 0; s < _barrelMesh.Mesh.GetSurfaceCount(); s++)
+            foreach (var vertex in _barrelMesh.Mesh.SurfaceGetArrays(s)[(int)Mesh.ArrayType.Vertex].AsVector3Array())
+            {
+                var point = transform * vertex;
+                points.Add(point);
+                front = Mathf.Min(front, point.Z);
+            }
+        var min = new Vector3(float.PositiveInfinity, float.PositiveInfinity, front);
+        var max = new Vector3(float.NegativeInfinity, float.NegativeInfinity, front);
+        foreach (var point in points)
+            if (point.Z <= front + 0.00001f) { min = min.Min(point); max = max.Max(point); }
+        _meshMuzzle = transform.AffineInverse() * ((min + max) * 0.5f);
+        _meshBarrelAxis = (_barrelMesh.GlobalBasis.Inverse() * (GlobalBasis * Vector3.Forward)).Normalized();
+        RefreshMuzzle();
+    }
+
+    public void RefreshMuzzle()
+    {
+        var direction = BarrelDirection;
+        var up = Mathf.Abs(direction.Dot(Vector3.Up)) > 0.99f ? Vector3.Right : Vector3.Up;
+        Muzzle.GlobalTransform = new Transform3D(Basis.LookingAt(direction, up), VisualMuzzle);
+    }
+
+    public void AimAt(Vector3 target)
+    {
+        var parentBasisInverse = ((Node3D)GetParent()).GlobalBasis.Inverse();
+        for (int i = 0; i < 6; i++)
+        {
+            var localAxis = (GlobalBasis.Inverse() * BarrelDirection).Normalized();
+            Quaternion = new Quaternion(localAxis, (parentBasisInverse * (target - VisualMuzzle)).Normalized());
+        }
+        RefreshMuzzle();
+    }
+
+    public void AimRotation(Quaternion rotation)
+    {
+        var localAxis = (GlobalBasis.Inverse() * BarrelDirection).Normalized();
+        Quaternion = rotation * new Quaternion(localAxis, Vector3.Forward);
+        RefreshMuzzle();
+    }
 
     public void Setup(int type, bool isLeft)
     {
@@ -49,9 +108,11 @@ public partial class GunBase : Node3D
         if (!Player.Active || Player.Bullet < BulletCost)
             return (false, false);
         LastFireTime = now;
+        ShotsFired++;
         Player.UseBullet(BulletCost);
-        _flash.Fire();
         PlayFireAnimation();
+        RefreshMuzzle();
+        _flash.Fire();
         if (_audio.Stream != null)
             _audio.Play();
         return (true, true);

@@ -1,0 +1,490 @@
+{
+  "bull": {
+    "attack_01": {
+      "source": "Assets/Actor/牛魔王/BOSS/Bull/Animation/bull_king@attack_01.FBX",
+      "length": 1.0,
+      "events": [
+        {
+          "time": 0.769230842590332,
+          "name": "EventAttack",
+          "int_parameter": 0,
+          "string_parameter": ""
+        }
+      ]
+    },
+    "attack_02": {
+      "source": "Assets/Actor/牛魔王/BOSS/Bull/Animation/bull_king@attack_02.FBX",
+      "length": 1.0,
+      "events": [
+        {
+          "time": 0.5981892347335815,
+          "name": "EventAttack",
+          "int_parameter": 0,
+          "string_parameter": ""
+        }
+      ]
+    },
+    "attack_03": {
+      "source": "Assets/Actor/牛魔王/BOSS/Bull/Animation/bull_king@attack_03.FBX",
+      "length": 1.0,
+      "events": [
+        {
+          "time": 0.6268584728240967,
+          "name": "EventAttack",
+          "int_parameter": 0,
+          "string_parameter": ""
+        }
+      ]
+    }
+  },
+  "axe_zombie": {
+    "Attack1": {
+      "source": "Assets/Enemy/斧子僵尸/Animations/Humanoid/MonsterAZ@Attack01.FBX",
+      "length": 1.3333333730697632,
+      "events": [
+        {
+          "time": 0.44680333137512207,
+          "name": "EventAttack",
+          "int_parameter": 0,
+          "string_parameter": ""
+        }
+      ]
+    },
+    "Attack2": {
+      "source": "Assets/Enemy/斧子僵尸/Animations/Humanoid/MonsterAZ@Attack02.FBX",
+      "length": 1.6666667461395264,
+      "events": [
+        {
+          "time": 0.5380592942237854,
+          "name": "EventAttack",
+          "int_parameter": 0,
+          "string_parameter": ""
+        },
+        {
+          "time": 0.9481403827667236,
+          "name": "EventAttack",
+          "int_parameter": 0,
+          "string_parameter": ""
+        }
+      ]
+    },
+    "AttackL": {
+      "source": "Assets/Enemy/斧子僵尸/Animations/Humanoid/MonsterAZ@AttackL.FBX",
+      "length": 1.0,
+      "events": [
+        {
+          "time": 0.30384525656700134,
+          "name": "EventAttack",
+          "int_parameter": 0,
+          "string_parameter": ""
+        }
+      ]
+    },
+    "AttackR": {
+      "source": "Assets/Enemy/斧子僵尸/Animations/Humanoid/MonsterAZ@AttackR.FBX",
+      "length": 1.0,
+      "events": [
+        {
+          "time": 0.5340880155563354,
+          "name": "EventAttack",
+          "int_parameter": 0,
+          "string_parameter": ""
+        }
+      ]
+    }
+  },
+  "fly_axe_zombie": {
+    "Skill": {
+      "source": "Assets/Enemy/斧子僵尸/Animations/Humanoid/MonsterAZ@Skill.FBX",
+      "length": 1.6666667461395264,
+      "events": [
+        {
+          "time": 0.3735153079032898,
+          "name": "EventSkill",
+          "int_parameter": 0,
+          "string_parameter": "TakeHandAxe"
+        },
+        {
+          "time": 1.0006290674209595,
+          "name": "EventSkill",
+          "int_parameter": 0,
+          "string_parameter": "ThrowAxe"
+        }
+      ]
+    }
+  },
+  "baotou": {
+    "anim_attack": {
+      "source": "Assets/Enemy/包头僵尸/Animations/Anim_ATTACK_01.FBX",
+      "length": 1.1666669845581055,
+      "events": [
+        {
+          "time": 0.4980994462966919,
+          "name": "BaotouSkill",
+          "int_parameter": 0,
+          "string_parameter": ""
+        }
+      ]
+    }
+  },
+  "magma_demon": {
+    "attack01": {
+      "source": "Assets/Enemy/发光小怪物/Animations/Magma Demon@attack01.FBX",
+      "length": 1.1666667461395264,
+      "events": [
+        {
+          "time": 0.6796257495880127,
+          "name": "EventAttack",
+          "int_parameter": 0,
+          "string_parameter": ""
+        }
+      ]
+    },
+    "attack02": {
+      "source": "Assets/Enemy/发光小怪物/Animations/Magma Demon@attack02.FBX",
+      "length": 0.8333333730697632,
+      "events": [
+        {
+          "time": 0.6013513207435608,
+          "name": "EventAttack",
+          "int_parameter": 0,
+          "string_parameter": ""
+        }
+      ]
+    }
+  },
+  "rock_warrior": {
+    "atk01": {
+      "source": "Assets/Enemy/树皮石头怪/FantasyMonster/RockWarrior/Motion/RockWarrior@atk01.FBX",
+      "length": 1.3333333730697632,
+      "events": [
+        {
+          "time": 0.7117628455162048,
+          "name": "RockAttack",
+          "int_parameter": 0,
+          "string_parameter": ""
+        }
+      ]
+    }
+  },
+  "wolf": {
+    "Attack1": {
+      "source": "Assets/Enemy/狼僵尸/Animations/Generic/MonsterW@Attack01.FBX",
+      "length": 1.6666667461395264,
+      "events": [
+        {
+          "time": 0.34173858165740967,
+          "name": "EventAttack",
+          "int_parameter": 0,
+          "string_parameter": ""
+        },
+        {
+          "time": 0.7154572010040283,
+          "name": "EventAttack",
+          "int_parameter": 0,
+          "string_parameter": ""
+        }
+      ]
+    },
+    "Attack2": {
+      "source": "Assets/Enemy/狼僵尸/Animations/Generic/MonsterW@Attack02.FBX",
+      "length": 2.0,
+      "events": [
+        {
+          "time": 0.32268446683883667,
+          "name": "EventAttack",
+          "int_parameter": 0,
+          "string_parameter": ""
+        },
+        {
+          "time": 0.6467747688293457,
+          "name": "EventAttack",
+          "int_parameter": 0,
+          "string_parameter": ""
+        },
+        {
+          "time": 1.1010661125183105,
+          "name": "EventAttack",
+          "int_parameter": 0,
+          "string_parameter": ""
+        }
+      ]
+    },
+    "Skill1": {
+      "source": "Assets/Enemy/狼僵尸/Animations/Generic/MonsterW@Skill01.FBX",
+      "length": 2.0,
+      "events": [
+        {
+          "time": 0.8698008060455322,
+          "name": "EventAttack",
+          "int_parameter": 0,
+          "string_parameter": ""
+        }
+      ]
+    },
+    "Skill2": {
+      "source": "Assets/Enemy/狼僵尸/Animations/Generic/MonsterW@Skill02.FBX",
+      "length": 1.8333333730697632,
+      "events": [
+        {
+          "time": 0.7057790160179138,
+          "name": "EventAttack",
+          "int_parameter": 0,
+          "string_parameter": ""
+        }
+      ]
+    }
+  },
+  "wolf_blue": {
+    "BiteAttack": {
+      "source": "Assets/Enemy/牛逼的资源合集/狼/Animations/Demon Wolf@BiteAttack.FBX",
+      "length": 1.1666667461395264,
+      "events": [
+        {
+          "time": 0.7370637655258179,
+          "name": "EventAttack",
+          "int_parameter": 0,
+          "string_parameter": ""
+        }
+      ]
+    },
+    "ClawAttack": {
+      "source": "Assets/Enemy/牛逼的资源合集/狼/Animations/Demon Wolf@ClawAttack.FBX",
+      "length": 1.1666667461395264,
+      "events": [
+        {
+          "time": 0.6717809438705444,
+          "name": "EventAttack",
+          "int_parameter": 0,
+          "string_parameter": ""
+        }
+      ]
+    }
+  },
+  "fat_zombie": {
+    "Attack1": {
+      "source": "Assets/Enemy/胖僵尸/Animations/Humanoid/MonsterFZ@Attack01.FBX",
+      "length": 1.6666667461395264,
+      "events": [
+        {
+          "time": 0.9357277154922485,
+          "name": "EventAttack",
+          "int_parameter": 0,
+          "string_parameter": ""
+        }
+      ]
+    },
+    "Attack2": {
+      "source": "Assets/Enemy/胖僵尸/Animations/Humanoid/MonsterFZ@Attack02.FBX",
+      "length": 1.6666667461395264,
+      "events": [
+        {
+          "time": 0.47258976101875305,
+          "name": "EventAttack",
+          "int_parameter": 0,
+          "string_parameter": ""
+        },
+        {
+          "time": 0.8695651888847351,
+          "name": "EventAttack",
+          "int_parameter": 0,
+          "string_parameter": ""
+        }
+      ]
+    }
+  },
+  "skeleton": {
+    "Attack1": {
+      "source": "Assets/Enemy/骷髅僵尸/Animations/Humanoid/MonsterS@Attack01.FBX",
+      "length": 1.0,
+      "events": [
+        {
+          "time": 0.33023256063461304,
+          "name": "EventAttack",
+          "int_parameter": 0,
+          "string_parameter": ""
+        }
+      ]
+    },
+    "Attack2": {
+      "source": "Assets/Enemy/骷髅僵尸/Animations/Humanoid/MonsterS@Attack02.FBX",
+      "length": 1.3333333730697632,
+      "events": [
+        {
+          "time": 0.5395349264144897,
+          "name": "EventAttack",
+          "int_parameter": 0,
+          "string_parameter": ""
+        }
+      ]
+    }
+  },
+  "level2_boss": {
+    "Skill1": {
+      "source": "Assets/Enemy/金属盔甲武士/LowPoly_Lancer/Ani/Skill1.anim",
+      "length": 0.3333333432674408,
+      "events": [
+        {
+          "time": 0.0,
+          "name": "StartSlow",
+          "int_parameter": 0,
+          "string_parameter": ""
+        },
+        {
+          "time": 0.0,
+          "name": "StartSlow",
+          "int_parameter": 0,
+          "string_parameter": ""
+        },
+        {
+          "time": 0.10000000149011612,
+          "name": "StopSlow",
+          "int_parameter": 0,
+          "string_parameter": ""
+        },
+        {
+          "time": 0.1666666716337204,
+          "name": "HertPlayerSkill1",
+          "int_parameter": 0,
+          "string_parameter": ""
+        }
+      ]
+    },
+    "Skill2": {
+      "source": "Assets/Enemy/金属盔甲武士/LowPoly_Lancer/Ani/Skill2.anim",
+      "length": 0.7000000476837158,
+      "events": [
+        {
+          "time": 0.23333333432674408,
+          "name": "StartSlow",
+          "int_parameter": 0,
+          "string_parameter": ""
+        },
+        {
+          "time": 0.3333333432674408,
+          "name": "StopSlow",
+          "int_parameter": 0,
+          "string_parameter": ""
+        },
+        {
+          "time": 0.46666666865348816,
+          "name": "HertPlayerSkill2",
+          "int_parameter": 0,
+          "string_parameter": ""
+        }
+      ]
+    }
+  },
+  "dragon_red": {
+    "FireBreathOnce": {
+      "source": "Assets/Enemy/森林树木怪/小飞龙/Animations/Fantasy Dragon@FireBreathOnce.FBX",
+      "length": 2.0,
+      "events": [
+        {
+          "time": 0.7104513645172119,
+          "name": "StartFire",
+          "int_parameter": 0,
+          "string_parameter": ""
+        },
+        {
+          "time": 1.3478950262069702,
+          "name": "EventAttack",
+          "int_parameter": 0,
+          "string_parameter": ""
+        }
+      ]
+    }
+  },
+  "dragon_blue": {
+    "FireBreathOnce": {
+      "source": "Assets/Enemy/森林树木怪/小飞龙/Animations/Fantasy Dragon@FireBreathOnce.FBX",
+      "length": 2.0,
+      "events": [
+        {
+          "time": 0.7104513645172119,
+          "name": "StartFire",
+          "int_parameter": 0,
+          "string_parameter": ""
+        },
+        {
+          "time": 1.3478950262069702,
+          "name": "EventAttack",
+          "int_parameter": 0,
+          "string_parameter": ""
+        }
+      ]
+    }
+  },
+  "dragon_green": {
+    "FireBreathOnce": {
+      "source": "Assets/Enemy/森林树木怪/小飞龙/Animations/Fantasy Dragon@FireBreathOnce.FBX",
+      "length": 2.0,
+      "events": [
+        {
+          "time": 0.7104513645172119,
+          "name": "StartFire",
+          "int_parameter": 0,
+          "string_parameter": ""
+        },
+        {
+          "time": 1.3478950262069702,
+          "name": "EventAttack",
+          "int_parameter": 0,
+          "string_parameter": ""
+        }
+      ]
+    }
+  },
+  "toon_shoot": {
+    "reload": {
+      "source": "Assets/AssetTools/ToonSoldiers_militias/animation/Infantry/infantry_combat_reload.FBX",
+      "length": 3.6666667461395264,
+      "events": [
+        {
+          "time": 3.4166668073875908,
+          "name": "BeginShoot",
+          "string_parameter": ""
+        }
+      ],
+      "transition_source": "Assets/Monster/ToonSoldiers/InfantryGun.controller: exitTime=0.9318182, blend=0.25s"
+    },
+    "shoot": {
+      "source": "Assets/AssetTools/ToonSoldiers_militias/animation/Infantry/infantry_combat_shoot.FBX",
+      "length": 1.0,
+      "events": [
+        {
+          "time": 0.24137930572032928,
+          "name": "ToonShoot",
+          "int_parameter": 0,
+          "string_parameter": ""
+        }
+      ]
+    }
+  },
+  "toon_shoot_alien": {
+    "reload": {
+      "source": "Assets/AssetTools/ToonSoldiers_militias/animation/Infantry/infantry_combat_reload.FBX",
+      "length": 3.6666667461395264,
+      "events": [
+        {
+          "time": 3.4166668073875908,
+          "name": "BeginShoot",
+          "string_parameter": ""
+        }
+      ],
+      "transition_source": "Assets/Monster/ToonSoldiers/InfantryGun.controller: exitTime=0.9318182, blend=0.25s"
+    },
+    "shoot": {
+      "source": "Assets/AssetTools/ToonSoldiers_militias/animation/Infantry/infantry_combat_shoot.FBX",
+      "length": 1.0,
+      "events": [
+        {
+          "time": 0.24137930572032928,
+          "name": "ToonShoot",
+          "int_parameter": 0,
+          "string_parameter": ""
+        }
+      ]
+    }
+  }
+}
