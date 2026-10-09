@@ -7,11 +7,13 @@ param(
     [string]$Executable = '',
     [switch]$SkipBuild,
     [switch]$Graphics,
+    [switch]$CaptureScreenshots,
     [int]$UdpPort = 19917,
     [int]$TimeoutSeconds = 4500
 )
 
 $ErrorActionPreference = 'Stop'
+if ($CaptureScreenshots -and -not $Graphics) { throw 'CaptureScreenshots requires Graphics.' }
 $projectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $gameRoot = Join-Path $projectRoot 'game'
 $logRoot = Join-Path $projectRoot ('temp/playthrough/' + (Get-Date -Format 'yyyyMMdd_HHmmss'))
@@ -31,6 +33,10 @@ if ($Graphics) { $arguments = @('--resolution','1280x720') }
 if (-not $Executable) { $arguments += @('--path',$gameRoot,'res://scenes/ui/menu.tscn') }
 $arguments += @('--',"--qa-save-dir:$saveDir","--qa-udp-port:$UdpPort",
     ('--playthrough:' + ($Levels -join ',') + ':' + $Difficulty + ':' + $Seed))
+if ($CaptureScreenshots) {
+    $shotDir = (Join-Path $logRoot 'screenshots').Replace('\','/')
+    $arguments += "--playthrough-shot-dir:$shotDir"
+}
 $stdout = Join-Path $logRoot 'out.log'
 $stderr = Join-Path $logRoot 'err.log'
 $process = Start-Process -FilePath $exePath -ArgumentList $arguments -WindowStyle Hidden -PassThru -RedirectStandardOutput $stdout -RedirectStandardError $stderr

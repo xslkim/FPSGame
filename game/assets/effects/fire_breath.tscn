@@ -44,13 +44,18 @@ damping_min = 1.5
 damping_max = 2.5
 scale_min = 1.0
 scale_max = 1.8
+anim_speed_min = 1.0
+anim_speed_max = 1.0
 
 [sub_resource type="StandardMaterial3D" id="mat_smoke"]
 transparency = 1
 shading_mode = 0
 albedo_color = Color(0.25, 0.22, 0.2, 0.45)
 albedo_texture = ExtResource("3")
-billboard_mode = 1
+billboard_mode = 3
+particles_anim_h_frames = 8
+particles_anim_v_frames = 8
+particles_anim_loop = false
 
 [sub_resource type="QuadMesh" id="q_smoke"]
 material = SubResource("mat_smoke")

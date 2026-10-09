@@ -11,49 +11,60 @@
 transparency = 1
 blend_mode = 1
 shading_mode = 0
+disable_fog = true
 albedo_color = Color(0.75, 0.85, 1, 0.95)
 albedo_texture = ExtResource("2")
-billboard_mode = 1
+billboard_mode = 0
 
 [sub_resource type="StandardMaterial3D" id="mat_bolt2"]
 transparency = 1
 blend_mode = 1
 shading_mode = 0
+disable_fog = true
 albedo_color = Color(0.75, 0.85, 1, 0.95)
 albedo_texture = ExtResource("3")
-billboard_mode = 1
+billboard_mode = 0
 
 [sub_resource type="StandardMaterial3D" id="mat_bolt3"]
 transparency = 1
 blend_mode = 1
 shading_mode = 0
+disable_fog = true
 albedo_color = Color(0.75, 0.85, 1, 0.95)
 albedo_texture = ExtResource("4")
-billboard_mode = 1
+billboard_mode = 0
 
 [sub_resource type="StandardMaterial3D" id="mat_glow"]
 transparency = 1
 blend_mode = 1
 shading_mode = 0
+disable_fog = true
 albedo_color = Color(0.6, 0.75, 1, 0.8)
 albedo_texture = ExtResource("5")
-billboard_mode = 1
+billboard_mode = 0
 
 [node name="LightningPillar" type="Node3D"]
 script = ExtResource("1")
 Lifetime = 0.5
+SpriteFramesPerSecond = 128.0
+PlaySpriteAtlasOnce = true
+FaceCameraOnActivate = true
 
 [node name="Bolt1" type="Sprite3D" parent="."]
-transform = Transform3D(1.31134e-07, 4, 0, -4, 1.31134e-07, 0, 0, 0, 4, 0, 4, 0)
-pixel_size = 0.008
+transform = Transform3D(1.31134e-07, 4, 0, -4, 1.31134e-07, 0, 0, 0, 4, 0, 2, 0)
+pixel_size = 0.016
 material_override = SubResource("mat_bolt")
 texture = ExtResource("2")
+hframes = 8
+vframes = 8
 
 [node name="Bolt2" type="Sprite3D" parent="."]
-transform = Transform3D(1.31134e-07, 4, 0, -4, 1.31134e-07, 0, 0, 0, 4, 0, 4, 0)
-pixel_size = 0.008
+transform = Transform3D(1.31134e-07, 4, 0, -4, 1.31134e-07, 0, 0, 0, 4, 0, 2, 0)
+pixel_size = 0.016
 material_override = SubResource("mat_bolt2")
 texture = ExtResource("3")
+hframes = 4
+vframes = 8
 
 [node name="Bolt3" type="Sprite3D" parent="."]
 transform = Transform3D(4, 0, 0, 0, 4, 0, 0, 0, 4, 0, 4, 0)

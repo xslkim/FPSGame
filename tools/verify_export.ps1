@@ -2,6 +2,7 @@ param(
     [Parameter(Mandatory = $true)]
     [string]$Executable,
     [switch]$Graphics,
+    [string[]]$CaseIds = @(),
     [int]$CaseTimeoutSeconds = 300
 )
 
@@ -15,6 +16,8 @@ $cases = @(
     @{ Id = 'Level2Presentation'; Scene = 'res://scenes/levels/level2.tscn'; Flags = @('--level2-presentation-selftest'); Marker = '[L2-PRESENTATION] ALL PASS' },
     @{ Id = 'InputAndSession'; Scene = 'res://scenes/debug/runtime_qa.tscn'; Flags = @('--runtime-selftest'); Marker = '[RUNTIME-QA] ALL PASS' }
     @{ Id = 'AnimationEvents'; Scene = 'res://scenes/debug/animation_qa.tscn'; Flags = @('--animation-selftest'); Marker = '[ANIMATION-QA] ALL PASS' }
+    @{ Id = 'ReportedVisualIssues'; Scene = 'res://scenes/debug/reported_visual_qa.tscn'; Flags = @('--reported-visual-selftest'); Marker = '[REPORTED-VISUAL-QA] ALL PASS' }
+    @{ Id = 'OtherLevelsVisual'; Scene = 'res://scenes/debug/other_levels_visual_qa.tscn'; Flags = @('--other-levels-visual-selftest'); Marker = '[OTHER-LEVELS-VISUAL-QA] ALL PASS' }
 )
 if ($Graphics) {
     $cases += @{ Id = 'RenderedReport'; Scene = 'res://scenes/debug/shot_qa.tscn'; Flags = @('--report-selftest'); Marker = '[SHOT-QA] ALL PASS'; Render = $true }
@@ -22,6 +25,7 @@ if ($Graphics) {
 $failed = @()
 $caseIndex = 0
 foreach ($case in $cases) {
+    if ($CaseIds.Count -gt 0 -and $case.Id -notin $CaseIds) { continue }
     $stdout = Join-Path $logRoot ($case.Id + '.out.log')
     $stderr = Join-Path $logRoot ($case.Id + '.err.log')
     $saveDir = (Join-Path $logRoot ($case.Id + '/userdata')).Replace('\', '/')

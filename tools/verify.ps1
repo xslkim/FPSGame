@@ -38,6 +38,8 @@ $cases = @(
     @{ Id = 'Debug/Report'; Script = 'res://tools/debug_smoke.gd'; Marker = '[DEBUG-SMOKE] PASS'; Group = 'ui' },
     @{ Id = 'Port/Geometry'; Script = 'res://tools/port_geometry_regression.gd'; Marker = '[PORT-GEOMETRY] PASS'; Group = 'levels' },
     @{ Id = 'Port/Effects'; Script = 'res://tools/effect_regression.gd'; Marker = '[EFFECT-REGRESSION] PASS'; Group = 'levels' },
+    @{ Id = 'Visual/ReportedIssues'; Scene = 'res://scenes/debug/reported_visual_qa.tscn'; Flag = '--reported-visual-selftest'; Marker = '[REPORTED-VISUAL-QA] ALL PASS'; Group = 'levels' },
+    @{ Id = 'Visual/OtherLevels'; Scene = 'res://scenes/debug/other_levels_visual_qa.tscn'; Flag = '--other-levels-visual-selftest'; Marker = '[OTHER-LEVELS-VISUAL-QA] ALL PASS'; Group = 'levels' },
     @{ Id = 'L1/Story'; Scene = 'res://scenes/levels/level1_story.tscn'; Flag = '--story-selftest'; Marker = '[STORY-TEST] done, failed=False'; Group = 'levels' },
     @{ Id = 'L1/Battle'; Scene = 'res://scenes/levels/level1_battle.tscn'; Flag = '--level1-selftest'; Marker = '[L1-TEST] done, failed=False'; Group = 'levels' },
     @{ Id = 'L2/Battle'; Scene = 'res://scenes/levels/level2.tscn'; Flag = '--level2-selftest'; Marker = '[L2-TEST] done, failed=False'; Group = 'levels' },

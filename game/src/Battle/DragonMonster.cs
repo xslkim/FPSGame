@@ -108,7 +108,7 @@ public partial class DragonMonster : Monster
         {
             _breathTime -= delta;
             if (_breathTime <= 0.0f && _breathFx != null)
-                _breathFx.Emitting = false;
+                StopBreath();
         }
         // 非 Attack 段速度×2
         float speed = GetMoveSpeed() * (_segment == FlySeg.Attack ? 1.0f : 2.0f);
@@ -120,8 +120,7 @@ public partial class DragonMonster : Monster
             if (_segment == FlySeg.CamOffset)
             {
                 InitMovePosition();
-                if (_breathFx != null)
-                    _breathFx.Emitting = false; // VFX.SetActive(false)
+                StopBreath();
             }
             _target = _points[(int)_segment];
             return;
@@ -163,7 +162,9 @@ public partial class DragonMonster : Monster
         }
         if (_breathFx != null)
         {
-            _breathFx.Emitting = true;
+            _breathRoot.Show();
+            foreach (var node in _breathRoot.GetChildren())
+                if (node is GpuParticles3D particles) { particles.Emitting = true; particles.Restart(); }
             _breathTime = (float)((Anim.CurrentAnimationLength - Anim.CurrentAnimationPosition) / Mathf.Max(Mathf.Abs(Anim.GetPlayingSpeed()), 0.001f));
             _breathAudio?.Play();
         }
@@ -171,7 +172,17 @@ public partial class DragonMonster : Monster
 
     protected override void OnHurt(Vector3 point, Game.HitType hitType, PlayerState.Side side)
     {
-        if (_breathFx != null) _breathFx.Emitting = false;
+        StopBreath();
+    }
+
+    private void StopBreath()
+    {
+        if (_breathRoot != null)
+        {
+            foreach (var node in _breathRoot.GetChildren())
+                if (node is GpuParticles3D particles) particles.Emitting = false;
+            _breathRoot.Hide();
+        }
         _breathAudio?.Stop();
         _breathTime = 0;
     }
@@ -182,7 +193,7 @@ public partial class DragonMonster : Monster
     {
         if (_breathRoot != null)
         {
-            _breathFx.Emitting = false;
+            StopBreath();
             return;
         }
         _breathRoot = FireBreathScene.Instantiate<Node3D>();
@@ -199,6 +210,17 @@ public partial class DragonMonster : Monster
                 Game.AttackType.Poison => new Color(0.55f, 1.0f, 0.4f),
                 _ => new Color(1.0f, 0.75f, 0.4f),
             };
+            string texture = Info.AttackType switch
+            {
+                Game.AttackType.Ice => "dragon_breath_ice.tga",
+                Game.AttackType.Poison => "dragon_breath_poison.tga",
+                _ => "dragon_breath_fire.tga",
+            };
+            flameMat.AlbedoTexture = GD.Load<Texture2D>("res://assets/effects/textures/" + texture);
+            // Only fire is a 4x2 atlas; ice/poison are single soft particles.
+            flameMat.ParticlesAnimHFrames = Info.AttackType is Game.AttackType.Ice or Game.AttackType.Poison ? 1 : 4;
+            flameMat.ParticlesAnimVFrames = Info.AttackType is Game.AttackType.Ice or Game.AttackType.Poison ? 1 : 2;
+            flameMat.DisableFog = true;
             mesh.Material = flameMat;
             _breathFx.DrawPass1 = mesh;
         }
@@ -208,6 +230,7 @@ public partial class DragonMonster : Monster
             UnitSize = 10.0f,
         };
         AddChild(_breathAudio);
+        StopBreath();
     }
 
     /// <summary>TakeDamage 状态中无敌:hit 返回空,不掉血</summary>
@@ -227,9 +250,7 @@ public partial class DragonMonster : Monster
             .SetDeferred(CollisionShape3D.PropertyName.Disabled, true);
         PlaySound("dead");
         FireSystem.SpawnBloodFlower(this, new Vector3(0.0f, 1.0f, 0.0f));
-        if (_breathFx != null)
-            _breathFx.Emitting = false;
-        _breathAudio?.Stop();
+        StopBreath();
         if (Anim.HasAnimation(Info.DeadAnim))
             Anim.Play(Info.DeadAnim, 0.1, Info.DeadAnimSpeed);
         OnDeath();

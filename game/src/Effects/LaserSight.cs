@@ -48,6 +48,8 @@ public partial class LaserSight : Node3D
     private float _nearRadius;
     private float _farRadius;
     private double _scroll;
+    public Vector3 EndPoint { get; private set; }
+    public float FullLength { get; set; }
 
     /// <summary>创建激光:tint=颜色,radius=远端光束半径(原作战斗 widthCurve 远端 0.03/2),
     /// withDot=是否带终点红点,nearRadius=近端(枪口)半径(原作 widthCurve 近端 0.0089/2 近细远粗;
@@ -117,6 +119,7 @@ public partial class LaserSight : Node3D
             return;
         }
         Visible = true;
+        EndPoint = toGlobal;
         // LookAt 使 -Z 指向目标;dir 接近 ±Up 时换参考轴避免退化
         var up = Mathf.Abs(d.Normalized().Dot(Vector3.Up)) > 0.99f ? Vector3.Right : Vector3.Up;
         GlobalTransform = new Transform3D(Basis.Identity, fromGlobal).LookingAt(toGlobal, up);
@@ -129,8 +132,11 @@ public partial class LaserSight : Node3D
         side = (GlobalBasis.Inverse() * side.Normalized()).Normalized();
         var a = -side * _nearRadius;
         var b = side * _nearRadius;
-        var c = Vector3.Forward * len - side * _farRadius;
-        var e = Vector3.Forward * len + side * _farRadius;
+        float farRadius = FullLength > 0
+            ? Mathf.Lerp(_nearRadius, _farRadius, Mathf.Clamp(len / FullLength, 0, 1))
+            : _farRadius;
+        var c = Vector3.Forward * len - side * farRadius;
+        var e = Vector3.Forward * len + side * farRadius;
         _ribbon.ClearSurfaces();
         _ribbon.SurfaceBegin(Mesh.PrimitiveType.Triangles, _mat);
         AddRibbonVertex(a, new Vector2(0, 0));

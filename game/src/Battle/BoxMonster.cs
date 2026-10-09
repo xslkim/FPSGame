@@ -3,7 +3,7 @@ using Godot;
 namespace FPSGame;
 
 /// <summary>
-/// 牙齿宝箱(原作 BoxMonster.cs + 场景三箱序列化):HP1、移速 3(实际不移动)。
+/// 补给箱:子弹箱使用无牙齿和舌头的独立箱体;HP1、实际不移动。
 /// 真值流程:原地等待 WaittingTime(school_day 三箱全 20s,BoxAk.prefab 本体为 15 但本关未用),
 /// 等待期每 Idle02Time 秒插播 LickAttack(BoxBullet/BoxAK=3s、BoxM4=5s);LifeActiveTime=20s 到
 /// → HP=0 → Invoke("DestorySelf", 1.5) 自灭(无掉落、无死亡演出)。
@@ -18,6 +18,14 @@ public partial class BoxMonster : Monster
     public BoxKind Kind = BoxKind.Bullet;
 
     private bool _expiring;
+    private Node3D _ammoCrate = null!;
+
+    public override void _Ready()
+    {
+        base._Ready();
+        _ammoCrate = GD.Load<PackedScene>("res://assets/models/props/ammo_crate.tscn").Instantiate<Node3D>();
+        AddChild(_ammoCrate);
+    }
 
     /// <summary>按箱 kind 取 prefab/场景序列化等待时间(school_day:Bullet 20 / AK 20 / M4 20)</summary>
     public static float WaittingTimeOf(BoxKind kind) => KindValue(kind, "waitting_time", 20.0f);
@@ -49,6 +57,8 @@ public partial class BoxMonster : Monster
     {
         _expiring = false;
         Info.Idle2Interval = Idle2IntervalOf(Kind); // 等待期插播 LickAttack 的间隔
+        BodyNode.Visible = Kind != BoxKind.Bullet;
+        _ammoCrate.Visible = Kind == BoxKind.Bullet;
     }
 
     /// <summary>等待结束(与 20s 自灭同帧,原作 RunAway 分支永不触发):原地站立</summary>

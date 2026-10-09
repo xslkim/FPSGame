@@ -10,10 +10,17 @@ namespace FPSGame;
 public partial class EffectBase : Node3D
 {
     [Export] public float Lifetime = 0.5f;
+    [Export] public bool FreeOnFinish;
+    [Export] public float SpriteFramesPerSecond = 30;
+    [Export] public bool PlaySpriteAtlasOnce;
+    [Export] public bool FaceCameraOnActivate;
 
     private Tween? _hideTween;
     private Node3D? _followTarget;
     private Transform3D _followLocal;
+    private double _age;
+    private float _spriteDuration;
+    private readonly System.Collections.Generic.List<Sprite3D> _flipbooks = new();
 
     /// <summary>Keep pooled ownership while following an actor; destroying the actor cannot destroy the pool entry.</summary>
     public void Follow(Node3D target, Vector3 localPosition)
@@ -26,6 +33,14 @@ public partial class EffectBase : Node3D
 
     public override void _Process(double delta)
     {
+        _age += delta;
+        foreach (var sprite in _flipbooks)
+        {
+            int count = sprite.Hframes * sprite.Vframes;
+            sprite.Frame = PlaySpriteAtlasOnce
+                ? Mathf.Min((int)(_age * count / Mathf.Max(_spriteDuration, .001f)), count - 1)
+                : (int)(_age * SpriteFramesPerSecond) % count;
+        }
         if (_followTarget == null) return;
         if (!IsInstanceValid(_followTarget) || _followTarget.IsQueuedForDeletion())
         {
@@ -38,6 +53,9 @@ public partial class EffectBase : Node3D
     public override void _Ready()
     {
         ProcessMode = ProcessModeEnum.Pausable;
+        foreach (var node in FindChildren("*", "Sprite3D", true, false))
+            if (node is Sprite3D sprite && sprite.Hframes * sprite.Vframes > 1)
+                _flipbooks.Add(sprite);
         foreach (var node in FindChildren("*", "GPUParticles3D", true, false))
         {
             var particles = (GpuParticles3D)node;
@@ -81,6 +99,11 @@ public partial class EffectBase : Node3D
     /// <summary>激活一次特效;overrideLifetime>0 可覆盖自隐时长(血花用 1.2s)</summary>
     public void Activate(float overrideLifetime = -1.0f)
     {
+        _age = 0;
+        _spriteDuration = overrideLifetime < 0 ? Lifetime : overrideLifetime;
+        if (FaceCameraOnActivate && GetViewport().GetCamera3D() is Camera3D camera)
+            GlobalRotation = new Vector3(0, camera.GlobalRotation.Y, 0);
+        foreach (var sprite in _flipbooks) sprite.Frame = 0;
         Visible = true;
         var hole = GetNodeOrNull<Sprite3D>("Hole");
         if (hole != null)
@@ -111,6 +134,11 @@ public partial class EffectBase : Node3D
         _hideTween?.Kill();
         _hideTween = CreateTween();
         _hideTween.TweenInterval(overrideLifetime < 0.0f ? Lifetime : overrideLifetime);
-        _hideTween.TweenCallback(Callable.From(() => { Hide(); _followTarget = null; }));
+        _hideTween.TweenCallback(Callable.From(() =>
+        {
+            Hide();
+            _followTarget = null;
+            if (FreeOnFinish) QueueFree();
+        }));
     }
 }

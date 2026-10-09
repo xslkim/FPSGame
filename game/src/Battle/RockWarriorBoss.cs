@@ -77,14 +77,11 @@ public partial class RockWarriorBoss : Monster
         if (CurState == State.Dead || CurState == State.Idle)
             return;
         var parent = GetTree().CurrentScene;
-        Fireball.Spawn(parent, GlobalPosition + new Vector3(0.0f, FireballHeight, 0.0f),
+        var fb = Fireball.Spawn(parent, GlobalPosition + new Vector3(0.0f, FireballHeight, 0.0f),
             GetAttack(), Info.AttackType);
-        // Fireball.Spawn 同步挂载,最后一子即本次火球;原作 localScale×10 视觉
-        if (parent.GetChild(parent.GetChildCount() - 1) is Fireball fb)
-        {
-            fb.Scale = Vector3.One * FireballScale;
-            LastFireball = fb;
-        }
+        // Spawn also adds audio nodes, so the scene's last child is not the fireball.
+        fb.Scale = Vector3.One * FireballScale;
+        LastFireball = fb;
     }
 
     /// <summary>硬化皮肤:非 atk01 动画状态只掉 1 血,不播受击动画/音效;atk01 中全额掉血</summary>

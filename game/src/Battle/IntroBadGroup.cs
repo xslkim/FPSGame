@@ -134,7 +134,18 @@ public partial class IntroBadGroup : Node3D, IDebugInspectable
     {
         if (!_playing)
             return;
-        _clock += delta;
+        Seek(_clock + delta);
+    }
+
+    /// <summary>Evaluate the full intro at a fixed time for repeatable visual review.</summary>
+    public void Seek(double time)
+    {
+        _clock = System.Math.Max(0, time);
+        if (_clock < ActivateTime)
+        {
+            _activated = false;
+            Visible = false;
+        }
         // 音频(轨道3:尖叫4 @0.0902s;轨道10:救救我 @11.7s)
         if (!_screamPlayed && _clock >= ScreamTime)
         {
@@ -162,8 +173,19 @@ public partial class IntroBadGroup : Node3D, IDebugInspectable
             Visible = true;
             foreach (var (ap, clip) in _animPlayers)
                 ap.Play(clip, 0.2);
+        }
+        if (_activated)
+        {
+            foreach (var (ap, clip) in _animPlayers)
+            {
+                var animation = ap.GetAnimation(clip);
+                double clipTime = _clock - ActivateTime;
+                if (animation.LoopMode != Animation.LoopModeEnum.None && animation.Length > 0)
+                    clipTime %= animation.Length;
+                ap.Seek(clipTime, true);
+            }
             foreach (var kd in _kdPlayers)
-                kd.Play();
+                kd.SetStoryTime(_clock - ActivateTime + kd.StartTime);
         }
         ApplyCamera();
     }
@@ -385,7 +407,7 @@ public partial class IntroBadGroup : Node3D, IDebugInspectable
     }
 
     /// <summary>剑女孩:只留 headusOBJexport008(身体);headusOBJexport009(武器)/Object001
-    /// 真值 inactive=0;Blade_Girl_Ex.mat 为 Unlit/Texture → Unshaded 贴图覆盖;无 Animator(绑定姿态)</summary>
+    /// 真值 inactive=0;Blade_Girl_Ex.mat 为 Unlit/Texture → Unshaded 贴图覆盖。</summary>
     private void SetupBladeGirl(Node3D blade)
     {
         var mat = MakeUnlitMat("res://assets/models/actors/blade_girl/blade_girl_base.png");
@@ -399,6 +421,31 @@ public partial class IntroBadGroup : Node3D, IDebugInspectable
                 for (int s = 0; s < mi.Mesh.GetSurfaceCount(); s++)
                     mi.SetSurfaceOverrideMaterial(s, mat);
         }
+        // This model has no carried animation. Its imported standing bind pose
+        // cannot express being held: author a reclining pose at the pelvis,
+        // preserving the bone attachment so it moves with the carrier's arms.
+        var skeleton = blade.FindChild("Skeleton3D", true, false) as Skeleton3D;
+        if (skeleton == null) return;
+        foreach (var node in blade.FindChildren("*", "AnimationPlayer", true, false))
+            if (node is AnimationPlayer ap) { ap.Stop(); ap.Active = false; }
+        skeleton.ResetBonePoses();
+        void Bend(string bone, float degrees)
+        {
+            int index = skeleton.FindBone(bone);
+            if (index >= 0)
+                skeleton.SetBonePoseRotation(index, skeleton.GetBoneRest(index).Basis.GetRotationQuaternion()
+                    * new Quaternion(Vector3.Back, Mathf.DegToRad(degrees)));
+        }
+        Bend("Bip001 L Thigh", -22);
+        Bend("Bip001 R Thigh", -18);
+        Bend("Bip001 L Calf", 55);
+        Bend("Bip001 R Calf", 48);
+        Bend("Bip001 L Forearm", -55);
+        Bend("Bip001 R Forearm", -45);
+        var pelvis = skeleton.GetBoneGlobalRest(skeleton.FindBone("Bip001 Pelvis")).Origin;
+        var recline = new Basis(new Quaternion(Vector3.Right, Mathf.DegToRad(85)));
+        var placed = blade.Transform;
+        blade.Transform = placed * new Transform3D(recline, pelvis - recline * pelvis);
     }
 
     /// <summary>Unlit/Texture(fileID 14)等价:Unshaded + albedo 贴图(雾照常生效)</summary>

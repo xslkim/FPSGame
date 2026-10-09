@@ -66,6 +66,12 @@ powershell -NoProfile -ExecutionPolicy Bypass -File G:\FPSGame\tools\verify.ps1
 
 ### 战斗动画与攻击事件
 
+2026-10-08 的报告回归新增 `Visual/ReportedIssues`（导出检查为 `ReportedVisualIssues`）：覆盖金币 0/9/60/999 在 720p、1080p、4:3 视口内的排版，开场 5.72/8/10/15 秒的被抱姿态，三把枪的墙面/续命按钮及后坐力落点，补弹箱模型复用，以及 Boss 闪现图集、蓝色闪光和释放。女孩使用弯膝、伏卧的被抱姿态并跟随士兵手臂骨；补弹箱使用独立的原生模型，AK/M4 箱保留各自表现。
+
+激光现在在实际命中面截断；光斑只向镜头微移 1mm，保持命中点的屏幕投影，不再沿枪管方向回退 0.1–0.5m。F5 报告新增 `beam_end_world`、`impact_screen`、`impact_alignment_error_pixels`，并在绘制前同步最终镜头/后坐力后的射线。金币与弹药数字统一保留屏底间距，避免字体最小高度挤出旧的 60px 文本框。
+
+实图验收可从导出包运行 `--quick:res://scenes/debug/reported_visual_qa.tscn`，同时传 `--qa-save-dir:<隔离目录>`、`--qa-udp-port:<独立端口>` 和 `--visual-shot-dir:<输出目录>`。不加 `--headless`，会输出菜单、四个开场时间点、三把枪的墙面/续命、补弹箱远景/近景、Boss 闪现前中后的 PNG。必须实际打开这些图片检查；自动坐标断言不能替代视觉验收。
+
 `AnimTrackUtil` 生成不可变的共享动画库副本，将 `data/combat_animation_events.json` 的原始事件写入 Godot 方法轨道。资源缓存按原始资源路径及怪物类型保存，重复进关不会按对象实例累计整套动画。`Monster.OnCombatAnimationEvent` 核对生命状态、暂停状态和当前剪辑，再交给具体怪物处理。伤害不能再用固定 0.3 秒 Tween 替代动画键；动画打断、停止、倍速与暂停都应影响对应事件。
 
 事件秒数来自 Unity `AnimationUtility.GetAnimationEvents`，保存在 `tools/combat_bake/unity_animation_events.json`。FBX `.meta` 中的事件时间可能是归一化值，不能直接当秒使用。民兵/外星兵按原始 `InfantryGun.controller` 的退出时间从 `reload` 切到 `shoot`，仅 `shoot` 的 `ToonShoot` 键发射子弹。飞斧用 `EventSkill` 的字符串参数区分拿斧和抛斧；飞龙保留 `StartFire` 和 `EventAttack` 两个独立事件。
@@ -81,6 +87,10 @@ Boss 的技能旋转需要按坐标系转换（Unity 局部旋转的 X/Y 符号�
 `tools/verify_playthrough.ps1` 是较长的独立验收入口。它使用原始波次、场景碰撞、100 血和 120 弹，通过实际鼠标瞄准、扳机、换枪以及续命按钮完成关卡；不调用 `Monster.Hit`、不强制胜利、不改攻击冷却或时间倍率。测试存档初始 50 币，每次续命仍按正常规则扣币。默认试玩四个已实现关卡，也可指定 `-Levels level2 -Difficulty hard -Seed 144007`；`-Executable <EXE路径>` 验证导出包，`-Graphics` 打开真实渲染。
 
 每个关卡写出 `levelN-playthrough.json`，包含 Build ID、波次、开枪/续命次数，以及每次出生的对象类型、伤害、死亡/超时、可瞄准时间和最后位置。完全不可瞄准的出生即使因超时而推进波次，也会使验收失败；不能仅靠“最后胜利”判断关卡正确。启动参数为 `--playthrough:level2,level1,level3,level4:easy:144006`，必须同时提供隔离存档。
+
+加 `-Graphics -CaptureScreenshots` 会保存真实试玩中的每个机位、敌人类型、攻击动作、特效、续命和胜利截图到该次日志的 `screenshots` 目录。必须查看这些图片再报告视觉验收通过。瞄准采样同时覆盖身体宽度和胶囊高度，射线仍包含 UI 与环境；中心被暂停按钮遮住不能直接判定整个怪物不可瞄准。持续射击用过的扳机不能同时触发暂停按钮，需释放后再按下。
+
+`Visual/OtherLevels` / 原生 `OtherLevelsVisual` 覆盖第二至第四关全部 16 个机位、三种枪对续命按钮的激光对齐、连续射击与暂停隔离、雷电图集、岩石 Boss 实际动画生成的大火球，以及三色龙吐息与受伤打断。需要固定渲染图时运行 `res://scenes/debug/other_levels_visual_qa.tscn` 并传入 `--visual-shot-dir:<绝对目录>`；导出 EXE 使用 `--quick:res://scenes/debug/other_levels_visual_qa.tscn`，同时提供隔离存档和 UDP 端口。这个固定镜头检查与正常试玩互补，不能代替正常波次通关。
 
 试玩固定 1280×720 视口。Godot headless 默认是 64×64 方窗，未设尺寸会裁掉原场景两侧窗口，产生错误的“敌人不可见”判断。`Port/Geometry` 同时对照第二关所有相机的三轴与 Unity 原始四元数；Godot `.tscn` 的 `Transform3D` 文本按行保存，不能直接把运行时轴向量顺序写入文件。
 

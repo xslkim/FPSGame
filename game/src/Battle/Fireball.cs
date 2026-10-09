@@ -29,7 +29,7 @@ public partial class Fireball : Node3D
     private OmniLight3D _light = null!;
     private StandardMaterial3D _flameMat = null!;
 
-    public static void Spawn(Node parent, Vector3 pos, float attack, Game.AttackType type)
+    public static Fireball Spawn(Node parent, Vector3 pos, float attack, Game.AttackType type)
     {
         var fb = new Fireball { _attack = attack, _type = type };
         parent.AddChild(fb);
@@ -42,6 +42,7 @@ public partial class Fireball : Node3D
         var mat = new StandardMaterial3D
         {
             ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded,
+            DisableFog = true,
             BlendMode = BaseMaterial3D.BlendModeEnum.Add, // 原作 Particles/Additive(黑底贴图,黑=透明)
             Transparency = BaseMaterial3D.TransparencyEnum.Alpha,
             BillboardMode = BaseMaterial3D.BillboardModeEnum.Enabled,
@@ -67,6 +68,7 @@ public partial class Fireball : Node3D
         fb.AddChild(fb._light);
         // 发射音(原作 FireFireAS.Play())
         fb.PlaySound3d("res://assets/audio/effects/fireball_launch.wav", pos);
+        return fb;
     }
 
     public override void _Process(double delta)

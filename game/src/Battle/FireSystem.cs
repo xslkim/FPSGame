@@ -5,8 +5,7 @@ namespace FPSGame;
 /// <summary>
 /// FireSystem:挂在战斗相机下,管理左右枪节点(原作 FireSystem.cs)。
 /// 每帧(LateUpdate 语义):枪口旋转 = 输入瞄准 → 枪口射线 2000 →
-/// 激光瞄准器(LaserSight,右红/左绿,照原作 Lazer.mat)从枪口恒伸 200m
-/// (原作 LineRenderer (0,0,0)→(0,0,200):打怪穿透,墙体遮挡段由深度剔除) →
+/// 激光瞄准器从枪口到实际射线命中点(未命中时延伸 200m) →
 /// 命中点摆光标火光(右手红 Flash.prefab/左手绿 FlashGreen.prefab,距离衰减公式照 5.3) →
 /// 扳机 → Button 触发 / 开枪(CD+耗弹) →
 /// 敌人 hit() 或环境弹着特效(池化)。换枪:key2 边沿 → 旧枪 0.5s 下沉收起 →
@@ -50,6 +49,11 @@ public partial class FireSystem : Node3D, IDebugInspectable
                 ["hit_id"] = ray?.HitNode != null && GodotObject.IsInstanceValid(ray.HitNode)
                     ? DebugIdentity.ObjectId(GetTree().CurrentScene, ray.HitNode) : "(none)",
                 ["hit_world"] = ray?.HasHit == true ? ray.HitPoint.ToString() : null,
+                ["beam_end_world"] = laser?.EndPoint.ToString(),
+                ["impact_screen"] = _flash.TryGetValue(side, out var flash) && flash.Visible
+                    ? _camera.UnprojectPosition(flash.GlobalPosition).ToString() : null,
+                ["impact_alignment_error_pixels"] = ray?.HasHit == true && flash != null && flash.Visible
+                    ? _camera.UnprojectPosition(flash.GlobalPosition).DistanceTo(_camera.UnprojectPosition(ray.HitPoint)) : null,
             };
         }
         return new System.Collections.Generic.Dictionary<string, object?> { ["sides"] = rays };
@@ -162,6 +166,9 @@ public partial class FireSystem : Node3D, IDebugInspectable
                     : new Color(0.0f, 1.0f, 0.0345f),
                 AlbedoTexture = LoadFlashCursor(),
                 BillboardMode = BaseMaterial3D.BillboardModeEnum.Enabled,
+                BillboardKeepScale = true,
+                DisableFog = true,
+                RenderPriority = 121,
             };
             var flash = new MeshInstance3D
             {
@@ -175,11 +182,12 @@ public partial class FireSystem : Node3D, IDebugInspectable
             AddChild(flash);
             _flash[side] = flash;
             // 激光瞄准器(原作 Lazer.prefab:右红/左绿;宽度曲线 0.0089→0.03 近细远粗);
-            // 每帧 UpdateSide 恒伸 200m;原作无终点红点(命中指示全靠 Flash),不带 dot
+            // Clip at the hit surface; the separate Flash marks that same endpoint.
             var lazer = LaserSight.Create(
                 side == PlayerState.Side.Right ? LaserSight.RightRed : LaserSight.LeftGreen,
                 0.015f, withDot: false, nearRadius: 0.00894f * 0.5f);
             lazer.Visible = false;
+            lazer.FullLength = 200;
             AddChild(lazer);
             _lazer[side] = lazer;
         }
@@ -254,8 +262,10 @@ public partial class FireSystem : Node3D, IDebugInspectable
                 && _lazer.TryGetValue(side, out var laser) && laser.Visible)
             {
                 gun.RefreshMuzzle();
-                laser.SetOverlay(Game.Instance.IsGamePause);
-                laser.SetBeam(gun.Muzzle.GlobalPosition, gun.Muzzle.GlobalPosition + gun.BarrelDirection * 200);
+                var from = gun.Muzzle.GlobalPosition;
+                var hit = GetWorld3D().DirectSpaceState.IntersectRay(
+                    PhysicsRayQueryParameters3D.Create(from, from + gun.BarrelDirection * RayLength, RayMask));
+                PresentRayHit(side, gun, hit);
             }
     }
 
@@ -540,19 +550,7 @@ public partial class FireSystem : Node3D, IDebugInspectable
         from = gun.Muzzle.GlobalPosition;
         dir = gun.BarrelDirection;
         var hit = space.IntersectRay(PhysicsRayQueryParameters3D.Create(from, from + dir * RayLength, RayMask));
-        // 激光:枪口起恒伸 200m(原作 LineRenderer (0,0,0)→(0,0,200):打怪穿透,被墙遮挡段由深度剔除);
-        // 枪口在枪 -Z 轴上,与射线共线 → 光束正对命中红点
-        var muzzlePos = gun.Muzzle.GlobalPosition;
-        var rayDebug = _rayDebug[side];
-        rayDebug.Origin = from;
-        rayDebug.Muzzle = muzzlePos;
-        rayDebug.Direction = dir;
-        rayDebug.HasHit = hit.Count > 0;
-        rayDebug.HitNode = hit.Count > 0 ? hit["collider"].AsGodotObject() as Node : null;
-        if (hit.Count > 0)
-            rayDebug.HitPoint = hit["position"].AsVector3();
-        _lazer[side].SetOverlay(Game.Instance.IsGamePause);
-        _lazer[side].SetBeam(muzzlePos, muzzlePos + dir * 200.0f);
+        PresentRayHit(side, gun, hit);
         bool trigger = side == PlayerState.Side.Right
             ? InputRouter.Instance.GetCurKeyRing()
             : InputRouter.Instance.GetCurKeyLeg();
@@ -570,13 +568,9 @@ public partial class FireSystem : Node3D, IDebugInspectable
             string cpath = collider is Node cn ? cn.GetPath().ToString() : "?";
             GD.Print($"[FIREDBG] from={from} dir={dir} hit={cpath} point={point} dist={from.DistanceTo(point):0.00}");
         }
-        // 3. 命中 → Flash 光标(距离衰减公式照原作)
+        // 3. Distance controls the glow size, never its screen position.
         float dist = _camera != null ? _camera.GlobalPosition.DistanceTo(point) : from.DistanceTo(point);
         float flashScale = 1.0f - Mathf.Clamp(3.0f / Mathf.Max(dist, 0.001f), 0.0f, 1.0f) * 0.8f;
-        float backOff = 0.5f - Mathf.Clamp(1.0f / Mathf.Max(dist, 0.001f), 0.0f, 1.0f) * 0.4f;
-        flash.Visible = true;
-        flash.GlobalPosition = point - dir * backOff;
-        flash.Scale = Vector3.One * flashScale;
         if (!trigger)
             return;
         // 4. 命中 Button(layer 3)→ 触发回调,不耗弹不开火(暂停期唯一放行路径)
@@ -620,7 +614,10 @@ public partial class FireSystem : Node3D, IDebugInspectable
         if (success)
         {
             _emptySignaled[side] = false;
-            _lazer[side].SetBeam(gun.Muzzle.GlobalPosition, gun.Muzzle.GlobalPosition + gun.BarrelDirection * 200.0f);
+            // A pull used to fire in battle cannot also activate a menu when
+            // the held aim crosses its button. Release before a deliberate UI shot.
+            if (side == PlayerState.Side.Right) _rightUiPullConsumed = true;
+            else _leftUiPullConsumed = true;
         }
         else if (!bulletEnough && Game.Instance.SceneState == Game.GameState.Battle && !_emptySignaled[side])
         {
@@ -628,6 +625,32 @@ public partial class FireSystem : Node3D, IDebugInspectable
             EmitSignal(SignalName.OpenContinue, true, (int)side);
         }
         return success;
+    }
+
+    private void PresentRayHit(PlayerState.Side side, GunBase gun, Godot.Collections.Dictionary hit)
+    {
+        var from = gun.Muzzle.GlobalPosition;
+        var dir = gun.BarrelDirection;
+        var ray = _rayDebug[side];
+        ray.Origin = ray.Muzzle = from;
+        ray.Direction = dir;
+        ray.HasHit = hit.Count > 0;
+        ray.HitNode = ray.HasHit ? hit["collider"].AsGodotObject() as Node : null;
+        ray.HitPoint = ray.HasHit ? hit["position"].AsVector3() : from + dir * 200;
+        var laser = _lazer[side];
+        laser.SetOverlay(Game.Instance.IsGamePause);
+        laser.SetBeam(from, ray.HitPoint);
+        var flash = _flash[side];
+        flash.Visible = ray.HasHit;
+        if (!ray.HasHit) return;
+        // A small offset along the camera ray avoids z fighting while preserving
+        // the exact projected hit point. Retreating along the barrel ray shifts
+        // the glow sideways, especially on the nearby pause/continue panel.
+        flash.GlobalPosition = ray.HitPoint + (_camera.GlobalPosition - ray.HitPoint).Normalized() * 0.001f;
+        float dist = _camera.GlobalPosition.DistanceTo(ray.HitPoint);
+        float scale = 1 - Mathf.Clamp(3 / Mathf.Max(dist, 0.001f), 0, 1) * 0.8f;
+        flash.Scale = Vector3.One * scale;
+        ((StandardMaterial3D)flash.MaterialOverride).NoDepthTest = Game.Instance.IsGamePause;
     }
 
     // ------------------------------------------------ 换枪(5.5)

@@ -152,13 +152,25 @@ public partial class AnimationQa : Node3D
     {
         var actor = await Spawn(type);
         var anim = Animation(actor);
+        var breath = actor.FindChild("FireBreath", true, false) as Node3D;
+        var particles = breath!.GetChildren().OfType<GpuParticles3D>().ToArray();
+        Check(!breath.Visible && particles.All(p => !p.Emitting), $"{type}: birth has no flame, smoke or light");
+        var material = (StandardMaterial3D)((QuadMesh)breath.GetNode<GpuParticles3D>("Flames").DrawPass1).Material;
+        bool fire = type == "dragon_red";
+        Check(material.ParticlesAnimHFrames == (fire ? 4 : 1) && material.ParticlesAnimVFrames == (fire ? 2 : 1)
+            && material.AlbedoTexture.ResourcePath.Contains("dragon_breath_"), $"{type}: original texture with matching frame layout");
         anim.Play("FireBreathOnce", 0, .75f); anim.Advance(0);
         anim.Advance(.70 / .75);
         Check(actor.CombatEventCount == 0 && Right.Hp == 1000, $"{type}: breath waits for the original visual key");
         anim.Advance(.02 / .75);
         Check(actor.CombatEventCount == 1, $"{type}: StartFire is restored");
+        Check(breath.Visible && particles.All(p => p.Emitting), $"{type}: visual key starts the complete effect");
         anim.Advance(.64 / .75);
         Check(actor.CombatEventCount == 2 && Right.Hp < 1000, $"{type}: original breath key damages the player");
+        actor.Hit(1, actor.GlobalPosition, Game.HitType.Body, PlayerState.Side.Right);
+        Check(!breath.Visible && particles.All(p => !p.Emitting), $"{type}: hit interrupts flame, smoke and light");
+        actor.Born(new Vector3(0, 0, -12), 0, 0);
+        Check(!breath.Visible && particles.All(p => !p.Emitting), $"{type}: reuse keeps the effect off until its next key");
         await Remove(actor);
     }
 

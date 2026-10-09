@@ -42,6 +42,10 @@ public partial class PlaythroughQa : Node
     private double _pauseSince;
     private int _lastCoin, _shots, _continues, _failed;
     private bool _running;
+    private string? _visualShotDir;
+    private bool _captureBusy;
+    private double _nextVisualScan;
+    private readonly HashSet<string> _captured = new();
     private static double Now => Time.GetTicksMsec() / 1000.0;
     private InputRouter Router => InputRouter.Instance;
     private Player Right => PlayerState.Instance.PlayerRight;
@@ -53,6 +57,10 @@ public partial class PlaythroughQa : Node
         {
             if (SaveService.SaveDirectory == "user://")
                 throw new InvalidOperationException("Playthrough requires --qa-save-dir; player saves cannot be used.");
+            foreach (var option in OS.GetCmdlineUserArgs())
+                if (option.StartsWith("--playthrough-shot-dir:"))
+                    _visualShotDir = option["--playthrough-shot-dir:".Length..];
+            if (_visualShotDir != null) DirAccess.MakeDirRecursiveAbsolute(_visualShotDir);
             // The headless display defaults to a 64x64 window. That square view
             // crops authored side windows and cannot stand in for the game's 16:9 view.
             GetTree().Root.Mode = Window.ModeEnum.Windowed;
@@ -125,6 +133,7 @@ public partial class PlaythroughQa : Node
         await Wait(() => (int)_level.CaptureDebugState()["victory_state"]! == 2, 1000, key + " normal victory");
         _running = false;
         Router.MouseGun.LeftHeld = false;
+        await Capture(key + "-victory");
         ScanLives();
         foreach (var life in _lives.Where(l => !l.Closed))
         {
@@ -156,6 +165,7 @@ public partial class PlaythroughQa : Node
     {
         if (!_running || _level == null) return;
         ScanLives();
+        ObserveVisuals();
         // Level1 constructs weapons after its 19-second intro, unlike Level2-4.
         if (_guns.Length == 0 && Router.FireEnabled && FireSystem.Current != null)
             _guns = FireSystem.Current.FindChildren("*", "", true, false).OfType<GunBase>().ToArray();
@@ -191,6 +201,15 @@ public partial class PlaythroughQa : Node
         if (Game.Instance.IsGamePause)
         {
             var panel = InGamePanel.Instance!;
+            var pause = panel.GetNode<Node3D>("PausePanel");
+            if (pause.Visible)
+            {
+                if (_pauseSince == 0) { _pauseSince = Now; Router.MouseGun.LeftHeld = false; }
+                var back = pause.GetNode<UiButton3D>("BackGameBtn");
+                Router.MouseGun.SimulateMove(_camera.UnprojectPosition(back.GlobalPosition));
+                Router.MouseGun.LeftHeld = Now - _pauseSince > 0.12;
+                return;
+            }
             var container = panel.GetNode<Node3D>("ContinuePanel");
             if (container.Visible)
             {
@@ -231,6 +250,65 @@ public partial class PlaythroughQa : Node
         else Router.MouseGun.LeftHeld = false;
     }
 
+    private void ObserveVisuals()
+    {
+        if (_visualShotDir == null || _captureBusy || _level == null || Now < _nextVisualScan) return;
+        _nextVisualScan = Now + 0.1;
+        string key = _level.LevelKey;
+        if (Game.Instance.IsGamePause)
+        {
+            if (InGamePanel.Instance!.GetNode<Node3D>("ContinuePanel").Visible)
+                _ = Capture(key + "-continue");
+            else if (InGamePanel.Instance!.GetNode<Node3D>("PausePanel").Visible)
+                _ = Capture(key + "-pause");
+            return;
+        }
+        int group = (int)_level.CaptureDebugState()["group"]!;
+        foreach (var life in _currentLives.Values.Where(l => !l.Closed && !l.Actor.IsDead && l.Actor.Hp > 0))
+        {
+            string type = life.Actor.MetaKey;
+            string animation = life.LastAnimation;
+            string name = !_captured.Contains($"{key}-wave{group}") ? $"{key}-wave{group}"
+                : !_captured.Contains($"{key}-{type}") ? $"{key}-{type}"
+                : animation.Contains("attack", StringComparison.OrdinalIgnoreCase)
+                    || animation.Contains("skill", StringComparison.OrdinalIgnoreCase)
+                    || animation.Contains("atk", StringComparison.OrdinalIgnoreCase)
+                    || animation.Contains("breath", StringComparison.OrdinalIgnoreCase)
+                    ? $"{key}-{type}-{animation.Replace('/', '-') }" : "";
+            if (name.Length == 0 || _captured.Contains(name) || VisiblePoint(life.Actor) == null) continue;
+            _ = Capture(name);
+            return;
+        }
+        foreach (var effect in _level.FindChildren("*", "", true, false)
+            .OfType<Node3D>().Where(n => n is EffectBase or Fireball))
+        {
+            string name = key + "-effect-" + (effect is Fireball ? "fireball" : effect.SceneFilePath.GetFile().GetBaseName());
+            if (_captured.Contains(name) || !effect.IsVisibleInTree() || _camera.IsPositionBehind(effect.GlobalPosition)) continue;
+            if (!GetViewport().GetVisibleRect().HasPoint(_camera.UnprojectPosition(effect.GlobalPosition))) continue;
+            _ = Capture(name);
+            return;
+        }
+    }
+
+    private async Task Capture(string name)
+    {
+        if (_visualShotDir == null || _captured.Contains(name)) return;
+        while (_captureBusy) await Frame();
+        _captureBusy = true;
+        try
+        {
+            await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
+            string path = System.IO.Path.Combine(_visualShotDir, name + ".png");
+            Check(GetViewport().GetTexture().GetImage().SavePng(path) == Error.Ok, "render saved: " + path);
+            _captured.Add(name);
+        }
+        catch (Exception ex)
+        {
+            Check(false, "render capture: " + ex.Message);
+        }
+        finally { _captureBusy = false; }
+    }
+
     private void ScanLives()
     {
         foreach (var actor in _actors)
@@ -262,7 +340,9 @@ public partial class PlaythroughQa : Node
             GD.Print($"[PLAYTHROUGH-QA] EXPIRED {life.Number}/{life.Actor.MetaKey} g={life.Group} hp={life.LastHp} pos={life.LastPosition} visible={life.VisibleSeconds:0.0}s damage={life.Damaged}");
     }
 
-    private Vector2? VisiblePoint(Monster actor)
+    private Vector2? VisiblePoint(Monster actor) => FindVisiblePoint(actor, _camera);
+
+    internal static Vector2? FindVisiblePoint(Monster actor, Camera3D camera)
     {
         CollisionObject3D? desired = actor is Level2Boss boss ? boss.WeakSpot
             : actor is BaotouMonster ? actor.FindChild("BossHeart", true, false) as CollisionObject3D : actor;
@@ -279,25 +359,30 @@ public partial class PlaythroughQa : Node
                 BoxShape3D box => Mathf.Min(box.Size.X, box.Size.Y) / 2,
                 _ => 0.25f,
             } * shape.GlobalBasis.Scale.X;
-            int range = actor.IsBoss ? 5 : 1;
+            float vertical = shape.Shape switch
+            {
+                CapsuleShape3D capsule => capsule.Height / 2,
+                BoxShape3D box => box.Size.Y / 2,
+                _ => r / shape.GlobalBasis.Scale.X,
+            } * shape.GlobalBasis.Scale.Y;
+            int range = actor.IsBoss ? 5 : 3;
             for (int x = -range; x <= range; x++)
             for (int y = -range; y <= range; y++)
             {
                 var offset = new Vector2(x, y) / range;
                 if (offset.LengthSquared() > 0.95f) continue;
-                points.Add(shape.GlobalPosition + (_camera.GlobalBasis.X * offset.X + _camera.GlobalBasis.Y * offset.Y) * r * 0.9f);
+                points.Add(shape.GlobalPosition + (camera.GlobalBasis.X * offset.X * r + camera.GlobalBasis.Y * offset.Y * vertical) * 0.9f);
             }
         }
-        Vector2 size = GetViewport().GetVisibleRect().Size;
+        Vector2 size = camera.GetViewport().GetVisibleRect().Size;
         foreach (var p in points)
         {
-            if (_camera.IsPositionBehind(p)) continue;
-            Vector2 screen = _camera.UnprojectPosition(p);
+            if (camera.IsPositionBehind(p)) continue;
+            Vector2 screen = camera.UnprojectPosition(p);
             if (screen.X < 8 || screen.Y < 8 || screen.X > size.X-8 || screen.Y > size.Y-8) continue;
-            if (screen.Y < size.Y / 6 && Mathf.Abs(screen.X - size.X/2) < size.X / 18) continue;
-            Vector3 from = _camera.ProjectRayOrigin(screen);
-            var ray = _camera.GetWorld3D().DirectSpaceState.IntersectRay(PhysicsRayQueryParameters3D.Create(from,
-                from + _camera.ProjectRayNormal(screen) * FireSystem.RayLength, FireSystem.RayMask));
+            Vector3 from = camera.ProjectRayOrigin(screen);
+            var ray = camera.GetWorld3D().DirectSpaceState.IntersectRay(PhysicsRayQueryParameters3D.Create(from,
+                from + camera.ProjectRayNormal(screen) * FireSystem.RayLength, FireSystem.RayMask));
             if (ray.Count > 0 && ray["collider"].AsGodotObject() == desired) return screen;
         }
         return null;

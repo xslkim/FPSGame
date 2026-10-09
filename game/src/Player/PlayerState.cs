@@ -102,53 +102,49 @@ public partial class PlayerState : Node, IDebugInspectable
         var root = new Control { Name = "Root", MouseFilter = Control.MouseFilterEnum.Ignore };
         root.SetAnchorsPreset(Control.LayoutPreset.FullRect);
         _hudLayer.AddChild(root);
-        // CoinObj:anchor 底中,pivot 底中,pos (-26.02, 0),64×64(原作 PlayerSystem.prefab)
-        _coinObj = new Control { Name = "CoinObj", MouseFilter = Control.MouseFilterEnum.Ignore };
+        // Lay out the complete counter as one row. Font minimum heights exceed
+        // the old 60px rectangles, causing overlap and clipping at the screen edge.
+        var coinRow = new HBoxContainer
+        {
+            Name = "CoinObj",
+            Alignment = BoxContainer.AlignmentMode.Center,
+            MouseFilter = Control.MouseFilterEnum.Ignore,
+        };
+        coinRow.AddThemeConstantOverride("separation", 8);
+        _coinObj = coinRow;
         _coinObj.SetAnchorsPreset(Control.LayoutPreset.CenterBottom);
-        _coinObj.OffsetLeft = -26.02f - 32.0f;
-        _coinObj.OffsetRight = -26.02f + 32.0f;
-        _coinObj.OffsetTop = -64.0f;
-        _coinObj.OffsetBottom = 0.0f;
+        _coinObj.OffsetLeft = -96.0f;
+        _coinObj.OffsetRight = 96.0f;
+        _coinObj.OffsetTop = -72.0f;
+        _coinObj.OffsetBottom = -8.0f;
         root.AddChild(_coinObj);
         var icon = new TextureRect
         {
             Name = "CoinIcon",
             Texture = GD.Load<Texture2D>("res://assets/textures/ui/coin.png"),
-            StretchMode = TextureRect.StretchModeEnum.Scale,
+            StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered,
             ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize,
+            CustomMinimumSize = new Vector2(56, 56),
+            SizeFlagsVertical = Control.SizeFlags.ShrinkCenter,
         };
-        icon.SetAnchorsPreset(Control.LayoutPreset.FullRect);
         _coinObj.AddChild(icon);
-        // "X":60×60,中心相对金币中心 (+49.31, +5.32),字号 32,暗金黄
-        // 偏移量已含 +32(金币中心换算),锚点必须用 TOP_LEFT(若用 CENTER 会重复加 32)
         var xLabel = new Label
         {
             Name = "X",
-            Text = "X",
+            Text = "×",
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center,
         };
-        xLabel.AddThemeFontSizeOverride("font_size", 32);
+        xLabel.AddThemeFontSizeOverride("font_size", 28);
         xLabel.AddThemeColorOverride("font_color", new Color(0.5188679f, 0.4779218f, 0.0f));
-        xLabel.SetAnchorsPreset(Control.LayoutPreset.TopLeft);
-        xLabel.OffsetLeft = 32.0f + 49.31f - 30.0f;
-        xLabel.OffsetRight = 32.0f + 49.31f + 30.0f;
-        xLabel.OffsetTop = 32.0f + 5.32f - 30.0f;
-        xLabel.OffsetBottom = 32.0f + 5.32f + 30.0f;
         _coinObj.AddChild(xLabel);
-        // CoinText:60×60,中心 (+81.1, +4.15),字号 52 白,显示金币数
         _coinText = new Label
         {
             Name = "CoinText",
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center,
         };
-        _coinText.AddThemeFontSizeOverride("font_size", 52);
-        _coinText.SetAnchorsPreset(Control.LayoutPreset.TopLeft);
-        _coinText.OffsetLeft = 32.0f + 81.1f - 30.0f;
-        _coinText.OffsetRight = 32.0f + 81.1f + 30.0f;
-        _coinText.OffsetTop = 32.0f + 4.15f - 30.0f;
-        _coinText.OffsetBottom = 32.0f + 4.15f + 30.0f;
+        _coinText.AddThemeFontSizeOverride("font_size", 42);
         _coinObj.AddChild(_coinText);
         _coinObj.Visible = false;
         RefreshHud();
@@ -203,8 +199,8 @@ public partial class PlayerState : Node, IDebugInspectable
         root.SetAnchorsPreset(Control.LayoutPreset.CenterBottom);
         root.OffsetLeft = offset.X - 32.0f;
         root.OffsetRight = offset.X + 32.0f;
-        root.OffsetTop = pivotY * 64.0f - offset.Y - 64.0f;
-        root.OffsetBottom = pivotY * 64.0f - offset.Y;
+        root.OffsetTop = pivotY * 64.0f - offset.Y - 72.0f;
+        root.OffsetBottom = pivotY * 64.0f - offset.Y - 8.0f;
         // AddBulletAni 放大绕原作 pivot:右 (0.5,0)=底中,左 (0.5,0.5)=中心
         root.PivotOffset = new Vector2(32.0f, 64.0f - pivotY * 64.0f);
         _battleRoot.AddChild(root);
@@ -218,21 +214,21 @@ public partial class PlayerState : Node, IDebugInspectable
         };
         icon.SetAnchorsPreset(Control.LayoutPreset.FullRect);
         root.AddChild(icon);
-        // "X":60×60,中心相对图标中心 (+58.43,+23.58)(原作 (58.43,-23.58) +y 向上 → 图标右下),28 号
+        // Share the icon's center line and leave room for the font's minimum height.
         var x = new Label
         {
             Name = "X",
-            Text = "X",
+            Text = "×",
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center,
         };
         x.AddThemeFontSizeOverride("font_size", 28);
         x.AddThemeColorOverride("font_color", xColor);
         x.SetAnchorsPreset(Control.LayoutPreset.TopLeft);
-        x.OffsetLeft = 32.0f + 58.43f - 30.0f;
-        x.OffsetRight = 32.0f + 58.43f + 30.0f;
-        x.OffsetTop = 32.0f + 23.58f - 30.0f;
-        x.OffsetBottom = 32.0f + 23.58f + 30.0f;
+        x.OffsetLeft = 68;
+        x.OffsetRight = 92;
+        x.OffsetTop = 0;
+        x.OffsetBottom = 64;
         root.AddChild(x);
         countLabel = new Label
         {
@@ -241,11 +237,10 @@ public partial class PlayerState : Node, IDebugInspectable
             HorizontalAlignment = HorizontalAlignment.Left,
             VerticalAlignment = VerticalAlignment.Center,
         };
-        countLabel.AddThemeFontSizeOverride("font_size", 52);
-        countLabel.SetAnchorsPreset(Control.LayoutPreset.CenterLeft);
-        // 原作 (83.31,-3.1) 左中锚,+y 向上 → 数字中心在图标中心下方 3.1px
-        countLabel.Position = new Vector2(83.31f, 3.1f - 30.0f);
-        countLabel.Size = new Vector2(120.0f, 60.0f);
+        countLabel.AddThemeFontSizeOverride("font_size", 42);
+        countLabel.SetAnchorsPreset(Control.LayoutPreset.TopLeft);
+        countLabel.Position = new Vector2(100, 0);
+        countLabel.Size = new Vector2(120, 64);
         root.AddChild(countLabel);
         return root;
     }
